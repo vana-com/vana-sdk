@@ -17,9 +17,8 @@ const DEFAULT_TOKEN_TTL_SECONDS = 300;
 
 /**
  * Wallet-style signer used by {@link VanaStorage} to authenticate every
- * request. The address becomes the namespace owner under which blobs are
- * stored — vana-storage will reject writes/reads where the recovered signer
- * does not match the path owner.
+ * request. For Personal Server flows this can be a registered server wallet
+ * signing requests for the owner's storage namespace.
  *
  * @category Storage
  */
@@ -41,10 +40,13 @@ export interface VanaStorageConfig {
    */
   endpoint?: string;
   /**
-   * Wallet signer used to authenticate writes and reads. The signer's address
-   * becomes the namespace owner under which blobs are stored.
+   * Wallet signer used to authenticate writes and reads.
    */
   signer: VanaStorageSigner;
+  /**
+   * Owner namespace under which blobs are stored. Defaults to the signer address.
+   */
+  ownerAddress?: `0x${string}`;
   /**
    * Optional `fetch` implementation. Defaults to the global `fetch`.
    * Useful for tests and for environments that need a custom HTTP client.
@@ -67,7 +69,7 @@ interface VanaStorageUploadResponse {
  * @remarks
  * Filenames passed to {@link VanaStorage.upload} must be of the form
  * `"{scope}/{collectedAt}"` (e.g. `"instagram.profile/2026-05-08T20:00:00.000Z"`).
- * The signer's address is prepended automatically to produce the canonical
+ * The owner address is prepended automatically to produce the canonical
  * blob path `/v1/blobs/{owner}/{scope}/{collectedAt}`.
  *
  * @category Storage
@@ -94,6 +96,7 @@ interface VanaStorageUploadResponse {
 export class VanaStorage implements StorageProvider {
   private readonly endpoint: string;
   private readonly signer: VanaStorageSigner;
+  private readonly ownerAddress: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(config: VanaStorageConfig) {
@@ -106,6 +109,9 @@ export class VanaStorage implements StorageProvider {
     }
     this.endpoint = (config.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, "");
     this.signer = config.signer;
+    this.ownerAddress = (
+      config.ownerAddress ?? config.signer.address
+    ).toLowerCase();
     this.fetchImpl = config.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
@@ -114,7 +120,7 @@ export class VanaStorage implements StorageProvider {
    *
    * @param file - The blob to upload.
    * @param filename - Required relative key in the form `"{scope}/{collectedAt}"`.
-   *   The signer address is prepended automatically.
+   *   The owner address is prepended automatically.
    */
   async upload(file: Blob, filename?: string): Promise<StorageUploadResult> {
     if (!filename) {
@@ -126,7 +132,7 @@ export class VanaStorage implements StorageProvider {
     }
 
     const subpath = encodeRelativePath(filename);
-    const path = `${BLOB_PATH_PREFIX}/${this.signer.address.toLowerCase()}/${subpath}`;
+    const path = `${BLOB_PATH_PREFIX}/${this.ownerAddress}/${subpath}`;
     const body = new Uint8Array(await file.arrayBuffer());
     const contentType =
       file.type !== "" ? file.type : "application/octet-stream";
@@ -295,23 +301,22 @@ export class VanaStorage implements StorageProvider {
         "vana-storage",
       );
     }
-    // Restrict to /v1/blobs/{owner=signer}/{scope}/{collectedAt} so a caller
+    // Restrict to /v1/blobs/{owner}/{scope}/{collectedAt} so a caller
     // cannot induce this wallet to sign arbitrary same-host paths.
     const segments = parsed.pathname.split("/").filter((s) => s.length > 0);
-    const ownerLower = this.signer.address.toLowerCase();
     const isTraversal = (s: string): boolean => s === "." || s === "..";
     const valid =
       segments.length === 5 &&
       segments[0] === "v1" &&
       segments[1] === "blobs" &&
-      segments[2]?.toLowerCase() === ownerLower &&
+      segments[2]?.toLowerCase() === this.ownerAddress &&
       segments[3] !== undefined &&
       !isTraversal(segments[3]) &&
       segments[4] !== undefined &&
       !isTraversal(segments[4]);
     if (!valid) {
       throw new StorageError(
-        `URL path '${parsed.pathname}' must be /v1/blobs/${ownerLower}/{scope}/{collectedAt}`,
+        `URL path '${parsed.pathname}' must be /v1/blobs/${this.ownerAddress}/{scope}/{collectedAt}`,
         "INVALID_URL",
         "vana-storage",
       );

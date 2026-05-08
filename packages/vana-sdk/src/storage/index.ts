@@ -9,7 +9,7 @@
  * Choose your storage provider based on your needs:
  *
  * **Default backend hosted by ODL?**
- * - ✅ Use `R2Storage` - Cloudflare R2 (S3-compatible). Recommended default.
+ * - ✅ Use `VanaStorage` - storage.vana.com with Web3Signed auth.
  *
  * **Need full CRUD operations and metadata?**
  * - ✅ Use `PinataStorage` - Managed IPFS with listing, deletion, and rich metadata
@@ -66,7 +66,6 @@ export { createVanaStorageProvider } from "./default";
 export type { VanaStorageProviderOptions } from "./default";
 
 // Export storage providers
-// R2Storage is the recommended ODL default backend.
 export { R2Storage } from "./providers/r2";
 export type { R2Config } from "./providers/r2";
 export { VanaStorage } from "./providers/vana-storage";

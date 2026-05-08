@@ -120,6 +120,21 @@ export {
   ExpiredTokenError,
 } from "./auth/errors";
 
+// PKCE + token-store (OAuth client primitives)
+export {
+  generatePkceVerifier,
+  computePkceChallenge,
+  verifyPkceChallenge,
+  assertValidPkceVerifier,
+  PKCE_VERIFIER_PATTERN,
+  PKCE_CHALLENGE_PATTERN,
+} from "./auth/pkce";
+export {
+  InMemoryTokenStore,
+  type TokenStore,
+  type TokenRecord,
+} from "./auth/token-store";
+
 // Data Portability protocol signing helpers
 export {
   fileRegistrationDomain,

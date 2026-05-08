@@ -85,3 +85,91 @@ export {
   createBrowserPlatformAdapter,
   createPlatformAdapterSafe,
 } from "./platform/browser-safe";
+
+// HKDF / master key derivation (DPv1 envelope)
+export {
+  deriveMasterKey,
+  deriveScopeKey,
+  recoverServerOwner,
+  MASTER_KEY_MESSAGE,
+} from "./crypto/keys/derive";
+
+// OpenPGP file encryption (DPv1 envelope)
+export {
+  encryptWithPassword,
+  decryptWithPassword,
+} from "./crypto/envelope/openpgp";
+
+// Web3Signed auth primitives
+export {
+  parseWeb3SignedHeader,
+  verifyWeb3Signed,
+  type Web3SignedPayload,
+  type VerifiedAuth,
+} from "./auth/web3-signed";
+export {
+  buildWeb3SignedHeader,
+  computeBodyHash,
+  type Web3SignedSignFn,
+} from "./auth/web3-signed-builder";
+export {
+  MissingAuthError,
+  InvalidSignatureError,
+  ExpiredTokenError,
+} from "./auth/errors";
+
+// Data Portability protocol signing helpers
+export {
+  fileRegistrationDomain,
+  grantRegistrationDomain,
+  grantRevocationDomain,
+  serverRegistrationDomain,
+  builderRegistrationDomain,
+  FILE_REGISTRATION_TYPES,
+  GRANT_REGISTRATION_TYPES,
+  GRANT_REVOCATION_TYPES,
+  SERVER_REGISTRATION_TYPES,
+  BUILDER_REGISTRATION_TYPES,
+  type DataPortabilityContracts,
+  type DataPortabilityGatewayConfig,
+  type FileRegistrationMessage,
+  type GrantRegistrationMessage,
+  type GrantRevocationMessage,
+  type ServerRegistrationMessage,
+  type BuilderRegistrationMessage,
+} from "./protocol/eip712";
+export {
+  ScopeSchema,
+  parseScope,
+  scopeToPathSegments,
+  scopeMatchesPattern,
+  scopeCoveredByGrant,
+  type Scope,
+  type ParsedScope,
+} from "./protocol/scopes";
+export {
+  DataFileEnvelopeSchema,
+  createDataFileEnvelope,
+  IngestResponseSchema,
+  type DataFileEnvelope,
+  type IngestResponse,
+} from "./protocol/data-file";
+export {
+  createGatewayClient,
+  type GatewayEnvelope,
+  type GatewayProof,
+  type Builder,
+  type Schema,
+  type ServerInfo,
+  type GatewayGrantResponse,
+  type GrantListItem,
+  type FileRecord,
+  type FileListResult,
+  type RegisterFileParams,
+  type CreateGrantParams,
+  type RevokeGrantParams,
+  type GatewayClient,
+} from "./protocol/gateway";
+
+// Personal Server typed errors
+export { PSError, parsePSError, type PSErrorCode } from "./types/ps-errors";

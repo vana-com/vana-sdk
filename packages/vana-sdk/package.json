@@ -86,7 +86,8 @@
     "build:types": "tsc -p tsconfig.build.json --listEmittedFiles",
     "build:node": "tsup --config tsup.config.ts",
     "build:browser": "tsup --config tsup-browser.config.ts",
-    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser",
+    "build:entries": "tsx scripts/bundle-entry-points.ts",
+    "build": "npm run clean && npm run build:types && npm run build:node && npm run build:browser && npm run build:entries",
     "dev": "npm run build -- --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -113,7 +114,8 @@
     "@noble/secp256k1": "^2.3.0",
     "abitype": "^1.0.9",
     "openpgp": "^6.1.1",
-    "viem": "^2.35.1"
+    "viem": "^2.35.1",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

@@ -186,7 +186,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       owner: string,
       cursor: string | null,
     ): Promise<FileListResult> {
-      const params = new URLSearchParams({ owner });
+      const params = new URLSearchParams({ user: owner });
       if (cursor !== null) {
         params.set("since", cursor);
       }

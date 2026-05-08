@@ -124,7 +124,7 @@ describe("createGatewayClient", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://g/v1/files?owner=0xowner&since=cursor-1",
+      "https://g/v1/files?user=0xowner&since=cursor-1",
     );
   });
 

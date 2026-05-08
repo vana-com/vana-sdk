@@ -69,6 +69,11 @@ export type { VanaStorageProviderOptions } from "./default";
 // R2Storage is the recommended ODL default backend.
 export { R2Storage } from "./providers/r2";
 export type { R2Config } from "./providers/r2";
+export { VanaStorage } from "./providers/vana-storage";
+export type {
+  VanaStorageConfig,
+  VanaStorageSigner,
+} from "./providers/vana-storage";
 export { GoogleDriveStorage } from "./providers/google-drive";
 export { DropboxStorage } from "./providers/dropbox";
 export { IpfsStorage } from "./providers/ipfs";

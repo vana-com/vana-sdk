@@ -61,6 +61,10 @@ export type {
 
 export { StorageError } from "../types/storage";
 
+// Export default Vana storage factory
+export { createVanaStorageProvider } from "./default";
+export type { VanaStorageProviderOptions } from "./default";
+
 // Export storage providers
 // R2Storage is the recommended ODL default backend.
 export { R2Storage } from "./providers/r2";

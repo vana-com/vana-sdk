@@ -49,7 +49,9 @@ export {
 } from "./config/default-services";
 
 // Storage API
-export * from "./storage";
+export * from "./storage/index";
+export { createVanaStorageProvider } from "./storage/default";
+export type { VanaStorageProviderOptions } from "./storage/default";
 
 // Platform adapters
 export { NodePlatformAdapter } from "./platform/node";
@@ -165,6 +167,8 @@ export {
   type GrantListItem,
   type FileRecord,
   type FileListResult,
+  type RegisterServerParams,
+  type RegisterServerResult,
   type RegisterFileParams,
   type CreateGrantParams,
   type RevokeGrantParams,

@@ -50,7 +50,9 @@ export {
 } from "./config/default-services";
 
 // Storage API
-export * from "./storage";
+export * from "./storage/index";
+export { createVanaStorageProvider } from "./storage/default";
+export type { VanaStorageProviderOptions } from "./storage/default";
 
 // Platform adapters - browser-safe exports
 export { BrowserPlatformAdapter } from "./platform/browser";

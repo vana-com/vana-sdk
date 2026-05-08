@@ -295,15 +295,39 @@ export class VanaStorage implements StorageProvider {
         "vana-storage",
       );
     }
+    // Restrict to /v1/blobs/{owner=signer}/{scope}/{collectedAt} so a caller
+    // cannot induce this wallet to sign arbitrary same-host paths.
+    const segments = parsed.pathname.split("/").filter((s) => s.length > 0);
+    const ownerLower = this.signer.address.toLowerCase();
+    const isTraversal = (s: string): boolean => s === "." || s === "..";
+    const valid =
+      segments.length === 5 &&
+      segments[0] === "v1" &&
+      segments[1] === "blobs" &&
+      segments[2]?.toLowerCase() === ownerLower &&
+      segments[3] !== undefined &&
+      !isTraversal(segments[3]) &&
+      segments[4] !== undefined &&
+      !isTraversal(segments[4]);
+    if (!valid) {
+      throw new StorageError(
+        `URL path '${parsed.pathname}' must be /v1/blobs/${ownerLower}/{scope}/{collectedAt}`,
+        "INVALID_URL",
+        "vana-storage",
+      );
+    }
     return parsed.pathname;
   }
 }
 
 function encodeRelativePath(filename: string): string {
-  const parts = filename.split("/").filter((p) => p.length > 0);
-  if (parts.length < 2) {
+  const parts = filename.split("/");
+  if (
+    parts.length !== 2 ||
+    parts.some((p) => p.length === 0 || p === "." || p === "..")
+  ) {
     throw new StorageError(
-      `filename must contain at least '{scope}/{collectedAt}', got '${filename}'`,
+      `filename must be exactly '{scope}/{collectedAt}' with non-empty segments, got '${filename}'`,
       "INVALID_FILENAME",
       "vana-storage",
     );

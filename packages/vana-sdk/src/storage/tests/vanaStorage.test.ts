@@ -92,10 +92,34 @@ describe("VanaStorage", () => {
       ).rejects.toThrow(StorageError);
     });
 
-    it("rejects filenames with fewer than two segments", async () => {
+    it("rejects filenames that don't have exactly two segments", async () => {
       await expect(
         storage.upload(new Blob([new Uint8Array([1])]), "scope-only"),
-      ).rejects.toThrow(/at least/i);
+      ).rejects.toThrow(/exactly '\{scope\}\/\{collectedAt\}'/);
+      await expect(
+        storage.upload(
+          new Blob([new Uint8Array([1])]),
+          "scope/collectedAt/extra",
+        ),
+      ).rejects.toThrow(/exactly '\{scope\}\/\{collectedAt\}'/);
+    });
+
+    it("rejects filenames with empty or traversal segments", async () => {
+      await expect(
+        storage.upload(new Blob([new Uint8Array([1])]), "/at"),
+      ).rejects.toThrow(/non-empty/);
+      await expect(
+        storage.upload(new Blob([new Uint8Array([1])]), "scope/"),
+      ).rejects.toThrow(/non-empty/);
+      await expect(
+        storage.upload(new Blob([new Uint8Array([1])]), "../at"),
+      ).rejects.toThrow(/non-empty/);
+      await expect(
+        storage.upload(new Blob([new Uint8Array([1])]), "scope/.."),
+      ).rejects.toThrow(/non-empty/);
+      await expect(
+        storage.upload(new Blob([new Uint8Array([1])]), "./at"),
+      ).rejects.toThrow(/non-empty/);
     });
 
     it("PUTs to /v1/blobs/{owner}/{scope}/{collectedAt} with Web3Signed auth", async () => {
@@ -194,6 +218,28 @@ describe("VanaStorage", () => {
 
     it("rejects malformed URLs", async () => {
       await expect(storage.download("not-a-url")).rejects.toThrow(StorageError);
+    });
+
+    it("rejects same-host URLs outside /v1/blobs/{signer}/...", async () => {
+      const ownerLower = signerAddress;
+      // Wrong path prefix
+      await expect(
+        storage.download(`${ENDPOINT}/v1/usage/${ownerLower}/scope/at`),
+      ).rejects.toThrow(/must be \/v1\/blobs/);
+      // Wrong owner
+      await expect(
+        storage.download(
+          `${ENDPOINT}/v1/blobs/0x0000000000000000000000000000000000000001/scope/at`,
+        ),
+      ).rejects.toThrow(/must be \/v1\/blobs/);
+      // Too few segments
+      await expect(
+        storage.download(`${ENDPOINT}/v1/blobs/${ownerLower}/scope`),
+      ).rejects.toThrow(/must be \/v1\/blobs/);
+      // Path traversal in scope/collectedAt
+      await expect(
+        storage.download(`${ENDPOINT}/v1/blobs/${ownerLower}/../at`),
+      ).rejects.toThrow();
     });
 
     it("throws StorageError on non-2xx download response", async () => {

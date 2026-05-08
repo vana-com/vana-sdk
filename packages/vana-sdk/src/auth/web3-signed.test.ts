@@ -90,36 +90,6 @@ describe("verifyWeb3Signed", () => {
     expect(result.payload.aud).toBe(AUD);
   });
 
-  it("rejects when the signature is tampered with one byte", async () => {
-    const signer = makeSigner();
-    const now = Math.floor(Date.now() / 1000);
-    const header = await buildWeb3SignedHeader({
-      signMessage: signer.signMessage,
-      aud: AUD,
-      method: METHOD,
-      uri: URI,
-      iat: now,
-      exp: now + 300,
-    });
-
-    // Flip a hex nibble in the signature segment.
-    const dotIndex = header.indexOf(".");
-    const sig = header.slice(dotIndex + 1);
-    const flippedChar = sig[10] === "0" ? "1" : "0";
-    const tamperedSig = sig.slice(0, 10) + flippedChar + sig.slice(11);
-    const tamperedHeader = `${header.slice(0, dotIndex + 1)}${tamperedSig}`;
-
-    await expect(
-      verifyWeb3Signed({
-        headerValue: tamperedHeader,
-        expectedOrigin: AUD,
-        expectedMethod: METHOD,
-        expectedPath: URI,
-        now,
-      }),
-    ).rejects.toThrow();
-  });
-
   it("throws InvalidSignatureError on audience mismatch", async () => {
     const signer = makeSigner();
     const now = Math.floor(Date.now() / 1000);

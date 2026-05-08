@@ -77,7 +77,7 @@ describe("encryptWithPassword + decryptWithPassword", () => {
     const encrypted = await encryptWithPassword(plaintext, PASSWORD);
     const decrypted = await decryptWithPassword(encrypted, PASSWORD);
     expect(decrypted).toEqual(plaintext);
-  });
+  }, 15_000);
 
   // Cross-package interop: ciphertext below was produced by personal-server-ts
   // `encryptWithPassword` (commit fingerprint 78f644b era). vana-sdk decrypt

@@ -99,4 +99,28 @@ describe("InMemoryTokenStore", () => {
       expect(store.size).toBe(0);
     });
   });
+
+  describe("defensive copy", () => {
+    it("isolates mutations of the input record after set", async () => {
+      const record: TokenRecord = { token: "abc", expiresAt: 9_999_999_999 };
+      await store.set("k", record);
+      record.token = "mutated";
+      record.expiresAt = 1;
+      await expect(store.get("k")).resolves.toEqual({
+        token: "abc",
+        expiresAt: 9_999_999_999,
+      });
+    });
+
+    it("isolates mutations of the returned record after get", async () => {
+      await store.set("k", { token: "abc", expiresAt: 9_999_999_999 });
+      const got = (await store.get("k")) as TokenRecord;
+      got.token = "mutated";
+      got.expiresAt = 1;
+      await expect(store.get("k")).resolves.toEqual({
+        token: "abc",
+        expiresAt: 9_999_999_999,
+      });
+    });
+  });
 });

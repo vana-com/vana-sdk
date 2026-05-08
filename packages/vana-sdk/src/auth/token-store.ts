@@ -47,7 +47,8 @@ export interface TokenStore {
  * In-memory {@link TokenStore} implementation.
  *
  * @remarks
- * Expired entries are evicted lazily on read.
+ * Expired entries are evicted lazily on read. Records are shallow-copied on
+ * `set` and `get` so caller mutations do not leak into stored state.
  */
 export class InMemoryTokenStore implements TokenStore {
   readonly #records = new Map<string, TokenRecord>();
@@ -62,11 +63,11 @@ export class InMemoryTokenStore implements TokenStore {
       this.#records.delete(key);
       return Promise.resolve(null);
     }
-    return Promise.resolve(record);
+    return Promise.resolve({ ...record });
   }
 
   public set(key: string, record: TokenRecord): Promise<void> {
-    this.#records.set(key, record);
+    this.#records.set(key, { ...record });
     return Promise.resolve();
   }
 

@@ -19,6 +19,16 @@ const PKCE_VERIFIER_MIN_LENGTH = 43;
 const PKCE_VERIFIER_MAX_LENGTH = 128;
 const PKCE_VERIFIER_DEFAULT_LENGTH = 64;
 
+const PKCE_VERIFIER_PATTERN = /^[A-Za-z0-9._~-]{43,128}$/;
+
+function assertValidPkceVerifier(verifier: string): void {
+  if (!PKCE_VERIFIER_PATTERN.test(verifier)) {
+    throw new RangeError(
+      `PKCE verifier must match RFC 7636 §4.1: ${PKCE_VERIFIER_MIN_LENGTH}-${PKCE_VERIFIER_MAX_LENGTH} unreserved chars [A-Za-z0-9._~-]`,
+    );
+  }
+}
+
 /**
  * Generates a cryptographically random PKCE code verifier.
  *
@@ -68,6 +78,7 @@ export function generatePkceVerifier(
  * @returns The base64url-encoded SHA-256 hash of the verifier (no padding).
  */
 export async function computePkceChallenge(verifier: string): Promise<string> {
+  assertValidPkceVerifier(verifier);
   const bytes = new TextEncoder().encode(verifier);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return base64UrlEncode(new Uint8Array(digest));
@@ -84,6 +95,7 @@ export async function verifyPkceChallenge(
   verifier: string,
   challenge: string,
 ): Promise<boolean> {
+  if (!PKCE_VERIFIER_PATTERN.test(verifier)) return false;
   const computed = await computePkceChallenge(verifier);
   return constantTimeEqualString(computed, challenge);
 }

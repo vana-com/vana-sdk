@@ -53,6 +53,30 @@ describe("computePkceChallenge", () => {
     expect(challenge).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(challenge).not.toContain("=");
   });
+
+  it("rejects verifiers shorter than 43 chars", async () => {
+    await expect(computePkceChallenge("a".repeat(42))).rejects.toThrow(
+      RangeError,
+    );
+  });
+
+  it("rejects verifiers longer than 128 chars", async () => {
+    await expect(computePkceChallenge("a".repeat(129))).rejects.toThrow(
+      RangeError,
+    );
+  });
+
+  it("rejects verifiers with non-RFC characters", async () => {
+    await expect(
+      computePkceChallenge(`bad chars and space ${"a".repeat(40)}`),
+    ).rejects.toThrow(RangeError);
+    await expect(
+      computePkceChallenge(`unicode-é-${"a".repeat(40)}`),
+    ).rejects.toThrow(RangeError);
+    await expect(
+      computePkceChallenge(`plus+sign+${"a".repeat(40)}`),
+    ).rejects.toThrow(RangeError);
+  });
 });
 
 describe("verifyPkceChallenge", () => {
@@ -81,5 +105,17 @@ describe("verifyPkceChallenge", () => {
     const verifier = generatePkceVerifier();
     const challenge = await computePkceChallenge(verifier);
     await expect(verifyPkceChallenge(verifier, challenge)).resolves.toBe(true);
+  });
+
+  it("returns false (does not throw) for malformed verifiers", async () => {
+    await expect(verifyPkceChallenge("short", RFC_CHALLENGE)).resolves.toBe(
+      false,
+    );
+    await expect(
+      verifyPkceChallenge(`unicode-é-${"a".repeat(40)}`, RFC_CHALLENGE),
+    ).resolves.toBe(false);
+    await expect(
+      verifyPkceChallenge("a".repeat(129), RFC_CHALLENGE),
+    ).resolves.toBe(false);
   });
 });

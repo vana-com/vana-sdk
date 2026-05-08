@@ -85,3 +85,38 @@ export {
   createBrowserPlatformAdapter,
   createPlatformAdapterSafe,
 } from "./platform/browser-safe";
+
+// HKDF / master key derivation (DPv1 envelope)
+export {
+  deriveMasterKey,
+  deriveScopeKey,
+  recoverServerOwner,
+  MASTER_KEY_MESSAGE,
+} from "./crypto/keys/derive";
+
+// OpenPGP file encryption (DPv1 envelope)
+export {
+  encryptWithPassword,
+  decryptWithPassword,
+} from "./crypto/envelope/openpgp";
+
+// Web3Signed auth primitives
+export {
+  parseWeb3SignedHeader,
+  verifyWeb3Signed,
+  type Web3SignedPayload,
+  type VerifiedAuth,
+} from "./auth/web3-signed";
+export {
+  buildWeb3SignedHeader,
+  computeBodyHash,
+  type Web3SignedSignFn,
+} from "./auth/web3-signed-builder";
+export {
+  MissingAuthError,
+  InvalidSignatureError,
+  ExpiredTokenError,
+} from "./auth/errors";
+
+// Personal Server typed errors
+export { PSError, parsePSError, type PSErrorCode } from "./types/ps-errors";

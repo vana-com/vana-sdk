@@ -99,6 +99,19 @@ export interface RevokeGrantParams {
   signature: string;
 }
 
+export interface RegisterServerParams {
+  ownerAddress: string;
+  serverAddress: string;
+  publicKey: string;
+  serverUrl: string;
+  signature: string;
+}
+
+export interface RegisterServerResult {
+  serverId?: string;
+  alreadyRegistered: boolean;
+}
+
 export interface GatewayClient {
   isRegisteredBuilder(address: string): Promise<boolean>;
   getBuilder(address: string): Promise<Builder | null>;
@@ -109,6 +122,7 @@ export interface GatewayClient {
   getFile(fileId: string): Promise<FileRecord | null>;
   listFilesSince(owner: string, cursor: string | null): Promise<FileListResult>;
   getSchema(schemaId: string): Promise<Schema | null>;
+  registerServer(params: RegisterServerParams): Promise<RegisterServerResult>;
   registerFile(params: RegisterFileParams): Promise<{ fileId?: string }>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
@@ -204,6 +218,43 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
       return unwrapEnvelope<Schema>(res);
+    },
+
+    async registerServer(
+      params: RegisterServerParams,
+    ): Promise<RegisterServerResult> {
+      const res = await fetch(`${base}/v1/servers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${params.signature}`,
+        },
+        body: JSON.stringify({
+          ownerAddress: params.ownerAddress,
+          serverAddress: params.serverAddress,
+          publicKey: params.publicKey,
+          serverUrl: params.serverUrl,
+        }),
+      });
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          serverId: (body as Record<string, unknown>).serverId as
+            | string
+            | undefined,
+          alreadyRegistered: true,
+        };
+      }
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+      const body = await res.json().catch(() => ({}));
+      return {
+        serverId: (body as Record<string, unknown>).serverId as
+          | string
+          | undefined,
+        alreadyRegistered: false,
+      };
     },
 
     async registerFile(

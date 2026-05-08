@@ -128,15 +128,28 @@ describe("createGatewayClient", () => {
     );
   });
 
-  it("posts file, grant, and revocation mutations with Web3Signed auth", async () => {
+  it("posts server, file, grant, and revocation mutations with Web3Signed auth", async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(jsonResponse({ serverId: "server-1" }))
       .mockResolvedValueOnce(jsonResponse({ fileId: "file-1" }))
       .mockResolvedValueOnce(jsonResponse({ grantId: "grant-1" }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
+    await expect(
+      client.registerServer({
+        ownerAddress: "0xowner",
+        serverAddress: "0xserver",
+        publicKey: "0xpub",
+        serverUrl: "https://server.example",
+        signature: "sig",
+      }),
+    ).resolves.toEqual({
+      serverId: "server-1",
+      alreadyRegistered: false,
+    });
     await expect(
       client.registerFile({
         ownerAddress: "0xowner",
@@ -164,6 +177,16 @@ describe("createGatewayClient", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
+      "https://g/v1/servers",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Web3Signed sig",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
       "https://g/v1/files",
       expect.objectContaining({
         method: "POST",
@@ -173,7 +196,7 @@ describe("createGatewayClient", () => {
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       "https://g/v1/grants/grant-1",
       expect.objectContaining({ method: "DELETE" }),
     );
@@ -182,6 +205,9 @@ describe("createGatewayClient", () => {
   it("treats 409 mutation responses as idempotent success", async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ serverId: "server-1" }, { status: 409 }),
+      )
       .mockResolvedValueOnce(
         jsonResponse({ fileId: "file-1" }, { status: 409 }),
       )
@@ -192,6 +218,18 @@ describe("createGatewayClient", () => {
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
+    await expect(
+      client.registerServer({
+        ownerAddress: "0xowner",
+        serverAddress: "0xserver",
+        publicKey: "0xpub",
+        serverUrl: "https://server.example",
+        signature: "sig",
+      }),
+    ).resolves.toEqual({
+      serverId: "server-1",
+      alreadyRegistered: true,
+    });
     await expect(
       client.registerFile({
         ownerAddress: "0xowner",

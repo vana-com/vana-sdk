@@ -167,6 +167,8 @@ export {
   type GrantListItem,
   type FileRecord,
   type FileListResult,
+  type RegisterServerParams,
+  type RegisterServerResult,
   type RegisterFileParams,
   type CreateGrantParams,
   type RevokeGrantParams,

@@ -118,5 +118,26 @@ export {
   ExpiredTokenError,
 } from "./auth/errors";
 
+// Data Portability protocol signing helpers
+export {
+  fileRegistrationDomain,
+  grantRegistrationDomain,
+  grantRevocationDomain,
+  serverRegistrationDomain,
+  builderRegistrationDomain,
+  FILE_REGISTRATION_TYPES,
+  GRANT_REGISTRATION_TYPES,
+  GRANT_REVOCATION_TYPES,
+  SERVER_REGISTRATION_TYPES,
+  BUILDER_REGISTRATION_TYPES,
+  type DataPortabilityContracts,
+  type DataPortabilityGatewayConfig,
+  type FileRegistrationMessage,
+  type GrantRegistrationMessage,
+  type GrantRevocationMessage,
+  type ServerRegistrationMessage,
+  type BuilderRegistrationMessage,
+} from "./protocol/eip712";
+
 // Personal Server typed errors
 export { PSError, parsePSError, type PSErrorCode } from "./types/ps-errors";

@@ -78,6 +78,17 @@ export interface FileListResult {
   cursor: string | null;
 }
 
+interface GatewayFileRecord {
+  id?: string;
+  fileId?: string;
+  ownerAddress?: string;
+  owner?: string;
+  url: string;
+  schemaId: string;
+  addedAt?: string;
+  createdAt?: string;
+}
+
 export interface RegisterFileParams {
   ownerAddress: string;
   url: string;
@@ -134,6 +145,24 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
   async function unwrapEnvelope<T>(res: Response): Promise<T> {
     const envelope = (await res.json()) as GatewayEnvelope<T>;
     return envelope.data;
+  }
+
+  function normalizeFileRecord(record: GatewayFileRecord): FileRecord {
+    return {
+      fileId: record.fileId ?? record.id ?? "",
+      owner: record.owner ?? record.ownerAddress ?? "",
+      url: record.url,
+      schemaId: record.schemaId,
+      createdAt: record.createdAt ?? record.addedAt ?? "",
+    };
+  }
+
+  function getMutationId(
+    body: Record<string, unknown>,
+    key: string,
+  ): string | undefined {
+    const value = body[key] ?? body["id"];
+    return typeof value === "string" ? value : undefined;
   }
 
   return {
@@ -193,7 +222,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      return unwrapEnvelope<FileRecord>(res);
+      return normalizeFileRecord(await unwrapEnvelope<GatewayFileRecord>(res));
     },
 
     async listFilesSince(
@@ -208,7 +237,14 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      return unwrapEnvelope<FileListResult>(res);
+      const data = await unwrapEnvelope<{
+        files: GatewayFileRecord[];
+        cursor: string | null;
+      }>(res);
+      return {
+        files: data.files.map(normalizeFileRecord),
+        cursor: data.cursor,
+      };
     },
 
     async getSchema(schemaId: string): Promise<Schema | null> {
@@ -239,9 +275,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (res.status === 409) {
         const body = await res.json().catch(() => ({}));
         return {
-          serverId: (body as Record<string, unknown>).serverId as
-            | string
-            | undefined,
+          serverId: getMutationId(body as Record<string, unknown>, "serverId"),
           alreadyRegistered: true,
         };
       }
@@ -250,9 +284,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       }
       const body = await res.json().catch(() => ({}));
       return {
-        serverId: (body as Record<string, unknown>).serverId as
-          | string
-          | undefined,
+        serverId: getMutationId(body as Record<string, unknown>, "serverId"),
         alreadyRegistered: false,
       };
     },
@@ -275,9 +307,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (res.status === 409) {
         const body = await res.json().catch(() => ({}));
         return {
-          fileId: (body as Record<string, unknown>).fileId as
-            | string
-            | undefined,
+          fileId: getMutationId(body as Record<string, unknown>, "fileId"),
         };
       }
       if (!res.ok) {
@@ -285,7 +315,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       }
       const body = await res.json();
       return {
-        fileId: (body as Record<string, unknown>).fileId as string | undefined,
+        fileId: getMutationId(body as Record<string, unknown>, "fileId"),
       };
     },
 
@@ -308,9 +338,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (res.status === 409) {
         const body = await res.json().catch(() => ({}));
         return {
-          grantId: (body as Record<string, unknown>).grantId as
-            | string
-            | undefined,
+          grantId: getMutationId(body as Record<string, unknown>, "grantId"),
         };
       }
       if (!res.ok) {
@@ -318,9 +346,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       }
       const body = await res.json();
       return {
-        grantId: (body as Record<string, unknown>).grantId as
-          | string
-          | undefined,
+        grantId: getMutationId(body as Record<string, unknown>, "grantId"),
       };
     },
 

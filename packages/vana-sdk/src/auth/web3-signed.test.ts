@@ -159,6 +159,58 @@ describe("verifyWeb3Signed", () => {
     ).rejects.toThrow(InvalidSignatureError);
   });
 
+  it("throws InvalidSignatureError on body hash mismatch when body bytes are provided", async () => {
+    const signer = makeSigner();
+    const now = Math.floor(Date.now() / 1000);
+    const header = await buildWeb3SignedHeader({
+      signMessage: signer.signMessage,
+      aud: AUD,
+      method: "PUT",
+      uri: URI,
+      iat: now,
+      exp: now + 300,
+      bodyHash:
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    });
+
+    await expect(
+      verifyWeb3Signed({
+        headerValue: header,
+        expectedOrigin: AUD,
+        expectedMethod: "PUT",
+        expectedPath: URI,
+        bodyBytes: new TextEncoder().encode("actual body"),
+        now,
+      }),
+    ).rejects.toThrow(InvalidSignatureError);
+  });
+
+  it("verifies body hash when body bytes are provided", async () => {
+    const signer = makeSigner();
+    const now = Math.floor(Date.now() / 1000);
+    const bodyBytes = new TextEncoder().encode("actual body");
+    const header = await buildWeb3SignedHeader({
+      signMessage: signer.signMessage,
+      aud: AUD,
+      method: "PUT",
+      uri: URI,
+      iat: now,
+      exp: now + 300,
+      body: bodyBytes,
+    });
+
+    const result = await verifyWeb3Signed({
+      headerValue: header,
+      expectedOrigin: AUD,
+      expectedMethod: "PUT",
+      expectedPath: URI,
+      bodyBytes,
+      now,
+    });
+
+    expect(result.signer.toLowerCase()).toBe(signer.address.toLowerCase());
+  });
+
   it("throws ExpiredTokenError for expired token", async () => {
     const signer = makeSigner();
     const pastTime = Math.floor(Date.now() / 1000) - 1000;

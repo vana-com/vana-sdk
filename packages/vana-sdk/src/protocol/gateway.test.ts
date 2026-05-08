@@ -106,7 +106,20 @@ describe("createGatewayClient", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse(envelope([])))
       .mockResolvedValueOnce(
-        jsonResponse(envelope({ files: [], cursor: null })),
+        jsonResponse(
+          envelope({
+            files: [
+              {
+                id: "file-1",
+                ownerAddress: "0xowner",
+                url: "https://files.example/file-1",
+                schemaId: "schema-1",
+                addedAt: "2026-05-08T00:00:00.000Z",
+              },
+            ],
+            cursor: null,
+          }),
+        ),
       );
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
@@ -114,7 +127,15 @@ describe("createGatewayClient", () => {
     await expect(client.listGrantsByUser("0xuser")).resolves.toEqual([]);
     await expect(client.listFilesSince("0xowner", "cursor-1")).resolves.toEqual(
       {
-        files: [],
+        files: [
+          {
+            fileId: "file-1",
+            owner: "0xowner",
+            url: "https://files.example/file-1",
+            schemaId: "schema-1",
+            createdAt: "2026-05-08T00:00:00.000Z",
+          },
+        ],
         cursor: null,
       },
     );
@@ -205,15 +226,9 @@ describe("createGatewayClient", () => {
   it("treats 409 mutation responses as idempotent success", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({ serverId: "server-1" }, { status: 409 }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({ fileId: "file-1" }, { status: 409 }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({ grantId: "grant-1" }, { status: 409 }),
-      )
+      .mockResolvedValueOnce(jsonResponse({ id: "server-1" }, { status: 409 }))
+      .mockResolvedValueOnce(jsonResponse({ id: "file-1" }, { status: 409 }))
+      .mockResolvedValueOnce(jsonResponse({ id: "grant-1" }, { status: 409 }))
       .mockResolvedValueOnce(new Response(null, { status: 409 }));
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");

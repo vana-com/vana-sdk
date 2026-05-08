@@ -20,6 +20,7 @@ import {
   InvalidSignatureError,
   ExpiredTokenError,
 } from "./errors";
+import { computeBodyHash } from "./web3-signed-builder";
 
 export interface Web3SignedPayload {
   aud: string;
@@ -102,7 +103,8 @@ export function parseWeb3SignedHeader(headerValue: string | undefined): {
  * 1. Parse header to base64url + signature.
  * 2. Recover signer via {@link recoverMessageAddress} (EIP-191) over the base64url payload string.
  * 3. Check `aud === expectedOrigin`, `method === expectedMethod`, `uri === expectedPath`.
- * 4. Check `iat`/`exp` within a 60s clock skew.
+ * 4. Optionally check `bodyHash` against `bodyBytes`.
+ * 5. Check `iat`/`exp` within a 60s clock skew.
  *
  * @returns The recovered signer address and parsed payload.
  */
@@ -111,6 +113,7 @@ export async function verifyWeb3Signed(params: {
   expectedOrigin: string;
   expectedMethod: string;
   expectedPath: string;
+  bodyBytes?: Uint8Array;
   now?: number;
 }): Promise<VerifiedAuth> {
   const { payloadBase64, payload, signature } = parseWeb3SignedHeader(
@@ -149,6 +152,17 @@ export async function verifyWeb3Signed(params: {
       expected: params.expectedPath,
       actual: payload.uri,
     });
+  }
+
+  if (params.bodyBytes !== undefined && params.bodyBytes.length > 0) {
+    const expectedBodyHash = computeBodyHash(params.bodyBytes);
+    if (payload.bodyHash !== expectedBodyHash) {
+      throw new InvalidSignatureError({
+        reason: "Body hash mismatch",
+        expected: expectedBodyHash,
+        actual: payload.bodyHash,
+      });
+    }
   }
 
   const now = params.now ?? Math.floor(Date.now() / 1000);

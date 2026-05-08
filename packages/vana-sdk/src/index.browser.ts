@@ -138,6 +138,38 @@ export {
   type ServerRegistrationMessage,
   type BuilderRegistrationMessage,
 } from "./protocol/eip712";
+export {
+  ScopeSchema,
+  parseScope,
+  scopeToPathSegments,
+  scopeMatchesPattern,
+  scopeCoveredByGrant,
+  type Scope,
+  type ParsedScope,
+} from "./protocol/scopes";
+export {
+  DataFileEnvelopeSchema,
+  createDataFileEnvelope,
+  IngestResponseSchema,
+  type DataFileEnvelope,
+  type IngestResponse,
+} from "./protocol/data-file";
+export {
+  createGatewayClient,
+  type GatewayEnvelope,
+  type GatewayProof,
+  type Builder,
+  type Schema,
+  type ServerInfo,
+  type GatewayGrantResponse,
+  type GrantListItem,
+  type FileRecord,
+  type FileListResult,
+  type RegisterFileParams,
+  type CreateGrantParams,
+  type RevokeGrantParams,
+  type GatewayClient,
+} from "./protocol/gateway";
 
 // Personal Server typed errors
 export { PSError, parsePSError, type PSErrorCode } from "./types/ps-errors";

@@ -76,6 +76,18 @@ export {
   createPlatformAdapterSafe,
 } from "./platform/browser-only";
 
+// Auth primitives
+export {
+  generatePkceVerifier,
+  computePkceChallenge,
+  verifyPkceChallenge,
+} from "./auth/pkce";
+export {
+  InMemoryTokenStore,
+  type TokenStore,
+  type TokenRecord,
+} from "./auth/token-store";
+
 // Note: createNodePlatformAdapter is intentionally not exported in browser bundle
 // to avoid bundling Node-only dependencies.
 

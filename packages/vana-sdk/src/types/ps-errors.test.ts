@@ -30,10 +30,20 @@ describe("parsePSError", () => {
   });
 
   const codes: PSErrorCode[] = [
+    "missing_auth",
+    "invalid_signature",
+    "unregistered_builder",
+    "not_owner",
+    "expired_token",
     "grant_invalid",
+    "grant_required",
+    "grant_expired",
     "grant_revoked",
+    "scope_mismatch",
     "fee_required",
     "ps_unavailable",
+    "server_not_configured",
+    "content_too_large",
   ];
 
   for (const code of codes) {
@@ -45,4 +55,20 @@ describe("parsePSError", () => {
       expect(err?.message).toBe(`msg-${code}`);
     });
   }
+
+  it("parses the nested Personal Server protocol error envelope", async () => {
+    const r = makeResponse(403, {
+      error: {
+        code: 403,
+        errorCode: "SCOPE_MISMATCH",
+        message: "Scope not granted",
+      },
+    });
+
+    const err = await parsePSError(r);
+
+    expect(err).toBeInstanceOf(PSError);
+    expect(err?.code).toBe("scope_mismatch");
+    expect(err?.message).toBe("Scope not granted");
+  });
 });

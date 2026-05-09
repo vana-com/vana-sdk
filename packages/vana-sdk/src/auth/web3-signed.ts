@@ -154,7 +154,7 @@ export async function verifyWeb3Signed(params: {
     });
   }
 
-  if (params.bodyBytes !== undefined && params.bodyBytes.length > 0) {
+  if (params.bodyBytes !== undefined) {
     const expectedBodyHash = computeBodyHash(params.bodyBytes);
     if (payload.bodyHash !== expectedBodyHash) {
       throw new InvalidSignatureError({

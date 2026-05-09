@@ -26,6 +26,24 @@ function makeSigner(seed = 0) {
   };
 }
 
+function base64urlEncode(input: Uint8Array): string {
+  return btoa(String.fromCharCode(...input))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+async function buildHeaderWithPayload(
+  payload: Record<string, unknown>,
+): Promise<string> {
+  const signer = makeSigner();
+  const payloadBase64 = base64urlEncode(
+    new TextEncoder().encode(JSON.stringify(payload)),
+  );
+  const signature = await signer.signMessage(payloadBase64);
+  return `Web3Signed ${payloadBase64}.${signature}`;
+}
+
 describe("parseWeb3SignedHeader", () => {
   it("throws MissingAuthError for undefined", () => {
     expect(() => parseWeb3SignedHeader(undefined)).toThrow(MissingAuthError);
@@ -62,6 +80,33 @@ describe("parseWeb3SignedHeader", () => {
     expect(result.payload.uri).toBe(URI);
     expect(result.signature).toMatch(/^0x[0-9a-fA-F]+$/);
     expect(result.payloadBase64.length).toBeGreaterThan(0);
+  });
+
+  it("throws InvalidSignatureError when freshness claims are missing", async () => {
+    const header = await buildHeaderWithPayload({
+      aud: AUD,
+      bodyHash:
+        "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      method: METHOD,
+      uri: URI,
+    });
+
+    expect(() => parseWeb3SignedHeader(header)).toThrow(InvalidSignatureError);
+  });
+
+  it("throws InvalidSignatureError when freshness claims are not numbers", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const header = await buildHeaderWithPayload({
+      aud: AUD,
+      bodyHash:
+        "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      exp: String(now + 300),
+      iat: now,
+      method: METHOD,
+      uri: URI,
+    });
+
+    expect(() => parseWeb3SignedHeader(header)).toThrow(InvalidSignatureError);
   });
 });
 

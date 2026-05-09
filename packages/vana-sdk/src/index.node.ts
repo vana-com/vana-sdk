@@ -156,6 +156,14 @@ export {
   type BuilderRegistrationMessage,
 } from "./protocol/eip712";
 export {
+  isDataPortabilityGatewayConfig,
+  parseGrantRegistrationPayload,
+  verifyGrantRegistration,
+  type DataPortabilityGrantPayload,
+  type VerifyGrantRegistrationInput,
+  type VerifyGrantRegistrationResult,
+} from "./protocol/grants";
+export {
   ScopeSchema,
   parseScope,
   scopeToPathSegments,

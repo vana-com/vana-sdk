@@ -48,6 +48,45 @@ function base64urlDecode(input: string): string {
   return new TextDecoder().decode(fromBase64(base64));
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function parsePayload(value: unknown): Web3SignedPayload {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new InvalidSignatureError({ reason: "Invalid payload shape" });
+  }
+
+  const payload = value as Record<string, unknown>;
+  if (
+    typeof payload["aud"] !== "string" ||
+    typeof payload["method"] !== "string" ||
+    typeof payload["uri"] !== "string" ||
+    typeof payload["bodyHash"] !== "string" ||
+    !isFiniteNumber(payload["iat"]) ||
+    !isFiniteNumber(payload["exp"])
+  ) {
+    throw new InvalidSignatureError({ reason: "Invalid payload claims" });
+  }
+
+  if (
+    payload["grantId"] !== undefined &&
+    typeof payload["grantId"] !== "string"
+  ) {
+    throw new InvalidSignatureError({ reason: "Invalid grantId claim" });
+  }
+
+  return {
+    aud: payload["aud"],
+    method: payload["method"],
+    uri: payload["uri"],
+    bodyHash: payload["bodyHash"],
+    iat: payload["iat"],
+    exp: payload["exp"],
+    grantId: payload["grantId"],
+  };
+}
+
 /**
  * Parse a `"Web3Signed <base64url>.<signature>"` header value.
  *
@@ -83,8 +122,9 @@ export function parseWeb3SignedHeader(headerValue: string | undefined): {
   let payload: Web3SignedPayload;
   try {
     const decoded = base64urlDecode(payloadBase64);
-    payload = JSON.parse(decoded) as Web3SignedPayload;
-  } catch {
+    payload = parsePayload(JSON.parse(decoded));
+  } catch (err) {
+    if (err instanceof InvalidSignatureError) throw err;
     throw new InvalidSignatureError({ reason: "Invalid payload encoding" });
   }
 

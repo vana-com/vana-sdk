@@ -7,6 +7,7 @@ import { parseWeb3SignedHeader } from "../../auth/web3-signed";
 
 const TEST_PK = `0x${"a".repeat(64)}` as `0x${string}`;
 const ENDPOINT = "https://storage.example.com";
+const OWNER_ADDRESS = "0x0000000000000000000000000000000000000001" as const;
 
 function makeSigner() {
   const account = privateKeyToAccount(TEST_PK);
@@ -163,6 +164,34 @@ describe("VanaStorage", () => {
       expect(result.metadata).toMatchObject({ etag: "etag-1" });
     });
 
+    it("uses the configured owner namespace when signer is a registered server", async () => {
+      const ownerLower = OWNER_ADDRESS.toLowerCase();
+      storage = new VanaStorage({
+        endpoint: ENDPOINT,
+        ownerAddress: OWNER_ADDRESS,
+        signer: makeSigner(),
+        fetchImpl: mockFetch as unknown as typeof fetch,
+      });
+      mockFetch.mockResolvedValue(
+        jsonResponse({
+          key: `${ownerLower}/instagram.profile/2026-05-08T20:00:00.000Z`,
+          url: `${ENDPOINT}/v1/blobs/${ownerLower}/instagram.profile/2026-05-08T20:00:00.000Z`,
+          etag: "etag-owner",
+          size: 4,
+        }),
+      );
+
+      await storage.upload(
+        new Blob([new Uint8Array([1, 2, 3, 4])]),
+        "instagram.profile/2026-05-08T20:00:00.000Z",
+      );
+
+      const [calledUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(calledUrl).toBe(
+        `${ENDPOINT}/v1/blobs/${ownerLower}/instagram.profile/2026-05-08T20%3A00%3A00.000Z`,
+      );
+    });
+
     it("throws StorageError on non-2xx upload response", async () => {
       mockFetch.mockResolvedValue(
         jsonResponse({ error: "FORBIDDEN" }, 403, "Forbidden"),
@@ -206,6 +235,30 @@ describe("VanaStorage", () => {
       const headers = init.headers as Record<string, string>;
       expect(headers["authorization"]).toMatch(/^Web3Signed /);
 
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      expect(Array.from(buf)).toEqual([10, 20, 30]);
+    });
+
+    it("downloads from the configured owner namespace when signer differs", async () => {
+      const ownerLower = OWNER_ADDRESS.toLowerCase();
+      storage = new VanaStorage({
+        endpoint: ENDPOINT,
+        ownerAddress: OWNER_ADDRESS,
+        signer: makeSigner(),
+        fetchImpl: mockFetch as unknown as typeof fetch,
+      });
+      const ciphertext = new Uint8Array([10, 20, 30]);
+      mockFetch.mockResolvedValue(new Response(ciphertext, { status: 200 }));
+      const url = `${ENDPOINT}/v1/blobs/${ownerLower}/scope/at`;
+
+      const blob = await storage.download(url);
+
+      const [calledUrl, init] = mockFetch.mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      expect(calledUrl).toBe(url);
+      expect(init.method).toBe("GET");
       const buf = new Uint8Array(await blob.arrayBuffer());
       expect(Array.from(buf)).toEqual([10, 20, 30]);
     });

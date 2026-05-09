@@ -1,21 +1,25 @@
 import { describe, expect, it } from "vitest";
+import { privateKeyToAccount } from "viem/accounts";
 
 import { createVanaStorageProvider } from "../default";
 
+const TEST_PK = `0x${"a".repeat(64)}` as `0x${string}`;
+const account = privateKeyToAccount(TEST_PK);
+
 describe("createVanaStorageProvider", () => {
-  it("creates the SDK default storage provider from R2 env", () => {
+  it("creates the SDK default vana-storage provider", () => {
     const provider = createVanaStorageProvider({
-      env: {
-        R2_ACCOUNT_ID: "acct",
-        R2_ACCESS_KEY_ID: "key",
-        R2_SECRET_ACCESS_KEY: "secret",
-        R2_BUCKET: "bucket",
+      endpoint: "https://storage.example.com",
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      signer: {
+        address: account.address,
+        signMessage: (message) => account.signMessage({ message }),
       },
     });
 
     expect(provider.getConfig()).toMatchObject({
-      type: "r2",
-      features: { upload: true, download: true },
+      type: "vana-storage",
+      features: { upload: true, download: true, list: false },
     });
   });
 });

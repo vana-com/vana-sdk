@@ -57,7 +57,7 @@ const getOpenPGP = lazyImport(() => import("openpgp"));
 import { NodeECIESUint8Provider } from "../crypto/ecies/node";
 import { ECIESError } from "../crypto/ecies/interface";
 import type { ECIESEncrypted } from "../crypto/ecies";
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 import secp256k1Import from "secp256k1";
 
 // Type definition for secp256k1 module

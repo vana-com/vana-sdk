@@ -11,6 +11,7 @@ const NODE_ONLY = [
   "fs",
   "path",
   "crypto",
+  "node:crypto",
   "stream",
   "buffer",
   "secp256k1",

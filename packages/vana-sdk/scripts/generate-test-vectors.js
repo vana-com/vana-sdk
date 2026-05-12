@@ -6,7 +6,7 @@
  */
 
 import * as eccrypto from "eccrypto";
-import crypto from "crypto";
+import crypto from "node:crypto";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";

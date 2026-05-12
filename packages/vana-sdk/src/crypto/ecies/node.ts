@@ -13,7 +13,7 @@ import {
   createHmac,
   createCipheriv,
   createDecipheriv,
-} from "crypto";
+} from "node:crypto";
 import secp256k1Import from "secp256k1";
 import { BaseECIESUint8 } from "./base";
 import { toHex } from "viem";

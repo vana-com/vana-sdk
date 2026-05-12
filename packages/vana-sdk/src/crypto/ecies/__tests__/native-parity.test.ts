@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 
 // Dynamically import to avoid issues during browser testing
 const getProviders = async () => {

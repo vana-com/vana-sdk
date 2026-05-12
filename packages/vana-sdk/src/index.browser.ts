@@ -92,6 +92,11 @@ export {
   type TokenStore,
   type TokenRecord,
 } from "./auth/token-store";
+export {
+  OAuthClient,
+  type OAuthClientConfig,
+  type AuthorizationUrlResult,
+} from "./auth/oauth-client";
 
 // Note: createNodePlatformAdapter is intentionally not exported in browser bundle
 // to avoid bundling Node-only dependencies.

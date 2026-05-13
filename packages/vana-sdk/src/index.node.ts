@@ -175,6 +175,7 @@ export {
   type PersonalServerRegistrationSignature,
 } from "./protocol/personal-server-registration";
 export {
+  AccountPersonalServerRegistrationError,
   signPersonalServerRegistrationWithAccount,
   type AccountPersonalServerRegistrationStatus,
   type AccountPersonalServerRegistrationRequest,

@@ -5,6 +5,7 @@ import {
   buildPersonalServerRegistrationTypedData,
   type PersonalServerRegistrationSigner,
 } from "../protocol/personal-server-registration";
+import type { AccountPersonalServerRegistrationError } from "./personal-server-registration";
 import { signPersonalServerRegistrationWithAccount } from "./personal-server-registration";
 
 const ACCOUNT_ORIGIN = "https://account.app-dev.example";
@@ -267,5 +268,34 @@ describe("Account Personal Server registration integration", () => {
         intent: PERSONAL_SERVER_REGISTRATION_INTENT,
       },
     });
+  });
+
+  it("preserves structured Account error details", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(
+          { error: { code: "account_session_required" } },
+          { status: 401 },
+        ),
+      );
+
+    await expect(
+      signPersonalServerRegistrationWithAccount(
+        { accountOrigin: ACCOUNT_ORIGIN, fetchImpl },
+        {
+          serverAddress: SERVER_ADDRESS,
+          serverPublicKey: SERVER_PUBLIC_KEY,
+          serverUrl: SERVER_URL,
+        },
+      ),
+    ).rejects.toMatchObject({
+      name: "AccountPersonalServerRegistrationError",
+      status: 401,
+      code: "account_session_required",
+      message:
+        "Account PS registration signing failed: account_session_required",
+      details: { error: { code: "account_session_required" } },
+    } satisfies Partial<AccountPersonalServerRegistrationError>);
   });
 });

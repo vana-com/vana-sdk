@@ -71,6 +71,25 @@ export type AccountPersonalServerRegistrationResult =
   | AccountConfirmationRequiredPersonalServerRegistration
   | AccountFallbackSignedPersonalServerRegistration;
 
+export class AccountPersonalServerRegistrationError extends Error {
+  status: number;
+  code?: string;
+  details?: unknown;
+
+  constructor(input: {
+    status: number;
+    message: string;
+    code?: string;
+    details?: unknown;
+  }) {
+    super(input.message);
+    this.name = "AccountPersonalServerRegistrationError";
+    this.status = input.status;
+    this.code = input.code;
+    this.details = input.details;
+  }
+}
+
 interface AccountSilentSignResponse {
   status: AccountPersonalServerRegistrationStatus;
   signature?: Hex;
@@ -78,7 +97,7 @@ interface AccountSilentSignResponse {
   signer?: { address?: Address };
   typedData?: PersonalServerRegistrationTypedData;
   typed_data?: PersonalServerRegistrationTypedData;
-  error?: string;
+  error?: unknown;
 }
 
 const DEFAULT_ACCOUNT_PS_REGISTRATION_PATH =
@@ -97,16 +116,70 @@ function assertAddress(value: Address, name: string): void {
 async function parseAccountResponse(
   response: Response,
 ): Promise<AccountSilentSignResponse> {
-  const body = (await response.json()) as AccountSilentSignResponse;
+  const body = (await response.json().catch(() => undefined)) as unknown;
 
   if (!response.ok) {
-    throw new Error(
-      body.error ??
-        `Account PS registration signing failed: ${response.status}`,
-    );
+    throw new AccountPersonalServerRegistrationError({
+      status: response.status,
+      code: accountErrorCode(body),
+      message: accountErrorMessage(response.status, body),
+      details: body,
+    });
   }
 
-  return body;
+  return body as AccountSilentSignResponse;
+}
+
+function accountErrorMessage(status: number, body: unknown): string {
+  const nestedMessage = nestedAccountErrorField(body, "message");
+  if (nestedMessage) {
+    return nestedMessage;
+  }
+
+  if (isRecord(body) && typeof body.message === "string") {
+    return body.message;
+  }
+
+  const code = accountErrorCode(body);
+  if (code) {
+    return `Account PS registration signing failed: ${code}`;
+  }
+
+  return `Account PS registration signing failed: ${status}`;
+}
+
+function accountErrorCode(body: unknown): string | undefined {
+  const nestedCode = nestedAccountErrorField(body, "code");
+  if (nestedCode) {
+    return nestedCode;
+  }
+
+  if (isRecord(body)) {
+    if (typeof body.code === "string") {
+      return body.code;
+    }
+    if (typeof body.error === "string") {
+      return body.error;
+    }
+  }
+
+  return undefined;
+}
+
+function nestedAccountErrorField(
+  body: unknown,
+  field: "code" | "message",
+): string | undefined {
+  if (!isRecord(body) || !isRecord(body.error)) {
+    return undefined;
+  }
+
+  const value = body.error[field];
+  return typeof value === "string" ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function normalizeAccountResponse(

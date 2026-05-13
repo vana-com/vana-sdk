@@ -118,6 +118,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@opendatalabs/personal-server-ts-core": "^0.2.0",
     "@types/node": "^24.3.0",
     "@types/secp256k1": "^4.0.6",
     "@typescript-eslint/eslint-plugin": "^8.41.0",

@@ -167,6 +167,8 @@ export async function signPersonalServerRegistrationWithAccount(
       serverPublicKey: request.serverPublicKey,
       serverUrl: request.serverUrl,
       config: request.config,
+      chainId: request.chainId,
+      verifyingContract: request.verifyingContract,
     }),
   });
   const body = normalizeAccountResponse(await parseAccountResponse(response));

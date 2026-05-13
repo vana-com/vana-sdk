@@ -11,7 +11,7 @@ import {
   type Web3SignedSignFn,
 } from "../../auth/web3-signed-builder";
 
-const DEFAULT_ENDPOINT = "https://storage.vana.com";
+const DEFAULT_ENDPOINT = "https://storage.vana.org";
 const BLOB_PATH_PREFIX = "/v1/blobs";
 const DEFAULT_TOKEN_TTL_SECONDS = 300;
 
@@ -36,7 +36,7 @@ export interface VanaStorageSigner {
  */
 export interface VanaStorageConfig {
   /**
-   * Base URL of the vana-storage Worker. Defaults to `https://storage.vana.com`.
+   * Base URL of the vana-storage Worker. Defaults to `https://storage.vana.org`.
    */
   endpoint?: string;
   /**
@@ -63,7 +63,7 @@ interface VanaStorageUploadResponse {
 
 /**
  * Storage provider that talks to the vana-storage Worker
- * (`https://storage.vana.com` by default). All requests are authenticated
+ * (`https://storage.vana.org` by default). All requests are authenticated
  * with Web3Signed headers signed by the configured wallet.
  *
  * @remarks

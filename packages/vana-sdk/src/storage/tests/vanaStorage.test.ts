@@ -45,11 +45,11 @@ describe("VanaStorage", () => {
       ).toThrow(StorageError);
     });
 
-    it("defaults endpoint to https://storage.vana.com", async () => {
+    it("defaults endpoint to https://storage.vana.org", async () => {
       const fetchImpl = vi.fn().mockResolvedValue(
         jsonResponse({
           key: "0x.../scope/at",
-          url: "https://storage.vana.com/v1/blobs/0x.../scope/at",
+          url: "https://storage.vana.org/v1/blobs/0x.../scope/at",
           etag: "etag",
           size: 5,
         }),
@@ -63,7 +63,7 @@ describe("VanaStorage", () => {
         "scope/at",
       );
       expect(fetchImpl.mock.calls[0]?.[0]).toMatch(
-        /^https:\/\/storage\.vana\.com\//,
+        /^https:\/\/storage\.vana\.org\//,
       );
     });
 

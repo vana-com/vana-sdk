@@ -62,9 +62,16 @@ describe("VanaStorage", () => {
         new Blob([new Uint8Array([1, 2, 3, 4, 5])]),
         "scope/at",
       );
-      expect(fetchImpl.mock.calls[0]?.[0]).toMatch(
-        /^https:\/\/storage\.vana\.org\//,
-      );
+      const [calledUrl, init] = fetchImpl.mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      expect(calledUrl).toMatch(/^https:\/\/storage\.vana\.org\//);
+      // The signed `aud` claim must use the new origin too — otherwise
+      // worker-side audience checks would still expect the legacy host.
+      const headers = init.headers as Record<string, string>;
+      const parsed = parseWeb3SignedHeader(headers["authorization"]);
+      expect(parsed.payload.aud).toBe("https://storage.vana.org");
     });
 
     it("trims trailing slashes from endpoint", () => {

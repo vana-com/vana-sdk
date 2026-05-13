@@ -134,6 +134,11 @@ export {
   type TokenStore,
   type TokenRecord,
 } from "./auth/token-store";
+export {
+  OAuthClient,
+  type OAuthClientConfig,
+  type AuthorizationUrlResult,
+} from "./auth/oauth-client";
 
 // Data Portability protocol signing helpers
 export {

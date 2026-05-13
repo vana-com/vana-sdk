@@ -78,6 +78,23 @@ interface TokenEndpointResponse {
 }
 
 /**
+ * Authorize-URL parameters the client owns. Callers may NOT supply these
+ * via `extraParams` — otherwise PKCE/CSRF protection can be silently
+ * bypassed (e.g. `extraParams: { state: "x" }` would store the verifier
+ * under the generated state but send `x` on the wire, breaking the
+ * callback CSRF check; `code_challenge_method` could downgrade S256).
+ */
+const RESERVED_AUTHORIZE_PARAMS = new Set([
+  "response_type",
+  "client_id",
+  "redirect_uri",
+  "scope",
+  "state",
+  "code_challenge",
+  "code_challenge_method",
+]);
+
+/**
  * OAuth 2.0 Authorization Code + PKCE client.
  *
  * @remarks
@@ -151,6 +168,13 @@ export class OAuthClient {
     params.set("code_challenge", challenge);
     params.set("code_challenge_method", "S256");
     if (opts.extraParams !== undefined) {
+      for (const k of Object.keys(opts.extraParams)) {
+        if (RESERVED_AUTHORIZE_PARAMS.has(k)) {
+          throw new Error(
+            `extraParams may not override the reserved OAuth/PKCE parameter "${k}"`,
+          );
+        }
+      }
       for (const [k, v] of Object.entries(opts.extraParams)) {
         params.set(k, v);
       }

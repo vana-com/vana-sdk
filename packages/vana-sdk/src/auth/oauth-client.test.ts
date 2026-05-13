@@ -106,6 +106,24 @@ describe("OAuthClient.buildAuthorizationUrl", () => {
     expect(parsed.searchParams.get("prompt")).toBe("login");
   });
 
+  it("rejects extraParams that would override reserved OAuth/PKCE keys", async () => {
+    const { client } = makeClient();
+    const reserved = [
+      "state",
+      "code_challenge",
+      "code_challenge_method",
+      "client_id",
+      "redirect_uri",
+      "response_type",
+      "scope",
+    ];
+    for (const key of reserved) {
+      await expect(
+        client.buildAuthorizationUrl({ extraParams: { [key]: "x" } }),
+      ).rejects.toThrow(/reserved OAuth\/PKCE parameter/);
+    }
+  });
+
   it("accepts a caller-supplied state", async () => {
     const { client, store } = makeClient();
     const { state } = await client.buildAuthorizationUrl({

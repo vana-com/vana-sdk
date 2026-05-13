@@ -9,7 +9,7 @@
  * Choose your storage provider based on your needs:
  *
  * **Default backend hosted by ODL?**
- * - ✅ Use `VanaStorage` - storage.vana.com with Web3Signed auth.
+ * - ✅ Use `VanaStorage` - storage.vana.org with Web3Signed auth.
  *
  * **Need full CRUD operations and metadata?**
  * - ✅ Use `PinataStorage` - Managed IPFS with listing, deletion, and rich metadata

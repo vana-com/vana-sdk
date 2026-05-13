@@ -117,6 +117,43 @@ describe("Account Personal Server registration integration", () => {
     });
   });
 
+  it("passes optional domain overrides through to Account", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        status: "signed",
+        signature: SIGNATURE,
+        signerAddress: OWNER_ADDRESS,
+      }),
+    );
+
+    await signPersonalServerRegistrationWithAccount(
+      { accountOrigin: ACCOUNT_ORIGIN, fetchImpl },
+      {
+        serverAddress: SERVER_ADDRESS,
+        serverPublicKey: SERVER_PUBLIC_KEY,
+        serverUrl: SERVER_URL,
+        chainId: 31337,
+        verifyingContract:
+          PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
+      },
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({
+        body: JSON.stringify({
+          intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+          serverAddress: SERVER_ADDRESS,
+          serverPublicKey: SERVER_PUBLIC_KEY,
+          serverUrl: SERVER_URL,
+          chainId: 31337,
+          verifyingContract:
+            PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
+        }),
+      }),
+    );
+  });
+
   it("normalizes the current experimental silent-sign response shape", async () => {
     const typedData = buildPersonalServerRegistrationTypedData({
       ownerAddress: OWNER_ADDRESS,

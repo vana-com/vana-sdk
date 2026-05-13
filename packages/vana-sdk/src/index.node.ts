@@ -161,6 +161,35 @@ export {
   type BuilderRegistrationMessage,
 } from "./protocol/eip712";
 export {
+  PERSONAL_SERVER_REGISTRATION_INTENT,
+  PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
+  PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
+  personalServerRegistrationDomain,
+  createViemPersonalServerRegistrationSigner,
+  buildPersonalServerRegistrationTypedData,
+  buildPersonalServerRegistrationSignature,
+  registerPersonalServerSignature,
+  type PersonalServerRegistrationIntent,
+  type PersonalServerRegistrationTypedData,
+  type PersonalServerRegistrationSigner,
+  type PersonalServerRegistrationDomainInput,
+  type ViemPersonalServerRegistrationWalletClient,
+  type ViemPersonalServerRegistrationSignerSource,
+  type BuildPersonalServerRegistrationTypedDataInput,
+  type BuildPersonalServerRegistrationSignatureInput,
+  type PersonalServerRegistrationSignature,
+} from "./protocol/personal-server-registration";
+export {
+  signPersonalServerRegistrationWithAccount,
+  type AccountPersonalServerRegistrationStatus,
+  type AccountPersonalServerRegistrationRequest,
+  type AccountPersonalServerRegistrationConfig,
+  type AccountSignedPersonalServerRegistration,
+  type AccountConfirmationRequiredPersonalServerRegistration,
+  type AccountFallbackSignedPersonalServerRegistration,
+  type AccountPersonalServerRegistrationResult,
+} from "./account/personal-server-registration";
+export {
   isDataPortabilityGatewayConfig,
   parseGrantRegistrationPayload,
   verifyGrantRegistration,

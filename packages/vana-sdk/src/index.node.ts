@@ -175,6 +175,22 @@ export {
   type PersonalServerRegistrationSignature,
 } from "./protocol/personal-server-registration";
 export {
+  PERSONAL_SERVER_LITE_OWNER_BINDING_VERSION,
+  PERSONAL_SERVER_LITE_OWNER_BINDING_PURPOSE,
+  PERSONAL_SERVER_LITE_OWNER_BINDING_PREFIX,
+  buildPersonalServerLiteOwnerBindingMessage,
+  createViemPersonalServerLiteOwnerBindingSigner,
+  buildPersonalServerLiteOwnerBindingSignature,
+  signPersonalServerLiteOwnerBinding,
+  type PersonalServerLiteOwnerBindingPurpose,
+  type PersonalServerLiteOwnerBindingMessage,
+  type PersonalServerLiteOwnerBindingSigner,
+  type ViemPersonalServerLiteOwnerBindingWalletClient,
+  type ViemPersonalServerLiteOwnerBindingSignerSource,
+  type BuildPersonalServerLiteOwnerBindingSignatureInput,
+  type PersonalServerLiteOwnerBindingSignature,
+} from "./protocol/personal-server-lite-owner-binding";
+export {
   AccountPersonalServerRegistrationError,
   signPersonalServerRegistrationWithAccount,
   type AccountPersonalServerRegistrationStatus,
@@ -185,6 +201,12 @@ export {
   type AccountFallbackSignedPersonalServerRegistration,
   type AccountPersonalServerRegistrationResult,
 } from "./account/personal-server-registration";
+export {
+  AccountPersonalServerLiteOwnerBindingError,
+  signPersonalServerLiteOwnerBindingWithAccountClient,
+  type AccountPersonalServerLiteOwnerBindingClient,
+  type SignPersonalServerLiteOwnerBindingWithAccountClientConfig,
+} from "./account/personal-server-lite-owner-binding";
 export {
   isDataPortabilityGatewayConfig,
   parseGrantRegistrationPayload,

@@ -11,12 +11,17 @@
 import { isAddress, type Address, type Hex } from "viem";
 import {
   buildPersonalServerRegistrationTypedData,
-  PERSONAL_SERVER_REGISTRATION_INTENT,
   type BuildPersonalServerRegistrationTypedDataInput,
   type PersonalServerRegistrationSignature,
   type PersonalServerRegistrationSigner,
   type PersonalServerRegistrationTypedData,
 } from "../protocol/personal-server-registration";
+
+export const ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT =
+  "personal_server.server_registration.v1" as const;
+
+export type AccountPersonalServerRegistrationIntent =
+  typeof ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT;
 
 export type AccountPersonalServerRegistrationStatus =
   | "signed"
@@ -49,9 +54,14 @@ export interface AccountPersonalServerRegistrationConfig {
   fallbackSigner?: PersonalServerRegistrationSigner;
 }
 
+export type AccountPersonalServerRegistrationSignature =
+  PersonalServerRegistrationSignature & {
+    intent: AccountPersonalServerRegistrationIntent;
+  };
+
 export interface AccountSignedPersonalServerRegistration {
   status: "signed";
-  result: PersonalServerRegistrationSignature;
+  result: AccountPersonalServerRegistrationSignature;
 }
 
 export interface AccountConfirmationRequiredPersonalServerRegistration {
@@ -63,7 +73,7 @@ export interface AccountConfirmationRequiredPersonalServerRegistration {
 export interface AccountFallbackSignedPersonalServerRegistration {
   status: "fallback_signed";
   accountStatus: "confirmation_required";
-  result: PersonalServerRegistrationSignature;
+  result: AccountPersonalServerRegistrationSignature;
 }
 
 export type AccountPersonalServerRegistrationResult =
@@ -100,6 +110,8 @@ interface AccountSilentSignResponse {
   error?: unknown;
 }
 
+// Account-owned route policy. Protocol signing primitives deliberately do not
+// define Account intent names or API paths.
 const DEFAULT_ACCOUNT_PS_REGISTRATION_PATH =
   "/api/v1/intents/personal-server-registration/sign";
 
@@ -202,7 +214,7 @@ function buildSignedResult(
   > &
     Pick<AccountSilentSignResponse, "typedData">,
   request: AccountPersonalServerRegistrationRequest,
-): PersonalServerRegistrationSignature {
+): AccountPersonalServerRegistrationSignature {
   assertAddress(response.signerAddress, "signerAddress");
 
   return {
@@ -214,7 +226,7 @@ function buildSignedResult(
         ownerAddress: response.signerAddress,
         ...request,
       }),
-    intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+    intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
   };
 }
 
@@ -235,7 +247,7 @@ export async function signPersonalServerRegistrationWithAccount(
     headers: { "content-type": "application/json" },
     credentials: "include",
     body: JSON.stringify({
-      intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+      intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
       serverAddress: request.serverAddress,
       serverPublicKey: request.serverPublicKey,
       serverUrl: request.serverUrl,
@@ -290,7 +302,7 @@ export async function signPersonalServerRegistrationWithAccount(
         signature,
         signerAddress: config.fallbackSigner.address,
         typedData: body.typedData,
-        intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+        intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
       },
     };
   }

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
   PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
-  PERSONAL_SERVER_REGISTRATION_INTENT,
   buildPersonalServerRegistrationSignature,
   buildPersonalServerRegistrationTypedData,
   createViemPersonalServerRegistrationSigner,
@@ -129,8 +128,8 @@ describe("Personal Server registration", () => {
     expect(result).toMatchObject({
       signature: SIGNATURE,
       signerAddress: OWNER_ADDRESS,
-      intent: PERSONAL_SERVER_REGISTRATION_INTENT,
     });
+    expect(result).not.toHaveProperty("intent");
     expect(result.typedData.message.ownerAddress).toBe(OWNER_ADDRESS);
   });
 
@@ -149,7 +148,6 @@ describe("Personal Server registration", () => {
       }),
     ).resolves.toMatchObject({
       signature: SIGNATURE,
-      intent: PERSONAL_SERVER_REGISTRATION_INTENT,
     });
   });
 

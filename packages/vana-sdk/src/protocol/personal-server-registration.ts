@@ -23,15 +23,9 @@ import {
   type ServerRegistrationMessage,
 } from "./eip712";
 
-export const PERSONAL_SERVER_REGISTRATION_INTENT =
-  "personal_server.server_registration.v1" as const;
-
 export const PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID = 1480;
 export const PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT =
   "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c" as const;
-
-export type PersonalServerRegistrationIntent =
-  typeof PERSONAL_SERVER_REGISTRATION_INTENT;
 
 export type PersonalServerRegistrationTypedData = TypedDataDefinition<
   typeof SERVER_REGISTRATION_TYPES,
@@ -84,7 +78,6 @@ export interface PersonalServerRegistrationSignature {
   signature: Hex;
   signerAddress: Address;
   typedData: PersonalServerRegistrationTypedData;
-  intent: PersonalServerRegistrationIntent;
 }
 
 export interface PersonalServerRegistrationDomainInput {
@@ -199,7 +192,6 @@ export async function buildPersonalServerRegistrationSignature(
     signature,
     signerAddress: input.signer.address,
     typedData,
-    intent: PERSONAL_SERVER_REGISTRATION_INTENT,
   };
 }
 

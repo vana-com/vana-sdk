@@ -161,7 +161,6 @@ export {
   type BuilderRegistrationMessage,
 } from "./protocol/eip712";
 export {
-  PERSONAL_SERVER_REGISTRATION_INTENT,
   PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
   PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
   personalServerRegistrationDomain,
@@ -169,7 +168,6 @@ export {
   buildPersonalServerRegistrationTypedData,
   buildPersonalServerRegistrationSignature,
   registerPersonalServerSignature,
-  type PersonalServerRegistrationIntent,
   type PersonalServerRegistrationTypedData,
   type PersonalServerRegistrationSigner,
   type PersonalServerRegistrationDomainInput,
@@ -196,8 +194,11 @@ export {
   type PersonalServerLiteOwnerBindingSignature,
 } from "./protocol/personal-server-lite-owner-binding";
 export {
+  ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
   AccountPersonalServerRegistrationError,
   signPersonalServerRegistrationWithAccount,
+  type AccountPersonalServerRegistrationIntent,
+  type AccountPersonalServerRegistrationSignature,
   type AccountPersonalServerRegistrationStatus,
   type AccountPersonalServerRegistrationRequest,
   type AccountPersonalServerRegistrationConfig,

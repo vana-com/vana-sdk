@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
-  PERSONAL_SERVER_REGISTRATION_INTENT,
   buildPersonalServerRegistrationTypedData,
   type PersonalServerRegistrationSigner,
 } from "../protocol/personal-server-registration";
 import type { AccountPersonalServerRegistrationError } from "./personal-server-registration";
-import { signPersonalServerRegistrationWithAccount } from "./personal-server-registration";
+import {
+  ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
+  signPersonalServerRegistrationWithAccount,
+} from "./personal-server-registration";
 
 const ACCOUNT_ORIGIN = "https://account.app-dev.example";
 const OWNER_ADDRESS = "0x1111111111111111111111111111111111111111";
@@ -52,7 +54,7 @@ describe("Account Personal Server registration integration", () => {
         credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+          intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
           serverAddress: SERVER_ADDRESS,
           serverPublicKey: SERVER_PUBLIC_KEY,
           serverUrl: SERVER_URL,
@@ -70,7 +72,7 @@ describe("Account Personal Server registration integration", () => {
           serverPublicKey: SERVER_PUBLIC_KEY,
           serverUrl: SERVER_URL,
         }),
-        intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+        intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
       },
     });
   });
@@ -143,7 +145,7 @@ describe("Account Personal Server registration integration", () => {
       expect.any(URL),
       expect.objectContaining({
         body: JSON.stringify({
-          intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+          intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
           serverAddress: SERVER_ADDRESS,
           serverPublicKey: SERVER_PUBLIC_KEY,
           serverUrl: SERVER_URL,
@@ -225,7 +227,7 @@ describe("Account Personal Server registration integration", () => {
         signature: SIGNATURE,
         signerAddress: OWNER_ADDRESS,
         typedData,
-        intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+        intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
       },
     });
   });
@@ -265,7 +267,7 @@ describe("Account Personal Server registration integration", () => {
         signature: SIGNATURE,
         signerAddress: OWNER_ADDRESS,
         typedData,
-        intent: PERSONAL_SERVER_REGISTRATION_INTENT,
+        intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
       },
     });
   });

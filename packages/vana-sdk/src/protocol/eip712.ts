@@ -144,7 +144,7 @@ export interface GrantRevocationMessage {
 export interface ServerRegistrationMessage {
   ownerAddress: `0x${string}`;
   serverAddress: `0x${string}`;
-  publicKey: `0x${string}`;
+  publicKey: string;
   serverUrl: string;
 }
 

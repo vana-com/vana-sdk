@@ -28,9 +28,11 @@ jobs:
       - name: Resolve PR head
         id: pr
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
         with:
           script: |
-            const prNumber = Number(core.getInput('pr_number'));
+            const prNumber = Number(process.env.PR_NUMBER);
             const { owner, repo } = context.repo;
             const { data: pull } = await github.rest.pulls.get({
               owner,

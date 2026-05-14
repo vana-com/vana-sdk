@@ -15,7 +15,9 @@ import {
   type PersonalServerRegistrationSignature,
   type PersonalServerRegistrationSigner,
   type PersonalServerRegistrationTypedData,
+  personalServerRegistrationDomain,
 } from "../protocol/personal-server-registration";
+import { SERVER_REGISTRATION_TYPES } from "../protocol/eip712";
 
 export const ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT =
   "personal_server.server_registration.v1" as const;
@@ -216,6 +218,13 @@ function buildSignedResult(
   request: AccountPersonalServerRegistrationRequest,
 ): AccountPersonalServerRegistrationSignature {
   assertAddress(response.signerAddress, "signerAddress");
+  if (response.typedData) {
+    assertTypedDataMatchesRequest(
+      response.typedData,
+      request,
+      response.signerAddress,
+    );
+  }
 
   return {
     signature: response.signature,
@@ -228,6 +237,90 @@ function buildSignedResult(
       }),
     intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
   };
+}
+
+function assertTypedDataMatchesRequest(
+  typedData: PersonalServerRegistrationTypedData,
+  request: AccountPersonalServerRegistrationRequest,
+  expectedSignerAddress?: Address,
+): void {
+  assertAddress(
+    typedData.message.ownerAddress,
+    "typedData.message.ownerAddress",
+  );
+  assertAddress(
+    typedData.message.serverAddress,
+    "typedData.message.serverAddress",
+  );
+
+  if (
+    expectedSignerAddress &&
+    !sameAddress(typedData.message.ownerAddress, expectedSignerAddress)
+  ) {
+    throw new Error(
+      "Account typedData ownerAddress must match the expected signer address",
+    );
+  }
+
+  if (!sameAddress(typedData.message.serverAddress, request.serverAddress)) {
+    throw new Error(
+      "Account typedData serverAddress must match the requested serverAddress",
+    );
+  }
+
+  if (typedData.message.publicKey !== request.serverPublicKey) {
+    throw new Error(
+      "Account typedData publicKey must match the requested serverPublicKey",
+    );
+  }
+
+  if (typedData.message.serverUrl !== request.serverUrl) {
+    throw new Error(
+      "Account typedData serverUrl must match the requested serverUrl",
+    );
+  }
+
+  if (typedData.primaryType !== "ServerRegistration") {
+    throw new Error("Account typedData primaryType must be ServerRegistration");
+  }
+
+  if (
+    JSON.stringify(typedData.types) !==
+    JSON.stringify(SERVER_REGISTRATION_TYPES)
+  ) {
+    throw new Error("Account typedData types must be ServerRegistration types");
+  }
+
+  const expectedDomain = personalServerRegistrationDomain({
+    config: request.config,
+    chainId: request.chainId,
+    verifyingContract: request.verifyingContract,
+  });
+  if (!domainsEqual(typedData.domain, expectedDomain)) {
+    throw new Error("Account typedData domain must match the requested domain");
+  }
+}
+
+function sameAddress(a: Address, b: Address): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function domainsEqual(
+  a: PersonalServerRegistrationTypedData["domain"],
+  b: PersonalServerRegistrationTypedData["domain"],
+): boolean {
+  if (!a || !b) {
+    return false;
+  }
+
+  return (
+    a.name === b.name &&
+    a.version === b.version &&
+    Number(a.chainId) === Number(b.chainId) &&
+    String(a.verifyingContract ?? "").toLowerCase() ===
+      String(b.verifyingContract ?? "").toLowerCase() &&
+    a.salt === b.salt
+  );
 }
 
 export async function signPersonalServerRegistrationWithAccount(
@@ -284,6 +377,7 @@ export async function signPersonalServerRegistrationWithAccount(
         "Account confirmation_required response must include typedData",
       );
     }
+    assertTypedDataMatchesRequest(body.typedData, request, body.signerAddress);
 
     if (!config.fallbackSigner) {
       return {
@@ -293,6 +387,11 @@ export async function signPersonalServerRegistrationWithAccount(
       };
     }
 
+    assertTypedDataMatchesRequest(
+      body.typedData,
+      request,
+      config.fallbackSigner.address,
+    );
     const signature = await config.fallbackSigner.signTypedData(body.typedData);
 
     return {

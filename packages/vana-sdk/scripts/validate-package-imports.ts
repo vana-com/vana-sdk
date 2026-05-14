@@ -6,7 +6,9 @@ import { execFileSync } from "node:child_process";
 
 const imports = [
   "@opendatalabs/vana-sdk/protocol/personal-server-registration",
+  "@opendatalabs/vana-sdk/protocol/personal-server-lite-owner-binding",
   "@opendatalabs/vana-sdk/account/personal-server-registration",
+  "@opendatalabs/vana-sdk/account/personal-server-lite-owner-binding",
   "@opendatalabs/vana-sdk/browser",
 ];
 

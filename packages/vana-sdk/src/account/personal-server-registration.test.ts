@@ -232,6 +232,65 @@ describe("Account Personal Server registration integration", () => {
     });
   });
 
+  it("rejects signed typed data that does not match the Account signer", async () => {
+    const typedData = buildPersonalServerRegistrationTypedData({
+      ownerAddress: "0x3333333333333333333333333333333333333333",
+      serverAddress: SERVER_ADDRESS,
+      serverPublicKey: SERVER_PUBLIC_KEY,
+      serverUrl: SERVER_URL,
+    });
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        status: "signed",
+        signature: SIGNATURE,
+        signerAddress: OWNER_ADDRESS,
+        typedData,
+      }),
+    );
+
+    await expect(
+      signPersonalServerRegistrationWithAccount(
+        { accountOrigin: ACCOUNT_ORIGIN, fetchImpl },
+        {
+          serverAddress: SERVER_ADDRESS,
+          serverPublicKey: SERVER_PUBLIC_KEY,
+          serverUrl: SERVER_URL,
+        },
+      ),
+    ).rejects.toThrow(
+      "Account typedData ownerAddress must match the expected signer address",
+    );
+  });
+
+  it("rejects confirmation typed data that does not match the requested server", async () => {
+    const typedData = buildPersonalServerRegistrationTypedData({
+      ownerAddress: OWNER_ADDRESS,
+      serverAddress: "0x3333333333333333333333333333333333333333",
+      serverPublicKey: SERVER_PUBLIC_KEY,
+      serverUrl: SERVER_URL,
+    });
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        status: "confirmation_required",
+        signerAddress: OWNER_ADDRESS,
+        typedData,
+      }),
+    );
+
+    await expect(
+      signPersonalServerRegistrationWithAccount(
+        { accountOrigin: ACCOUNT_ORIGIN, fetchImpl },
+        {
+          serverAddress: SERVER_ADDRESS,
+          serverPublicKey: SERVER_PUBLIC_KEY,
+          serverUrl: SERVER_URL,
+        },
+      ),
+    ).rejects.toThrow(
+      "Account typedData serverAddress must match the requested serverAddress",
+    );
+  });
+
   it("uses a fallback signer for returned confirmation typed data when provided", async () => {
     const typedData = buildPersonalServerRegistrationTypedData({
       ownerAddress: OWNER_ADDRESS,
@@ -270,6 +329,39 @@ describe("Account Personal Server registration integration", () => {
         intent: ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
       },
     });
+  });
+
+  it("rejects fallback typed data before signing when the owner does not match the fallback signer", async () => {
+    const typedData = buildPersonalServerRegistrationTypedData({
+      ownerAddress: "0x3333333333333333333333333333333333333333",
+      serverAddress: SERVER_ADDRESS,
+      serverPublicKey: SERVER_PUBLIC_KEY,
+      serverUrl: SERVER_URL,
+    });
+    const fallbackSigner: PersonalServerRegistrationSigner = {
+      address: OWNER_ADDRESS,
+      signTypedData: vi.fn().mockResolvedValue(SIGNATURE),
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        status: "confirmation_required",
+        typedData,
+      }),
+    );
+
+    await expect(
+      signPersonalServerRegistrationWithAccount(
+        { accountOrigin: ACCOUNT_ORIGIN, fetchImpl, fallbackSigner },
+        {
+          serverAddress: SERVER_ADDRESS,
+          serverPublicKey: SERVER_PUBLIC_KEY,
+          serverUrl: SERVER_URL,
+        },
+      ),
+    ).rejects.toThrow(
+      "Account typedData ownerAddress must match the expected signer address",
+    );
+    expect(fallbackSigner.signTypedData).not.toHaveBeenCalled();
   });
 
   it("preserves structured Account error details", async () => {

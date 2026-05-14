@@ -26,7 +26,8 @@ encryption, storage providers, and a shared isomorphic platform layer.
 - **ECIES crypto** — audited (HashCloak, 2025) ECIES implementation with
   matched browser and Node providers, byte-identical across platforms and
   with strict KDF/MAC validation.
-- **Storage providers** — `StorageManager`, `IpfsStorage`, `PinataStorage`,
+- **Storage providers** — `VanaStorage` (default, talks to `storage.vana.org`),
+  `R2Storage`, `StorageManager`, `IpfsStorage`, `PinataStorage`,
   `GoogleDriveStorage`, `DropboxStorage`, `CallbackStorage`.
 - **Platform adapters** — `NodePlatformAdapter` and `BrowserPlatformAdapter`
   with a shared `VanaPlatformAdapter` interface, plus detection helpers

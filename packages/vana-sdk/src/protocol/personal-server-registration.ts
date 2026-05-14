@@ -22,10 +22,18 @@ import {
   type DataPortabilityGatewayConfig,
   type ServerRegistrationMessage,
 } from "./eip712";
+import { vanaMainnet } from "../chains/definitions";
+import { getContractAddress } from "../generated/addresses";
 
-export const PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID = 1480;
+type SupportedContractAddressChainId = Parameters<typeof getContractAddress>[0];
+
+export const PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID =
+  vanaMainnet.id as SupportedContractAddressChainId;
 export const PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT =
-  "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c" as const;
+  getContractAddress(
+    PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
+    "DataPortabilityServers",
+  );
 
 export type PersonalServerRegistrationTypedData = TypedDataDefinition<
   typeof SERVER_REGISTRATION_TYPES,
@@ -108,6 +116,13 @@ function isPersonalServerRegistrationSigner(
   return "address" in source && typeof source.signTypedData === "function";
 }
 
+function getDefaultServerRegistrationContract(chainId: number): Address {
+  return getContractAddress(
+    chainId as SupportedContractAddressChainId,
+    "DataPortabilityServers",
+  );
+}
+
 export function createViemPersonalServerRegistrationSigner(
   source: ViemPersonalServerRegistrationSignerSource,
   options: { account?: Account | Address } = {},
@@ -142,15 +157,16 @@ export function personalServerRegistrationDomain(
     return serverRegistrationDomain(input.config);
   }
 
+  const chainId =
+    input.chainId ?? PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID;
   const verifyingContract =
-    input.verifyingContract ??
-    PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT;
+    input.verifyingContract ?? getDefaultServerRegistrationContract(chainId);
   assertAddress(verifyingContract, "verifyingContract");
 
   return {
     name: "Vana Data Portability",
     version: "1",
-    chainId: input.chainId ?? PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
+    chainId,
     verifyingContract,
   };
 }

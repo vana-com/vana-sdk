@@ -192,7 +192,7 @@ export {
   type ViemPersonalServerLiteOwnerBindingSignerSource,
   type BuildPersonalServerLiteOwnerBindingSignatureInput,
   type PersonalServerLiteOwnerBindingSignature,
-} from "./protocol/personal-server-lite-owner-binding";
+} from "./personal-server-lite/owner-binding";
 export {
   ACCOUNT_PERSONAL_SERVER_REGISTRATION_INTENT,
   AccountPersonalServerRegistrationError,

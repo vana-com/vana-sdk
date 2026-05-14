@@ -18,7 +18,7 @@ describe("Account PS Lite owner-binding integration", () => {
       client,
     });
 
-    const message = `vana.account.v1:ps-lite-owner:${LOWER_OWNER_ADDRESS}`;
+    const message = `vana.ps-lite.owner-binding.v1:ps-lite-owner:${LOWER_OWNER_ADDRESS}`;
     expect(client.signMessage).toHaveBeenCalledWith({ message });
     expect(result).toEqual({
       signature: SIGNATURE,

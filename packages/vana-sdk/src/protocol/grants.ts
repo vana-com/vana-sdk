@@ -5,20 +5,17 @@ import {
   type DataPortabilityGatewayConfig,
 } from "./eip712";
 
-export interface DataPortabilityGrantPayload {
-  user?: `0x${string}`;
-  builder?: `0x${string}`;
-  scopes: string[];
-  expiresAt: number;
-  nonce?: number;
-}
-
 export interface VerifyGrantRegistrationInput {
   gatewayConfig: DataPortabilityGatewayConfig;
   grantorAddress: `0x${string}`;
   granteeId: `0x${string}`;
-  grant: string;
-  fileIds?: Array<string | number | bigint>;
+  scopes: string[];
+  // Decimal-string uint256 is the wire format; bigint/number are accepted
+  // for ergonomics. Must be >= 1 (first registration uses 1; each override
+  // strictly increases it — see GRANT_REGISTRATION_TYPES).
+  grantVersion: bigint | number | string;
+  // Unix seconds. 0 = no expiry. Anything > 0 is enforced against nowSeconds.
+  expiresAt: bigint | number | string;
   signature: `0x${string}`;
   nowSeconds?: number;
 }
@@ -28,9 +25,9 @@ export type VerifyGrantRegistrationResult =
       valid: true;
       grantorAddress: `0x${string}`;
       granteeId: `0x${string}`;
-      grant: string;
-      payload: DataPortabilityGrantPayload;
-      fileIds: string[];
+      scopes: string[];
+      grantVersion: string;
+      expiresAt: string;
     }
   | {
       valid: false;
@@ -68,62 +65,11 @@ export function isDataPortabilityGatewayConfig(
   );
 }
 
-export function parseGrantRegistrationPayload(
-  grant: string,
-): DataPortabilityGrantPayload | null {
-  let parsed: unknown;
+function toUint256(value: bigint | number | string): bigint | null {
   try {
-    parsed = JSON.parse(grant);
-  } catch {
-    return null;
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return null;
-  }
-  const value = parsed as Record<string, unknown>;
-  if (!Array.isArray(value["scopes"]) || value["scopes"].length === 0) {
-    return null;
-  }
-  if (!value["scopes"].every((scope) => typeof scope === "string")) {
-    return null;
-  }
-  if (
-    typeof value["expiresAt"] !== "number" ||
-    !Number.isFinite(value["expiresAt"])
-  ) {
-    return null;
-  }
-  if (value["user"] !== undefined && !isHexString(value["user"])) {
-    return null;
-  }
-  if (value["builder"] !== undefined && !isHexString(value["builder"])) {
-    return null;
-  }
-  if (
-    value["nonce"] !== undefined &&
-    (typeof value["nonce"] !== "number" || !Number.isFinite(value["nonce"]))
-  ) {
-    return null;
-  }
-  return {
-    user: value["user"] as `0x${string}` | undefined,
-    builder: value["builder"] as `0x${string}` | undefined,
-    scopes: value["scopes"] as string[],
-    expiresAt: value["expiresAt"],
-    nonce: value["nonce"] as number | undefined,
-  };
-}
-
-function parseFileIds(fileIds: Array<string | number | bigint> | undefined): {
-  values: bigint[];
-  display: string[];
-} | null {
-  try {
-    const values = (fileIds ?? []).map((fileId) => BigInt(fileId));
-    return {
-      values,
-      display: values.map((fileId) => fileId.toString()),
-    };
+    const big = typeof value === "bigint" ? value : BigInt(value);
+    if (big < 0n) return null;
+    return big;
   } catch {
     return null;
   }
@@ -132,17 +78,21 @@ function parseFileIds(fileIds: Array<string | number | bigint> | undefined): {
 export async function verifyGrantRegistration(
   input: VerifyGrantRegistrationInput,
 ): Promise<VerifyGrantRegistrationResult> {
-  const payload = parseGrantRegistrationPayload(input.grant);
-  if (!payload) {
-    return {
-      valid: false,
-      error: "Grant must be JSON with scopes and expiresAt",
-    };
+  if (!Array.isArray(input.scopes) || input.scopes.length === 0) {
+    return { valid: false, error: "scopes must be a non-empty array" };
+  }
+  if (!input.scopes.every((scope) => typeof scope === "string")) {
+    return { valid: false, error: "scopes must contain only strings" };
   }
 
-  const fileIds = parseFileIds(input.fileIds);
-  if (!fileIds) {
-    return { valid: false, error: "fileIds must contain integer values" };
+  const grantVersion = toUint256(input.grantVersion);
+  if (grantVersion === null || grantVersion < 1n) {
+    return { valid: false, error: "grantVersion must be a uint256 >= 1" };
+  }
+
+  const expiresAt = toUint256(input.expiresAt);
+  if (expiresAt === null) {
+    return { valid: false, error: "expiresAt must be a non-negative uint256" };
   }
 
   let valid: boolean;
@@ -155,8 +105,9 @@ export async function verifyGrantRegistration(
       message: {
         grantorAddress: input.grantorAddress,
         granteeId: input.granteeId,
-        grant: input.grant,
-        fileIds: fileIds.values,
+        scopes: input.scopes,
+        grantVersion,
+        expiresAt,
       },
       signature: input.signature,
     });
@@ -168,24 +119,18 @@ export async function verifyGrantRegistration(
     return { valid: false, error: "Grant signature does not match grantor" };
   }
 
+  // 0 is the "no expiry" sentinel — only enforce when expiresAt > 0.
   const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
-  if (payload.expiresAt > 0 && payload.expiresAt < nowSeconds) {
+  if (expiresAt > 0n && expiresAt < BigInt(nowSeconds)) {
     return { valid: false, error: "Grant has expired" };
-  }
-
-  if (
-    payload.user !== undefined &&
-    payload.user.toLowerCase() !== input.grantorAddress.toLowerCase()
-  ) {
-    return { valid: false, error: "Grant user does not match grantorAddress" };
   }
 
   return {
     valid: true,
     grantorAddress: input.grantorAddress,
     granteeId: input.granteeId,
-    grant: input.grant,
-    payload,
-    fileIds: fileIds.display,
+    scopes: input.scopes,
+    grantVersion: grantVersion.toString(),
+    expiresAt: expiresAt.toString(),
   };
 }

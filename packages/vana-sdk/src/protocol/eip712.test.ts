@@ -54,12 +54,14 @@ describe("Data Portability EIP-712 helpers", () => {
     expect(GRANT_REGISTRATION_TYPES.GrantRegistration).toEqual([
       { name: "grantorAddress", type: "address" },
       { name: "granteeId", type: "bytes32" },
-      { name: "grant", type: "string" },
-      { name: "fileIds", type: "uint256[]" },
+      { name: "scopes", type: "string[]" },
+      { name: "grantVersion", type: "uint256" },
+      { name: "expiresAt", type: "uint256" },
     ]);
     expect(GRANT_REVOCATION_TYPES.GrantRevocation).toEqual([
       { name: "grantorAddress", type: "address" },
       { name: "grantId", type: "bytes32" },
+      { name: "grantVersion", type: "uint256" },
     ]);
     expect(SERVER_REGISTRATION_TYPES.ServerRegistration).toEqual([
       { name: "ownerAddress", type: "address" },

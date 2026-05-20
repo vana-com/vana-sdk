@@ -89,19 +89,28 @@ export const FILE_REGISTRATION_TYPES = {
   ],
 } as const;
 
+// grantVersion is a monotonic uint256 nonce per (grantor, grantee) pair. The
+// gateway rejects any registration whose version is <= the stored value,
+// which is the replay-attack defence now that re-registering the same pair
+// is a permitted override. expiresAt is unix seconds; 0 = no expiry.
 export const GRANT_REGISTRATION_TYPES = {
   GrantRegistration: [
     { name: "grantorAddress", type: "address" },
     { name: "granteeId", type: "bytes32" },
-    { name: "grant", type: "string" },
-    { name: "fileIds", type: "uint256[]" },
+    { name: "scopes", type: "string[]" },
+    { name: "grantVersion", type: "uint256" },
+    { name: "expiresAt", type: "uint256" },
   ],
 } as const;
 
+// Revocation shares the (grantor, grantee) monotonic nonce with registration —
+// both events advance the same grantVersion counter so an old revocation sig
+// can't be replayed across a revoke → re-register cycle.
 export const GRANT_REVOCATION_TYPES = {
   GrantRevocation: [
     { name: "grantorAddress", type: "address" },
     { name: "grantId", type: "bytes32" },
+    { name: "grantVersion", type: "uint256" },
   ],
 } as const;
 
@@ -132,13 +141,15 @@ export interface FileRegistrationMessage {
 export interface GrantRegistrationMessage {
   grantorAddress: `0x${string}`;
   granteeId: `0x${string}`;
-  grant: string;
-  fileIds: bigint[];
+  scopes: string[];
+  grantVersion: bigint;
+  expiresAt: bigint;
 }
 
 export interface GrantRevocationMessage {
   grantorAddress: `0x${string}`;
   grantId: `0x${string}`;
+  grantVersion: bigint;
 }
 
 export interface ServerRegistrationMessage {

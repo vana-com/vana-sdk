@@ -215,9 +215,7 @@ export {
 } from "./account/personal-server-lite-owner-binding";
 export {
   isDataPortabilityGatewayConfig,
-  parseGrantRegistrationPayload,
   verifyGrantRegistration,
-  type DataPortabilityGrantPayload,
   type VerifyGrantRegistrationInput,
   type VerifyGrantRegistrationResult,
 } from "./protocol/grants";

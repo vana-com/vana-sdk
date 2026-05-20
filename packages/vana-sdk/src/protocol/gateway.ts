@@ -41,29 +41,41 @@ export interface ServerInfo {
   addedAt: string;
 }
 
+// Fee annotation surfaced on every GET grant response. Amounts are decimal
+// uint256 strings to match `/v1/escrow/pay`'s wire format. totalDue is a
+// snapshot — the gateway re-resolves fees at pay time, so clients shouldn't
+// cache this across requests.
+export interface GatewayGrantFee {
+  asset: string;
+  registrationFee: string;
+  dataAccessFee: string;
+  totalDue: string;
+}
+
 export interface GatewayGrantResponse {
   id: string;
   grantorAddress: string;
   granteeId: string;
-  grant: string;
-  fileIds: string[];
+  scopes: string[];
   status: "pending" | "confirmed";
   addedAt: string;
+  // Grantor-signed deadline. null = perpetual grant (signed value was 0).
+  expiresAt: string | null;
+  // Derived at read time from expiresAt vs the gateway's clock — a snapshot,
+  // not a cached truth. Re-check against expiresAt locally if you care.
+  expired: boolean;
   revokedAt: string | null;
   revocationSignature: string | null;
+  // 'pending' until the grant registration fee is settled via /v1/escrow/pay.
+  paymentStatus: "pending" | "paid";
+  paidAt: string | null;
+  paidBy: string | null;
+  // Decimal-string uint256 monotonic nonce; advances on every state change.
+  grantVersion: string;
+  fee: GatewayGrantFee;
 }
 
-export interface GrantListItem {
-  id: string;
-  grantorAddress: string;
-  granteeId: string;
-  grant: string;
-  fileIds: string[];
-  status: "pending" | "confirmed";
-  addedAt: string;
-  revokedAt: string | null;
-  revocationSignature: string | null;
-}
+export type GrantListItem = GatewayGrantResponse;
 
 export interface FileRecord {
   fileId: string;
@@ -96,17 +108,23 @@ export interface RegisterFileParams {
   signature: string;
 }
 
+// grantVersion and expiresAt are decimal-string uint256s — same wire format
+// the gateway expects. The caller is responsible for converting their bigint
+// to a decimal string and for signing GRANT_REGISTRATION_TYPES with matching
+// bigint values.
 export interface CreateGrantParams {
   grantorAddress: string;
   granteeId: string;
-  grant: string;
-  fileIds: string[];
+  scopes: string[];
+  grantVersion: string;
+  expiresAt: string;
   signature: string;
 }
 
 export interface RevokeGrantParams {
   grantId: string;
   grantorAddress: string;
+  grantVersion: string;
   signature: string;
 }
 
@@ -331,8 +349,9 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         body: JSON.stringify({
           grantorAddress: params.grantorAddress,
           granteeId: params.granteeId,
-          grant: params.grant,
-          fileIds: params.fileIds,
+          scopes: params.scopes,
+          grantVersion: params.grantVersion,
+          expiresAt: params.expiresAt,
         }),
       });
       if (res.status === 409) {
@@ -359,6 +378,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         },
         body: JSON.stringify({
           grantorAddress: params.grantorAddress,
+          grantVersion: params.grantVersion,
         }),
       });
       if (res.status === 409) return;

@@ -183,8 +183,9 @@ describe("createGatewayClient", () => {
       client.createGrant({
         grantorAddress: "0xowner",
         granteeId: "builder-1",
-        grant: "grant",
-        fileIds: ["file-1"],
+        scopes: ["instagram.profile"],
+        grantVersion: "1",
+        expiresAt: "0",
         signature: "sig",
       }),
     ).resolves.toEqual({ grantId: "grant-1" });
@@ -192,6 +193,7 @@ describe("createGatewayClient", () => {
       client.revokeGrant({
         grantId: "grant-1",
         grantorAddress: "0xowner",
+        grantVersion: "2",
         signature: "sig",
       }),
     ).resolves.toBeUndefined();
@@ -217,9 +219,29 @@ describe("createGatewayClient", () => {
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://g/v1/grants",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          grantorAddress: "0xowner",
+          granteeId: "builder-1",
+          scopes: ["instagram.profile"],
+          grantVersion: "1",
+          expiresAt: "0",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
       4,
       "https://g/v1/grants/grant-1",
-      expect.objectContaining({ method: "DELETE" }),
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({
+          grantorAddress: "0xowner",
+          grantVersion: "2",
+        }),
+      }),
     );
   });
 
@@ -257,8 +279,9 @@ describe("createGatewayClient", () => {
       client.createGrant({
         grantorAddress: "0xowner",
         granteeId: "builder-1",
-        grant: "grant",
-        fileIds: ["file-1"],
+        scopes: ["instagram.profile"],
+        grantVersion: "1",
+        expiresAt: "0",
         signature: "sig",
       }),
     ).resolves.toEqual({ grantId: "grant-1" });
@@ -266,6 +289,7 @@ describe("createGatewayClient", () => {
       client.revokeGrant({
         grantId: "grant-1",
         grantorAddress: "0xowner",
+        grantVersion: "2",
         signature: "sig",
       }),
     ).resolves.toBeUndefined();

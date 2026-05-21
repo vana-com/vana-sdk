@@ -224,6 +224,17 @@ export {
   type VerifyGrantRegistrationResult,
 } from "./protocol/grants";
 export {
+  ESCROW_DEPOSIT_ABI,
+  escrowContractAddress,
+  encodeDepositNativeData,
+  encodeDepositTokenData,
+  buildDepositNativeRequest,
+  buildDepositTokenRequest,
+  type DepositNativeInput,
+  type DepositTokenInput,
+  type DepositTransactionRequest,
+} from "./protocol/escrow-deposit";
+export {
   ScopeSchema,
   parseScope,
   scopeToPathSegments,

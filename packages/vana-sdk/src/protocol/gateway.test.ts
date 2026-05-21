@@ -294,4 +294,140 @@ describe("createGatewayClient", () => {
       }),
     ).resolves.toBeUndefined();
   });
+
+  it("reads escrow balance without an envelope wrap", async () => {
+    const balanceBody = {
+      account: "0xpayer",
+      balances: [
+        {
+          asset: "0x0000000000000000000000000000000000000000",
+          balance: "1000",
+          pendingAmount: "200",
+          updatedAt: "2026-05-08T00:00:00.000Z",
+        },
+      ],
+      deposits: { submitted: [], finalized: [], failed: [] },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(balanceBody));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").getEscrowBalance("0xpayer"),
+    ).resolves.toEqual(balanceBody);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/escrow/balance?account=0xpayer",
+    );
+  });
+
+  it("posts deposit submissions and accepts the 202 confirming-status response", async () => {
+    const depositBody = {
+      txHash: "0xtx",
+      account: "0xpayer",
+      status: "submitted",
+      blockNumber: null,
+      submittedAt: "2026-05-08T00:00:00.000Z",
+      finalizedAt: null,
+      lastError: null,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(depositBody, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").submitEscrowDeposit({ txHash: "0xtx" }),
+    ).resolves.toEqual(depositBody);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/escrow/deposit",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ txHash: "0xtx" }),
+      }),
+    );
+  });
+
+  it("pays for an operation with a Web3Signed EIP-712 signature", async () => {
+    const payBody = {
+      opType: "grant",
+      opId: "0xgrant",
+      payerAddress: "0xpayer",
+      asset: "0x0000000000000000000000000000000000000000",
+      amount: "300",
+      breakdown: {
+        registrationFee: "200",
+        dataAccessFee: "100",
+        registrationSettled: true,
+      },
+      paymentNonce: "1",
+      paidAt: "2026-05-08T00:00:00.000Z",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(payBody));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").payForOperation({
+        payerAddress: "0xpayer",
+        opType: "grant",
+        opId: "0xgrant",
+        asset: "0x0000000000000000000000000000000000000000",
+        amount: "300",
+        paymentNonce: "1",
+        signature: "sig",
+      }),
+    ).resolves.toEqual(payBody);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/escrow/pay",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Web3Signed sig",
+        }),
+        body: JSON.stringify({
+          payerAddress: "0xpayer",
+          opType: "grant",
+          opId: "0xgrant",
+          asset: "0x0000000000000000000000000000000000000000",
+          amount: "300",
+          paymentNonce: "1",
+        }),
+      }),
+    );
+  });
+
+  it("surfaces 402 insufficient-balance and 409 nonce-replay as thrown errors", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({}, { status: 402, statusText: "Payment Required" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({}, { status: 409, statusText: "Conflict" }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.payForOperation({
+        payerAddress: "0xpayer",
+        opType: "grant",
+        opId: "0xgrant",
+        asset: "0x0000000000000000000000000000000000000000",
+        amount: "300",
+        paymentNonce: "1",
+        signature: "sig",
+      }),
+    ).rejects.toThrow("Gateway error: 402 Payment Required");
+    await expect(
+      client.payForOperation({
+        payerAddress: "0xpayer",
+        opType: "grant",
+        opId: "0xgrant",
+        asset: "0x0000000000000000000000000000000000000000",
+        amount: "100",
+        paymentNonce: "1",
+        signature: "sig",
+      }),
+    ).rejects.toThrow("Gateway error: 409 Conflict");
+  });
 });

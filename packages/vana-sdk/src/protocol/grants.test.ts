@@ -17,6 +17,7 @@ const CONFIG: DataPortabilityGatewayConfig = {
     dataPortabilityPermissions: "0x2222222222222222222222222222222222222222",
     dataPortabilityServer: "0x3333333333333333333333333333333333333333",
     dataPortabilityGrantees: "0x4444444444444444444444444444444444444444",
+    dataPortabilityEscrow: "0x5555555555555555555555555555555555555555",
   },
 };
 
@@ -36,6 +37,14 @@ describe("Data Portability grant helpers", () => {
       isDataPortabilityGatewayConfig({
         chainId: 14800,
         contracts: { dataPortabilityPermissions: "0x1" },
+      }),
+    ).toBe(false);
+    // Missing the escrow contract → invalid, since /v1/escrow/pay needs it.
+    const { dataPortabilityEscrow: _omit, ...withoutEscrow } = CONFIG.contracts;
+    expect(
+      isDataPortabilityGatewayConfig({
+        chainId: 14800,
+        contracts: withoutEscrow,
       }),
     ).toBe(false);
   });

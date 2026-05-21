@@ -99,6 +99,7 @@ describe("Personal Server registration", () => {
             dataPortabilityServer: verifyingContract,
             dataPortabilityGrantees:
               "0x6666666666666666666666666666666666666666",
+            dataPortabilityEscrow: "0x7777777777777777777777777777777777777777",
           },
         },
       }).domain,

@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   BUILDER_REGISTRATION_TYPES,
   FILE_REGISTRATION_TYPES,
+  GENERIC_PAYMENT_TYPES,
   GRANT_REGISTRATION_TYPES,
   GRANT_REVOCATION_TYPES,
+  NATIVE_VANA_ASSET,
   SERVER_REGISTRATION_TYPES,
   builderRegistrationDomain,
+  escrowPaymentDomain,
   fileRegistrationDomain,
   grantRegistrationDomain,
   grantRevocationDomain,
@@ -20,6 +23,7 @@ const CONFIG: DataPortabilityGatewayConfig = {
     dataPortabilityPermissions: "0x2222222222222222222222222222222222222222",
     dataPortabilityServer: "0x3333333333333333333333333333333333333333",
     dataPortabilityGrantees: "0x4444444444444444444444444444444444444444",
+    dataPortabilityEscrow: "0x5555555555555555555555555555555555555555",
   },
 };
 
@@ -43,6 +47,15 @@ describe("Data Portability EIP-712 helpers", () => {
     expect(builderRegistrationDomain(CONFIG)).toMatchObject({
       verifyingContract: CONFIG.contracts.dataPortabilityGrantees,
     });
+    expect(escrowPaymentDomain(CONFIG)).toMatchObject({
+      verifyingContract: CONFIG.contracts.dataPortabilityEscrow,
+    });
+  });
+
+  it("exposes the native VANA asset sentinel", () => {
+    expect(NATIVE_VANA_ASSET).toBe(
+      "0x0000000000000000000000000000000000000000",
+    );
   });
 
   it("exports stable typed-data shapes", () => {
@@ -74,6 +87,14 @@ describe("Data Portability EIP-712 helpers", () => {
       { name: "granteeAddress", type: "address" },
       { name: "publicKey", type: "string" },
       { name: "appUrl", type: "string" },
+    ]);
+    expect(GENERIC_PAYMENT_TYPES.GenericPayment).toEqual([
+      { name: "payerAddress", type: "address" },
+      { name: "opType", type: "string" },
+      { name: "opId", type: "bytes32" },
+      { name: "asset", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "paymentNonce", type: "uint256" },
     ]);
   });
 });

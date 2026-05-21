@@ -17,7 +17,15 @@ export interface DataPortabilityContracts {
   dataPortabilityPermissions: string;
   dataPortabilityServer: string;
   dataPortabilityGrantees: string;
+  // DataPortabilityEscrow — verifies GENERIC_PAYMENT_TYPES signatures backing
+  // /v1/escrow/pay (the data-access payment path).
+  dataPortabilityEscrow: string;
 }
+
+// Native VANA asset sentinel used by /v1/escrow/pay's `asset` field — pay any
+// other ERC-20 by passing its contract address instead.
+export const NATIVE_VANA_ASSET =
+  "0x0000000000000000000000000000000000000000" as const;
 
 export interface DataPortabilityGatewayConfig {
   chainId: number;
@@ -81,6 +89,19 @@ export function builderRegistrationDomain(
   );
 }
 
+// Domain for the generic-payment EIP-712 signature consumed by
+// /v1/escrow/pay. The verifyingContract is the escrow itself (not the per-op
+// contract), so a single signature debits the payer's escrow balance for any
+// supported op — `grant` today; file/builder/schema in the future.
+export function escrowPaymentDomain(
+  config: DataPortabilityGatewayConfig,
+): TypedDataDomain {
+  return buildDomain(
+    config.chainId,
+    config.contracts.dataPortabilityEscrow as `0x${string}`,
+  );
+}
+
 export const FILE_REGISTRATION_TYPES = {
   FileRegistration: [
     { name: "ownerAddress", type: "address" },
@@ -132,6 +153,22 @@ export const BUILDER_REGISTRATION_TYPES = {
   ],
 } as const;
 
+// Generic payment for the escrow flow. The (opType, opId) pair routes the
+// debit to the right op-row; paymentNonce is per-payer monotonic so the same
+// signed message can't be replayed after a revoke + re-register cycle.
+//
+// Today opType is always 'grant' and opId is the bytes32 grantId.
+export const GENERIC_PAYMENT_TYPES = {
+  GenericPayment: [
+    { name: "payerAddress", type: "address" },
+    { name: "opType", type: "string" },
+    { name: "opId", type: "bytes32" },
+    { name: "asset", type: "address" },
+    { name: "amount", type: "uint256" },
+    { name: "paymentNonce", type: "uint256" },
+  ],
+} as const;
+
 export interface FileRegistrationMessage {
   ownerAddress: `0x${string}`;
   url: string;
@@ -164,4 +201,17 @@ export interface BuilderRegistrationMessage {
   granteeAddress: `0x${string}`;
   publicKey: string;
   appUrl: string;
+}
+
+export interface GenericPaymentMessage {
+  payerAddress: `0x${string}`;
+  // 'grant' today — extensible to 'file' | 'builder' | 'schema' as those
+  // op-types become payable. Sent verbatim over the wire and into the
+  // typed-data string field, so callers must match the gateway's spelling.
+  opType: string;
+  opId: `0x${string}`;
+  // NATIVE_VANA_ASSET for native VANA; an ERC-20 contract address otherwise.
+  asset: `0x${string}`;
+  amount: bigint;
+  paymentNonce: bigint;
 }

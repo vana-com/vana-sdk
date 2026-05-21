@@ -61,7 +61,8 @@ export function isDataPortabilityGatewayConfig(
     isHexString(c["dataRegistry"]) &&
     isHexString(c["dataPortabilityPermissions"]) &&
     isHexString(c["dataPortabilityServer"]) &&
-    isHexString(c["dataPortabilityGrantees"])
+    isHexString(c["dataPortabilityGrantees"]) &&
+    isHexString(c["dataPortabilityEscrow"])
   );
 }
 

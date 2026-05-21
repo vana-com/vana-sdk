@@ -141,6 +141,106 @@ export interface RegisterServerResult {
   alreadyRegistered: boolean;
 }
 
+// ── Escrow / data-access payment path ───────────────────────────────────────
+// /v1/escrow/pay debits the payer's escrow balance for a payable op. For a
+// grant: opType = 'grant', opId = the bytes32 grantId. amount, paymentNonce,
+// and asset are decimal-uint256 strings on the wire. The signature is the
+// raw EIP-712 hex of GENERIC_PAYMENT_TYPES against escrowPaymentDomain.
+
+export interface PayForOperationParams {
+  payerAddress: string;
+  opType: string;
+  opId: string;
+  asset: string;
+  amount: string;
+  // Per-payer monotonic; (payer, nonce, kind) must be unique. The gateway
+  // returns 409 if reused — bump and re-sign.
+  paymentNonce: string;
+  signature: string;
+}
+
+export interface PayForOperationResult {
+  opType: string;
+  opId: string;
+  payerAddress: string;
+  asset: string;
+  amount: string;
+  // Echoes how the gateway split this payment. registrationSettled is true on
+  // the first payment for a grant (which bundles both fees) and false on
+  // subsequent data-access-only payments.
+  breakdown: {
+    registrationFee: string;
+    dataAccessFee: string;
+    registrationSettled: boolean;
+  };
+  paymentNonce: string;
+  paidAt: string;
+}
+
+// /v1/escrow/balance?account=... — pure read. Returns finalized balances by
+// asset, plus the lifecycle breakdown of deposits.
+export interface EscrowBalanceEntry {
+  asset: string;
+  balance: string;
+  // Sum of claimedAmount for deposits still in 'submitted' status — surfaced
+  // separately so clients don't conflate "credited" with "deposit announced
+  // but not yet confirmed."
+  pendingAmount: string;
+  updatedAt: string | null;
+}
+
+export interface EscrowDepositSubmitted {
+  txHash: string;
+  submittedAt: string;
+  claimedAsset: string;
+  claimedAmount: string;
+}
+
+export interface EscrowDepositFinalized {
+  txHash: string;
+  finalizedAt: string | null;
+  blockNumber: string | null;
+  claimedAsset: string;
+  claimedAmount: string;
+}
+
+export interface EscrowDepositFailed {
+  txHash: string;
+  submittedAt: string;
+  claimedAsset: string;
+  claimedAmount: string;
+  lastError: string | null;
+}
+
+export interface EscrowBalance {
+  account: string;
+  balances: EscrowBalanceEntry[];
+  deposits: {
+    submitted: EscrowDepositSubmitted[];
+    finalized: EscrowDepositFinalized[];
+    failed: EscrowDepositFailed[];
+  };
+}
+
+// /v1/escrow/deposit announces an on-chain deposit tx so the gateway can
+// reconcile it into the payer's balance. The gateway extracts the credited
+// account from calldata — no off-chain claim about who paid.
+export interface SubmitDepositParams {
+  txHash: string;
+}
+
+export interface DepositState {
+  txHash: string;
+  account: string;
+  // 'submitted' | 'finalized' | 'failed' — kept open since the gateway adds
+  // states (e.g. 'orphaned') as the deposit flow evolves.
+  status: string;
+  blockNumber: string | null;
+  submittedAt: string;
+  finalizedAt: string | null;
+  lastError: string | null;
+}
+
 export interface GatewayClient {
   isRegisteredBuilder(address: string): Promise<boolean>;
   getBuilder(address: string): Promise<Builder | null>;
@@ -155,6 +255,11 @@ export interface GatewayClient {
   registerFile(params: RegisterFileParams): Promise<{ fileId?: string }>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
+  getEscrowBalance(account: string): Promise<EscrowBalance>;
+  submitEscrowDeposit(params: SubmitDepositParams): Promise<DepositState>;
+  payForOperation(
+    params: PayForOperationParams,
+  ): Promise<PayForOperationResult>;
 }
 
 export function createGatewayClient(baseUrl: string): GatewayClient {
@@ -385,6 +490,57 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
+    },
+
+    async getEscrowBalance(account: string): Promise<EscrowBalance> {
+      const res = await fetch(`${base}/v1/escrow/balance?account=${account}`);
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+      // Unlike the rest of /v1, the balance endpoint returns the body
+      // directly (no GatewayEnvelope wrap) — it's a pure read with no
+      // gateway-signed attestation. See data-gateway api/v1/escrow/balance.ts.
+      return (await res.json()) as EscrowBalance;
+    },
+
+    async submitEscrowDeposit(
+      params: SubmitDepositParams,
+    ): Promise<DepositState> {
+      const res = await fetch(`${base}/v1/escrow/deposit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ txHash: params.txHash }),
+      });
+      // The gateway returns 202 for "accepted (still confirming)" and 200 for
+      // duplicate idempotent replays. Both carry the deposit's current state.
+      if (res.status !== 200 && res.status !== 202) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+      return (await res.json()) as DepositState;
+    },
+
+    async payForOperation(
+      params: PayForOperationParams,
+    ): Promise<PayForOperationResult> {
+      const res = await fetch(`${base}/v1/escrow/pay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${params.signature}`,
+        },
+        body: JSON.stringify({
+          payerAddress: params.payerAddress,
+          opType: params.opType,
+          opId: params.opId,
+          asset: params.asset,
+          amount: params.amount,
+          paymentNonce: params.paymentNonce,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+      return (await res.json()) as PayForOperationResult;
     },
   };
 }

@@ -245,6 +245,64 @@ describe("createGatewayClient", () => {
     );
   });
 
+  it("registers a builder with Web3Signed auth, returns the gateway-computed builderId", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: true, builderId: "0xbuilder" },
+          { status: 201 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: false, error: "Builder already registered" },
+          { status: 409 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.registerBuilder({
+        ownerAddress: "0xowner",
+        granteeAddress: "0xgrantee",
+        publicKey: "0xpub",
+        appUrl: "https://app.example",
+        signature: "sig",
+      }),
+    ).resolves.toEqual({ builderId: "0xbuilder", alreadyRegistered: false });
+
+    // 409 → alreadyRegistered:true, builderId stays undefined since the
+    // gateway's current 409 body doesn't include the id.
+    await expect(
+      client.registerBuilder({
+        ownerAddress: "0xowner",
+        granteeAddress: "0xgrantee",
+        publicKey: "0xpub",
+        appUrl: "https://app.example",
+        signature: "sig",
+      }),
+    ).resolves.toEqual({ builderId: undefined, alreadyRegistered: true });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://g/v1/builders",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Web3Signed sig",
+        }),
+        body: JSON.stringify({
+          ownerAddress: "0xowner",
+          granteeAddress: "0xgrantee",
+          publicKey: "0xpub",
+          appUrl: "https://app.example",
+        }),
+      }),
+    );
+  });
+
   it("treats 409 mutation responses as idempotent success", async () => {
     const fetchMock = vi
       .fn()

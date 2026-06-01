@@ -41,10 +41,12 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { buildWeb3SignedHeader } from "../auth/web3-signed-builder";
 import { verifyWeb3Signed } from "../auth/web3-signed";
 import {
+  BUILDER_REGISTRATION_TYPES,
   GENERIC_PAYMENT_TYPES,
   GRANT_REGISTRATION_TYPES,
   NATIVE_VANA_ASSET,
   RECORD_DATA_ACCESS_TYPES,
+  builderRegistrationDomain,
   dataRegistryDomain,
   escrowPaymentDomain,
   grantRegistrationDomain,
@@ -439,8 +441,10 @@ class MockGateway {
     ),
   );
 
-  private computeGrantId(grantorAddress: Address, granteeId: Hex): Hex {
-    const domainSeparator = keccak256(
+  // Shared by computeBuilderId + computeGrantId — the contract-specific
+  // domain separator that prefixes every deterministic id keccak.
+  static computeDomainSeparator(verifyingContract: Address): Hex {
+    return keccak256(
       encodeAbiParameters(
         [
           { name: "typeHash", type: "bytes32" },
@@ -450,10 +454,13 @@ class MockGateway {
         [
           MockGateway.DOMAIN_TYPE_HASH,
           BigInt(CONFIG.chainId),
-          CONFIG.contracts.dataPortabilityPermissions as Address,
+          verifyingContract,
         ],
       ),
     );
+  }
+
+  private computeGrantId(grantorAddress: Address, granteeId: Hex): Hex {
     return keccak256(
       encodeAbiParameters(
         [
@@ -461,7 +468,13 @@ class MockGateway {
           { name: "grantorAddress", type: "address" },
           { name: "granteeId", type: "bytes32" },
         ],
-        [domainSeparator, grantorAddress, granteeId],
+        [
+          MockGateway.computeDomainSeparator(
+            CONFIG.contracts.dataPortabilityPermissions as Address,
+          ),
+          grantorAddress,
+          granteeId,
+        ],
       ),
     );
   }
@@ -475,6 +488,9 @@ class MockGateway {
     const path = new URL(url).pathname;
     const search = new URL(url).searchParams;
 
+    if (method === "POST" && path === "/v1/builders") {
+      return this.handleRegisterBuilder(init);
+    }
     if (method === "POST" && path === "/v1/grants") {
       return this.handleCreateGrant(init);
     }
@@ -495,6 +511,76 @@ class MockGateway {
     return new Response(JSON.stringify({ error: "not mocked" }), {
       status: 404,
     });
+  }
+
+  private async handleRegisterBuilder(
+    init: RequestInit | undefined,
+  ): Promise<Response> {
+    const body = JSON.parse(init?.body as string) as {
+      ownerAddress: Address;
+      granteeAddress: Address;
+      publicKey: string;
+      appUrl: string;
+    };
+    const authHeader = (init?.headers as Record<string, string> | undefined)?.[
+      "Authorization"
+    ];
+    if (!authHeader || !authHeader.startsWith("Web3Signed ")) {
+      return jsonResponse({ error: "missing signature" }, 401);
+    }
+    const signature = authHeader.slice("Web3Signed ".length) as Hex;
+
+    const recovered = await recoverTypedDataAddress({
+      domain: builderRegistrationDomain(CONFIG),
+      types: BUILDER_REGISTRATION_TYPES,
+      primaryType: "BuilderRegistration",
+      message: {
+        ownerAddress: body.ownerAddress,
+        granteeAddress: body.granteeAddress,
+        publicKey: body.publicKey,
+        appUrl: body.appUrl,
+      },
+      signature,
+    });
+    if (recovered.toLowerCase() !== body.ownerAddress.toLowerCase()) {
+      return jsonResponse({ error: "signer does not match owner" }, 401);
+    }
+
+    // builderId derivation matches data-gateway/lib/builders.ts:12 —
+    // keccak256(abi.encode(domainSeparator, owner, grantee, publicKey, appUrl))
+    // where domainSeparator binds to the DataPortabilityGrantees contract.
+    const builderDomainSeparator = MockGateway.computeDomainSeparator(
+      CONFIG.contracts.dataPortabilityGrantees as Address,
+    );
+    const builderId = keccak256(
+      encodeAbiParameters(
+        [
+          { name: "domainSeparator", type: "bytes32" },
+          { name: "owner", type: "address" },
+          { name: "granteeAddress", type: "address" },
+          { name: "publicKey", type: "string" },
+          { name: "appUrl", type: "string" },
+        ],
+        [
+          builderDomainSeparator,
+          body.ownerAddress,
+          body.granteeAddress,
+          body.publicKey,
+          body.appUrl,
+        ],
+      ),
+    );
+    if (this.builders.has(builderId.toLowerCase() as Hex)) {
+      return jsonResponse(
+        { success: false, error: "Builder already registered" },
+        409,
+      );
+    }
+    this.builders.set(
+      builderId.toLowerCase() as Hex,
+      body.granteeAddress.toLowerCase() as Address,
+    );
+    return jsonResponse({ success: true, builderId }, 201);
   }
 
   private async handleCreateGrant(
@@ -1012,24 +1098,50 @@ describe("Escrow deposit + payment e2e", () => {
     vi.unstubAllGlobals();
   });
 
-  it("registers a grant, funds escrow, pays the fee, and fetches data from the Personal Server", async () => {
+  it("registers a builder + a grant, funds escrow, pays the fee, and fetches data from the Personal Server", async () => {
     const sdk = createGatewayClient("https://gateway.example");
     const depositAmount = 1_000n;
     const grantFee = { registration: 600n, access: 400n };
     const totalDue = grantFee.registration + grantFee.access;
     const scope = "instagram.profile";
 
-    // ── 1. Grantor signs GRANT_REGISTRATION_TYPES and registers ────────
-    // The signature commits to scopes/grantVersion/expiresAt — the SDK's
-    // exported domain + type set must agree with the gateway's recovery
-    // call below or this whole flow falls over.
+    // ── 1. Builder owner signs BUILDER_REGISTRATION_TYPES and registers ─
+    // The mock gateway recovers the signer via the same domain + types as
+    // the real one, then deterministically computes builderId. We use the
+    // gateway-returned builderId as the granteeId on the grant — same as
+    // the e2e script in scripts/e2e-escrow-deposit.ts does.
+    const builderRegSignature = await builder.signTypedData({
+      domain: builderRegistrationDomain(CONFIG),
+      types: BUILDER_REGISTRATION_TYPES,
+      primaryType: "BuilderRegistration",
+      message: {
+        ownerAddress: builder.address,
+        granteeAddress: builder.address,
+        publicKey: "0xabcd",
+        appUrl: "https://app.example",
+      },
+    });
+    const builderResult = await sdk.registerBuilder({
+      ownerAddress: builder.address,
+      granteeAddress: builder.address,
+      publicKey: "0xabcd",
+      appUrl: "https://app.example",
+      signature: builderRegSignature,
+    });
+    expect(builderResult.builderId).toMatch(/^0x[0-9a-f]{64}$/);
+    const granteeId = builderResult.builderId as Hex;
+    // Wire the freshly-registered builder into the lookup the PS will use
+    // when checking "is the signer the registered grantee?".
+    gateway.seedBuilder(granteeId, builder.address);
+
+    // ── 2. Grantor signs GRANT_REGISTRATION_TYPES and registers ────────
     const grantRegSignature = await grantor.signTypedData({
       domain: grantRegistrationDomain(CONFIG),
       types: GRANT_REGISTRATION_TYPES,
       primaryType: "GrantRegistration",
       message: {
         grantorAddress: grantor.address,
-        granteeId: GRANTEE_ID,
+        granteeId,
         scopes: [scope],
         grantVersion: 1n,
         expiresAt: 0n,
@@ -1037,7 +1149,7 @@ describe("Escrow deposit + payment e2e", () => {
     });
     const createResult = await sdk.createGrant({
       grantorAddress: grantor.address,
-      granteeId: GRANTEE_ID,
+      granteeId,
       scopes: [scope],
       grantVersion: "1",
       expiresAt: "0",
@@ -1046,7 +1158,7 @@ describe("Escrow deposit + payment e2e", () => {
     expect(createResult.grantId).toMatch(/^0x[0-9a-f]{64}$/);
     const grantId = createResult.grantId as Hex;
 
-    // ── 2. Deposit ─────────────────────────────────────────────────────
+    // ── 3. Deposit ─────────────────────────────────────────────────────
     const depositRequest = buildDepositNativeRequest(CONFIG, {
       account: builder.address,
       amount: depositAmount,
@@ -1073,7 +1185,7 @@ describe("Escrow deposit + payment e2e", () => {
       }),
     );
 
-    // ── 3. Announce to the gateway ─────────────────────────────────────
+    // ── 4. Announce to the gateway ─────────────────────────────────────
     const submitResult = await sdk.submitEscrowDeposit({
       txHash: depositTxHash,
     });
@@ -1082,19 +1194,19 @@ describe("Escrow deposit + payment e2e", () => {
       builder.address.toLowerCase(),
     );
 
-    // ── 4. Confirm the credited balance ────────────────────────────────
+    // ── 5. Confirm the credited balance ────────────────────────────────
     const balance = await sdk.getEscrowBalance(builder.address);
     expect(balance.balances).toHaveLength(1);
     expect(balance.balances[0].balance).toBe(depositAmount.toString());
     expect(balance.deposits.finalized).toHaveLength(1);
     expect(balance.deposits.finalized[0].txHash).toBe(depositTxHash);
 
-    // ── 5. Read the grant to discover totalDue (the real flow) ────────
+    // ── 6. Read the grant to discover totalDue (the real flow) ────────
     const grantBefore = await sdk.getGrant(grantId);
     expect(grantBefore?.paymentStatus).toBe("pending");
     expect(grantBefore?.fee.totalDue).toBe(totalDue.toString());
 
-    // ── 6. Sign GenericPayment and submit ──────────────────────────────
+    // ── 7. Sign GenericPayment and submit ──────────────────────────────
     const signature = await builder.signTypedData({
       domain: escrowPaymentDomain(CONFIG),
       types: GENERIC_PAYMENT_TYPES,
@@ -1125,7 +1237,7 @@ describe("Escrow deposit + payment e2e", () => {
       registrationPaid: true,
     });
 
-    // ── 7. Grant now shows as paid, balance debited ────────────────────
+    // ── 8. Grant now shows as paid, balance debited ────────────────────
     const grantAfter = await sdk.getGrant(grantId);
     expect(grantAfter?.paymentStatus).toBe("paid");
     expect(grantAfter?.paidBy?.toLowerCase()).toBe(
@@ -1142,7 +1254,7 @@ describe("Escrow deposit + payment e2e", () => {
     expect(balanceAfter.balances[0].authorizedAmount).toBe(totalDue.toString());
     expect(balanceAfter.balances[0].availableAmount).toBe("0");
 
-    // ── 8. Builder fetches data from the Personal Server ───────────────
+    // ── 9. Builder fetches data from the Personal Server ───────────────
     // buildWeb3SignedHeader produces an EIP-191-signed JWT-like header
     // pinned to (aud, method, uri, bodyHash, exp). The PS verifies the
     // header, checks grant.paymentStatus === 'paid', confirms the signer

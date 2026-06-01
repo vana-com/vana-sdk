@@ -141,6 +141,22 @@ export interface RegisterServerResult {
   alreadyRegistered: boolean;
 }
 
+export interface RegisterBuilderParams {
+  ownerAddress: string;
+  // Wallet the builder authenticates to the Personal Server with. The
+  // builderId is deterministically derived from (owner, grantee, publicKey,
+  // appUrl) so this triple pins the on-chain identity.
+  granteeAddress: string;
+  publicKey: string;
+  appUrl: string;
+  signature: string;
+}
+
+export interface RegisterBuilderResult {
+  builderId?: string;
+  alreadyRegistered: boolean;
+}
+
 // ── Escrow / data-access payment path ───────────────────────────────────────
 // /v1/escrow/pay debits the payer's escrow balance for a payable op. For a
 // grant: opType = 'grant', opId = the bytes32 grantId. amount, paymentNonce,
@@ -284,6 +300,9 @@ export interface GatewayClient {
   listFilesSince(owner: string, cursor: string | null): Promise<FileListResult>;
   getSchema(schemaId: string): Promise<Schema | null>;
   registerServer(params: RegisterServerParams): Promise<RegisterServerResult>;
+  registerBuilder(
+    params: RegisterBuilderParams,
+  ): Promise<RegisterBuilderResult>;
   registerFile(params: RegisterFileParams): Promise<{ fileId?: string }>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
@@ -440,6 +459,45 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       const body = await res.json().catch(() => ({}));
       return {
         serverId: getMutationId(body as Record<string, unknown>, "serverId"),
+        alreadyRegistered: false,
+      };
+    },
+
+    async registerBuilder(
+      params: RegisterBuilderParams,
+    ): Promise<RegisterBuilderResult> {
+      const res = await fetch(`${base}/v1/builders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${params.signature}`,
+        },
+        body: JSON.stringify({
+          ownerAddress: params.ownerAddress,
+          granteeAddress: params.granteeAddress,
+          publicKey: params.publicKey,
+          appUrl: params.appUrl,
+        }),
+      });
+      // 409 is idempotent — the gateway's current 409 body doesn't include
+      // the builderId, but we tolerate it in case that changes (mirrors the
+      // registerServer / createGrant shape).
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          builderId: getMutationId(
+            body as Record<string, unknown>,
+            "builderId",
+          ),
+          alreadyRegistered: true,
+        };
+      }
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+      const body = await res.json().catch(() => ({}));
+      return {
+        builderId: getMutationId(body as Record<string, unknown>, "builderId"),
         alreadyRegistered: false,
       };
     },

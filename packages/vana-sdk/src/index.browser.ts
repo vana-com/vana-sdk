@@ -270,6 +270,8 @@ export {
   type RegisterServerParams,
   type RegisterServerResult,
   type RegisterFileParams,
+  type RegisterBuilderParams,
+  type RegisterBuilderResult,
   type CreateGrantParams,
   type RevokeGrantParams,
   type PayForOperationParams,

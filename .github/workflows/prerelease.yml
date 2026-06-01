@@ -16,6 +16,7 @@ on:
       - fix/update-lockfile
       - staking
       - remove-subgraph
+      - feat/grant-registration-struct
 
 jobs:
   publish-pr-prerelease:

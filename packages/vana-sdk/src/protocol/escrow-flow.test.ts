@@ -41,6 +41,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { buildWeb3SignedHeader } from "../auth/web3-signed-builder";
 import { verifyWeb3Signed } from "../auth/web3-signed";
 import {
+  ADD_DATA_TYPES,
   BUILDER_REGISTRATION_TYPES,
   GENERIC_PAYMENT_TYPES,
   GRANT_REGISTRATION_TYPES,
@@ -365,6 +366,9 @@ class MockGateway {
   // used by MockPersonalServer to check that the data-access request was
   // signed by the wallet the grantor authorised.
   private readonly builders = new Map<Hex, Address>();
+  // dataPointId → current stored version. Populated by /v1/data calls;
+  // the soft 409 path consults this for stale-CAS detection.
+  private readonly dataPoints = new Map<Hex, bigint>();
   // Personal-server addresses authorised to sign access records for a given
   // data-point owner. The real gateway stores this in the `servers` table;
   // we collapse to a (owner → set of server addresses) map.
@@ -491,6 +495,9 @@ class MockGateway {
     if (method === "POST" && path === "/v1/builders") {
       return this.handleRegisterBuilder(init);
     }
+    if (method === "POST" && path === "/v1/data") {
+      return this.handleRegisterDataPoint(init);
+    }
     if (method === "POST" && path === "/v1/grants") {
       return this.handleCreateGrant(init);
     }
@@ -581,6 +588,79 @@ class MockGateway {
       body.granteeAddress.toLowerCase() as Address,
     );
     return jsonResponse({ success: true, builderId }, 201);
+  }
+
+  private async handleRegisterDataPoint(
+    init: RequestInit | undefined,
+  ): Promise<Response> {
+    const body = JSON.parse(init?.body as string) as {
+      ownerAddress: Address;
+      scope: string;
+      dataHash: Hex;
+      metadataHash: Hex;
+      expectedVersion: string;
+    };
+    const authHeader = (init?.headers as Record<string, string> | undefined)?.[
+      "Authorization"
+    ];
+    if (!authHeader || !authHeader.startsWith("Web3Signed ")) {
+      return jsonResponse({ error: "missing signature" }, 401);
+    }
+    const signature = authHeader.slice("Web3Signed ".length) as Hex;
+    const recovered = await recoverTypedDataAddress({
+      domain: dataRegistryDomain(CONFIG),
+      types: ADD_DATA_TYPES,
+      primaryType: "AddData",
+      message: {
+        ownerAddress: body.ownerAddress,
+        scope: body.scope,
+        dataHash: body.dataHash,
+        metadataHash: body.metadataHash,
+        expectedVersion: BigInt(body.expectedVersion),
+      },
+      signature,
+    });
+    if (recovered.toLowerCase() !== body.ownerAddress.toLowerCase()) {
+      return jsonResponse({ error: "signer does not match owner" }, 401);
+    }
+
+    // dataPointId derivation matches data-gateway/lib/data-points.ts:13 —
+    // keccak256(abi.encode(ownerAddress, scope)). No domain separator here;
+    // (owner, scope) collide across chains, which is the intended pinning.
+    const dataPointId = keccak256(
+      encodeAbiParameters(
+        [
+          { name: "ownerAddress", type: "address" },
+          { name: "scope", type: "string" },
+        ],
+        [body.ownerAddress, body.scope],
+      ),
+    );
+
+    const incomingVersion = BigInt(body.expectedVersion);
+    const stored = this.dataPoints.get(dataPointId.toLowerCase() as Hex);
+    if (stored !== undefined && incomingVersion <= stored) {
+      // CAS guard — return the gateway's exact 409 shape so callers can
+      // grab `currentExpectedVersion` from the error response if they
+      // want to retry after bumping.
+      return jsonResponse(
+        {
+          success: false,
+          error: `Stale expectedVersion ${incomingVersion}: must be strictly greater than the stored value ${stored}`,
+          currentExpectedVersion: stored.toString(),
+        },
+        409,
+      );
+    }
+    this.dataPoints.set(dataPointId.toLowerCase() as Hex, incomingVersion);
+    return jsonResponse(
+      {
+        success: true,
+        dataPointId,
+        expectedVersion: incomingVersion.toString(),
+      },
+      201,
+    );
   }
 
   private async handleCreateGrant(
@@ -1279,6 +1359,50 @@ describe("Escrow deposit + payment e2e", () => {
       grantId,
       body: `data-for-${scope}`,
     });
+  });
+
+  it("registers a data point and rejects a stale CAS retry (409)", async () => {
+    const sdk = createGatewayClient("https://gateway.example");
+    const scope = "instagram.profile";
+    const dataHash = keccak256(stringToHex(`dataHash:${Date.now()}`));
+    const metadataHash = keccak256(stringToHex(`metadataHash:${Date.now()}`));
+
+    // First registration at v1 — owner signs AddData and the mock recovers.
+    const sigV1 = await grantor.signTypedData({
+      domain: dataRegistryDomain(CONFIG),
+      types: ADD_DATA_TYPES,
+      primaryType: "AddData",
+      message: {
+        ownerAddress: grantor.address,
+        scope,
+        dataHash,
+        metadataHash,
+        expectedVersion: 1n,
+      },
+    });
+    const first = await sdk.registerDataPoint({
+      ownerAddress: grantor.address,
+      scope,
+      dataHash,
+      metadataHash,
+      expectedVersion: "1",
+      signature: sigV1,
+    });
+    expect(first.dataPointId).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(first.expectedVersion).toBe("1");
+
+    // Replay the same version → CAS rejection, gateway tells us the
+    // current stored version in the error message.
+    await expect(
+      sdk.registerDataPoint({
+        ownerAddress: grantor.address,
+        scope,
+        dataHash,
+        metadataHash,
+        expectedVersion: "1",
+        signature: sigV1,
+      }),
+    ).rejects.toThrow(/Gateway error: 409 Stale expectedVersion 1/);
   });
 
   it("attaches a server-signed accessRecord to a data-access payment", async () => {

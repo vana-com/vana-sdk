@@ -272,6 +272,8 @@ export {
   type RegisterFileParams,
   type RegisterBuilderParams,
   type RegisterBuilderResult,
+  type RegisterDataPointParams,
+  type RegisterDataPointResult,
   type CreateGrantParams,
   type RevokeGrantParams,
   type PayForOperationParams,

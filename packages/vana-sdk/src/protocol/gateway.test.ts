@@ -303,6 +303,66 @@ describe("createGatewayClient", () => {
     );
   });
 
+  it("registers a data point and surfaces the stale-version 409 as a thrown error", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            success: true,
+            dataPointId: "0xdatapoint",
+            expectedVersion: "1",
+          },
+          { status: 201 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            success: false,
+            error:
+              "Stale expectedVersion 1: must be strictly greater than the stored value 3",
+            currentExpectedVersion: "3",
+          },
+          { status: 409 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.registerDataPoint({
+        ownerAddress: "0xowner",
+        scope: "instagram.profile",
+        dataHash:
+          "0x1111111111111111111111111111111111111111111111111111111111111111",
+        metadataHash:
+          "0x2222222222222222222222222222222222222222222222222222222222222222",
+        expectedVersion: "1",
+        signature: "sig",
+      }),
+    ).resolves.toEqual({
+      dataPointId: "0xdatapoint",
+      expectedVersion: "1",
+    });
+
+    // Stale-CAS 409 is a real failure here, not an idempotent replay —
+    // the SDK throws with the gateway's error string so callers can read
+    // `currentExpectedVersion` out of the message.
+    await expect(
+      client.registerDataPoint({
+        ownerAddress: "0xowner",
+        scope: "instagram.profile",
+        dataHash:
+          "0x1111111111111111111111111111111111111111111111111111111111111111",
+        metadataHash:
+          "0x2222222222222222222222222222222222222222222222222222222222222222",
+        expectedVersion: "1",
+        signature: "sig",
+      }),
+    ).rejects.toThrow(/Gateway error: 409 Stale expectedVersion/);
+  });
+
   it("treats 409 mutation responses as idempotent success", async () => {
     const fetchMock = vi
       .fn()

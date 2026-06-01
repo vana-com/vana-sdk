@@ -157,6 +157,24 @@ export interface RegisterBuilderResult {
   alreadyRegistered: boolean;
 }
 
+// AddData on DataRegistryV2. dataHash + metadataHash are bytes32 commitments
+// to the off-chain payload + its metadata. expectedVersion is a CAS knob —
+// the gateway/contract rejects on 409 if a higher version is already stored,
+// and the error body surfaces `currentExpectedVersion` so callers can re-sign.
+export interface RegisterDataPointParams {
+  ownerAddress: string;
+  scope: string;
+  dataHash: string;
+  metadataHash: string;
+  expectedVersion: string;
+  signature: string;
+}
+
+export interface RegisterDataPointResult {
+  dataPointId?: string;
+  expectedVersion?: string;
+}
+
 // ── Escrow / data-access payment path ───────────────────────────────────────
 // /v1/escrow/pay debits the payer's escrow balance for a payable op. For a
 // grant: opType = 'grant', opId = the bytes32 grantId. amount, paymentNonce,
@@ -303,6 +321,9 @@ export interface GatewayClient {
   registerBuilder(
     params: RegisterBuilderParams,
   ): Promise<RegisterBuilderResult>;
+  registerDataPoint(
+    params: RegisterDataPointParams,
+  ): Promise<RegisterDataPointResult>;
   registerFile(params: RegisterFileParams): Promise<{ fileId?: string }>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
@@ -499,6 +520,46 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       return {
         builderId: getMutationId(body as Record<string, unknown>, "builderId"),
         alreadyRegistered: false,
+      };
+    },
+
+    async registerDataPoint(
+      params: RegisterDataPointParams,
+    ): Promise<RegisterDataPointResult> {
+      const res = await fetch(`${base}/v1/data`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${params.signature}`,
+        },
+        body: JSON.stringify({
+          ownerAddress: params.ownerAddress,
+          scope: params.scope,
+          dataHash: params.dataHash,
+          metadataHash: params.metadataHash,
+          expectedVersion: params.expectedVersion,
+        }),
+      });
+      // 409 is a real failure here (stale CAS), not an idempotent replay —
+      // surface the gateway's error message verbatim so the caller knows
+      // what `currentExpectedVersion` to re-sign against.
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        const detail = body.error ?? res.statusText;
+        throw new Error(`Gateway error: ${res.status} ${detail}`);
+      }
+      const body = (await res.json().catch(() => ({}))) as {
+        dataPointId?: string;
+        expectedVersion?: string;
+      };
+      return {
+        dataPointId: getMutationId(
+          body as Record<string, unknown>,
+          "dataPointId",
+        ),
+        expectedVersion: body.expectedVersion,
       };
     },
 

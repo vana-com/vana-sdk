@@ -336,7 +336,13 @@ interface MockGrant {
 }
 
 class MockGateway {
+  // Gross credited deposits per (account:asset). Only deposits increment this;
+  // pay() never decrements (the real gateway decrements only on reconcile).
   private readonly balances = new Map<string, bigint>(); // key = account:asset
+  // Sum of un-settled payments per (account:asset). pay() increments, the
+  // reconcile pass would decrement; this mock never reconciles, so it grows
+  // monotonically — which mirrors pre-settle steady state.
+  private readonly authorized = new Map<string, bigint>(); // key = account:asset
   private readonly deposits = new Map<
     Hex,
     {
@@ -599,10 +605,17 @@ class MockGateway {
       .filter(([key]) => key.startsWith(`${account}:`))
       .map(([key, balance]) => {
         const [, asset] = key.split(":");
+        const authorized = this.authorized.get(key) ?? 0n;
+        // `availableAmount` is clamped at 0 even though arithmetic could go
+        // negative — a negative would mean authorized > balance, which would
+        // indicate a bug in the soft-lock, not something callers should see.
+        const available = balance > authorized ? balance - authorized : 0n;
         return {
           asset,
           balance: balance.toString(),
           pendingAmount: "0",
+          authorizedAmount: authorized.toString(),
+          availableAmount: available.toString(),
           updatedAt: new Date().toISOString(),
         };
       });
@@ -689,7 +702,9 @@ class MockGateway {
     }
 
     const key = `${body.payerAddress.toLowerCase()}:${body.asset.toLowerCase()}`;
-    const available = this.balances.get(key) ?? 0n;
+    const balance = this.balances.get(key) ?? 0n;
+    const alreadyAuthorized = this.authorized.get(key) ?? 0n;
+    const available = balance - alreadyAuthorized;
     if (available < BigInt(body.amount)) {
       return jsonResponse(
         {
@@ -699,9 +714,10 @@ class MockGateway {
         402,
       );
     }
-    // Soft-lock debit (this test doesn't model authorisations separately —
-    // it just deducts).
-    this.balances.set(key, available - BigInt(body.amount));
+    // Soft-lock: bump authorized, leave balance untouched. The real gateway
+    // decrements `balance` during the reconcile pass after on-chain settle;
+    // this mock doesn't reconcile so authorized grows monotonically.
+    this.authorized.set(key, alreadyAuthorized + BigInt(body.amount));
     this.usedNonces.add(nonceKey);
 
     const registrationPaid = grant.paymentStatus !== "paid";
@@ -1049,8 +1065,14 @@ describe("Escrow deposit + payment e2e", () => {
     );
     expect(grantAfter?.fee.totalDue).toBe(grantFee.access.toString());
 
+    // Real gateway semantics: `balance` reflects gross credited deposits and
+    // is only decremented when the reconcile pass marks payments finalized.
+    // The post-pay state pre-settle is balance unchanged, authorized = amount,
+    // available = 0.
     const balanceAfter = await sdk.getEscrowBalance(builder.address);
-    expect(balanceAfter.balances[0].balance).toBe("0");
+    expect(balanceAfter.balances[0].balance).toBe(depositAmount.toString());
+    expect(balanceAfter.balances[0].authorizedAmount).toBe(totalDue.toString());
+    expect(balanceAfter.balances[0].availableAmount).toBe("0");
 
     // ── 8. Builder fetches data from the Personal Server ───────────────
     // buildWeb3SignedHeader produces an EIP-191-signed JWT-like header

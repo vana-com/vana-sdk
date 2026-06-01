@@ -183,11 +183,20 @@ export interface PayForOperationResult {
 // asset, plus the lifecycle breakdown of deposits.
 export interface EscrowBalanceEntry {
   asset: string;
+  // Gross credited deposits for (account, asset). Decremented only when the
+  // reconcile pass marks a payment finalized — NOT on /v1/escrow/pay.
   balance: string;
   // Sum of claimedAmount for deposits still in 'submitted' status — surfaced
   // separately so clients don't conflate "credited" with "deposit announced
   // but not yet confirmed."
   pendingAmount: string;
+  // Sum of payments.amount for (account, asset) regardless of settled status —
+  // mirrors the /v1/escrow/pay handler's soft-lock counter. Subtract from
+  // `balance` to see how much the payer can still authorise.
+  authorizedAmount: string;
+  // `max(balance − authorizedAmount, 0)`. The headroom a payer has against
+  // the soft-lock before /v1/escrow/pay starts returning 402.
+  availableAmount: string;
   updatedAt: string | null;
 }
 

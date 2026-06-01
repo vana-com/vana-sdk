@@ -303,6 +303,8 @@ describe("createGatewayClient", () => {
           asset: "0x0000000000000000000000000000000000000000",
           balance: "1000",
           pendingAmount: "200",
+          authorizedAmount: "300",
+          availableAmount: "700",
           updatedAt: "2026-05-08T00:00:00.000Z",
         },
       ],

@@ -52,12 +52,26 @@ export interface GatewayGrantFee {
   totalDue: string;
 }
 
+// Lifecycle of a grant's on-chain settlement, tracked separately from the
+// fee-payment lifecycle (paymentStatus). Driven by POST /v1/settle:
+//   pending    — nothing on-chain yet
+//   submitting — settle tx broadcast but receipt not yet observed
+//   confirmed  — settle tx mined successfully
+//   finalized  — finalized tip past the settle block, reorg-safe
+//   reorged    — finalized observation reverted; back to 'pending' on next settle
+export type GatewayGrantStatus =
+  | "pending"
+  | "submitting"
+  | "confirmed"
+  | "finalized"
+  | "reorged";
+
 export interface GatewayGrantResponse {
   id: string;
   grantorAddress: string;
   granteeId: string;
   scopes: string[];
-  status: "pending" | "confirmed";
+  status: GatewayGrantStatus;
   addedAt: string;
   // Grantor-signed deadline. null = perpetual grant (signed value was 0).
   expiresAt: string | null;
@@ -72,6 +86,14 @@ export interface GatewayGrantResponse {
   paidBy: string | null;
   // Decimal-string uint256 monotonic nonce; advances on every state change.
   grantVersion: string;
+  // Settle metadata — populated as the grant progresses through the chain
+  // lifecycle. Null while `status === 'pending'`.
+  settleTxHash: string | null;
+  settleSubmittedAt: string | null;
+  // Revocation metadata — populated independently when the grantor signs
+  // and the gateway pushes a deregister tx.
+  revocationTxHash: string | null;
+  revocationSubmittedAt: string | null;
   fee: GatewayGrantFee;
 }
 

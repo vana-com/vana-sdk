@@ -1066,7 +1066,7 @@ class MockGateway {
       grantorAddress: grant.grantorAddress,
       granteeId: grant.granteeId,
       scopes: grant.scopes,
-      status: "confirmed",
+      status: grant.status,
       addedAt: new Date().toISOString(),
       expiresAt: null,
       expired: false,
@@ -1076,6 +1076,10 @@ class MockGateway {
       paidAt: grant.paidAt,
       paidBy: grant.paidBy,
       grantVersion: grant.grantVersion,
+      settleTxHash: grant.settleTxHash,
+      settleSubmittedAt: grant.settleSubmittedAt,
+      revocationTxHash: null,
+      revocationSubmittedAt: null,
       fee: {
         asset: grant.fee.asset,
         registrationFee: grant.fee.registrationFee.toString(),
@@ -1423,6 +1427,16 @@ describe("Escrow deposit + payment e2e", () => {
       opId: grantId,
       status: "confirmed",
     });
+
+    // GET /v1/grants/:id now reflects the chain-side fields. Without commit
+    // 8's extended GatewayGrantResponse this assert would still compile (TS
+    // is structural) but would have been impossible to type-check the
+    // 'confirmed' transition or read settleTxHash from a properly-typed
+    // value — the union was `'pending' | 'confirmed'` before.
+    const settledGrant = await sdk.getGrant(grantId);
+    expect(settledGrant?.status).toBe("confirmed");
+    expect(settledGrant?.settleTxHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(settledGrant?.settleSubmittedAt).toBeTruthy();
 
     // ── 10. Builder fetches data from the Personal Server ──────────────
     // buildWeb3SignedHeader produces an EIP-191-signed JWT-like header

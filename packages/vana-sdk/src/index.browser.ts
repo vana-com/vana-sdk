@@ -263,6 +263,7 @@ export {
   type Schema,
   type ServerInfo,
   type GatewayGrantResponse,
+  type GatewayGrantStatus,
   type GatewayGrantFee,
   type GrantListItem,
   type FileRecord,

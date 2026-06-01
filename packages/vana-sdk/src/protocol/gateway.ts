@@ -147,6 +147,22 @@ export interface RegisterServerResult {
 // and asset are decimal-uint256 strings on the wire. The signature is the
 // raw EIP-712 hex of GENERIC_PAYMENT_TYPES against escrowPaymentDomain.
 
+// A server-signed delivery receipt attached to a data-access payment. The
+// signature is over RECORD_DATA_ACCESS_TYPES against dataRegistryDomain; the
+// signer must be a personal server the data point's owner has registered as
+// trusted. The gateway re-uses this signature verbatim on-chain in the next
+// /v1/settle pass via DataRegistryV2.recordDataAccess, where `recordId`
+// dedupes via `_usedRecordIds`.
+export interface AccessRecord {
+  dataPointId: string;
+  // Decimal-string uint256 — the data point version being attested to.
+  version: string;
+  // Must equal the enclosing payment's payerAddress (the gateway enforces).
+  accessor: string;
+  recordId: string;
+  signature: string;
+}
+
 export interface PayForOperationParams {
   payerAddress: string;
   opType: string;
@@ -157,6 +173,11 @@ export interface PayForOperationParams {
   // returns 409 if reused — bump and re-sign.
   paymentNonce: string;
   signature: string;
+  // Optional: attach a server-signed access record so the next /v1/settle
+  // pass submits a recordDataAccess tx alongside the payment settlement.
+  // Required for data-access payments (the second-and-onward payments per
+  // grant) that want their on-chain `totalAccesses` counter to advance.
+  accessRecord?: AccessRecord;
 }
 
 export interface PayForOperationResult {
@@ -533,20 +554,29 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
     async payForOperation(
       params: PayForOperationParams,
     ): Promise<PayForOperationResult> {
+      // Build the body without the accessRecord key when absent so the
+      // gateway's "missing optional" branch matches the no-receipt case
+      // exactly (an explicit `accessRecord: undefined` would JSON-serialize
+      // to nothing — same result — but keeping it conditional makes wire
+      // traces easier to read).
+      const body: Record<string, unknown> = {
+        payerAddress: params.payerAddress,
+        opType: params.opType,
+        opId: params.opId,
+        asset: params.asset,
+        amount: params.amount,
+        paymentNonce: params.paymentNonce,
+      };
+      if (params.accessRecord) {
+        body["accessRecord"] = params.accessRecord;
+      }
       const res = await fetch(`${base}/v1/escrow/pay`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Web3Signed ${params.signature}`,
         },
-        body: JSON.stringify({
-          payerAddress: params.payerAddress,
-          opType: params.opType,
-          opId: params.opId,
-          asset: params.asset,
-          amount: params.amount,
-          paymentNonce: params.paymentNonce,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);

@@ -44,6 +44,8 @@ import {
   GENERIC_PAYMENT_TYPES,
   GRANT_REGISTRATION_TYPES,
   NATIVE_VANA_ASSET,
+  RECORD_DATA_ACCESS_TYPES,
+  dataRegistryDomain,
   escrowPaymentDomain,
   grantRegistrationDomain,
   type DataPortabilityGatewayConfig,
@@ -361,6 +363,10 @@ class MockGateway {
   // used by MockPersonalServer to check that the data-access request was
   // signed by the wallet the grantor authorised.
   private readonly builders = new Map<Hex, Address>();
+  // Personal-server addresses authorised to sign access records for a given
+  // data-point owner. The real gateway stores this in the `servers` table;
+  // we collapse to a (owner → set of server addresses) map.
+  private readonly trustedServers = new Map<Address, Set<Address>>();
   // (payer:nonce:kind) sentinel for replay detection. The real gateway uses
   // a DB unique key; same shape works for the test.
   private readonly usedNonces = new Set<string>();
@@ -383,6 +389,16 @@ class MockGateway {
   // grant + payment + data-access seams.
   seedBuilder(granteeId: Hex, granteeAddress: Address): void {
     this.builders.set(granteeId.toLowerCase() as Hex, granteeAddress);
+  }
+
+  // Authorise a personal-server wallet to sign access records on behalf of
+  // a data-point owner. Mirrors POST /v1/servers + data-point-owner linking;
+  // the real gateway resolves trust via the servers table.
+  seedTrustedServer(ownerAddress: Address, serverAddress: Address): void {
+    const key = ownerAddress.toLowerCase() as Address;
+    const existing = this.trustedServers.get(key) ?? new Set<Address>();
+    existing.add(serverAddress.toLowerCase() as Address);
+    this.trustedServers.set(key, existing);
   }
 
   // Accessors the MockPersonalServer reaches into. The real PS would call
@@ -643,6 +659,13 @@ class MockGateway {
       asset: Address;
       amount: string;
       paymentNonce: string;
+      accessRecord?: {
+        dataPointId: Hex;
+        version: string;
+        accessor: Address;
+        recordId: Hex;
+        signature: Hex;
+      };
     };
     const authHeader = (init?.headers as Record<string, string> | undefined)?.[
       "Authorization"
@@ -686,6 +709,51 @@ class MockGateway {
     const grant = this.grants.get(body.opId.toLowerCase() as Hex);
     if (!grant) {
       return jsonResponse({ error: "grant not found" }, 404);
+    }
+
+    // Optional access record — validates the same three properties the real
+    // gateway does: signature recovers via RECORD_DATA_ACCESS_TYPES against
+    // dataRegistryDomain, the embedded accessor matches the payer, and the
+    // recovered signer is one of the grant-owner's trusted servers.
+    if (body.accessRecord) {
+      const ar = body.accessRecord;
+      if (ar.accessor.toLowerCase() !== body.payerAddress.toLowerCase()) {
+        return jsonResponse(
+          { error: "accessRecord.accessor must equal payerAddress" },
+          400,
+        );
+      }
+      const recoveredServer = await recoverTypedDataAddress({
+        domain: dataRegistryDomain(CONFIG),
+        types: RECORD_DATA_ACCESS_TYPES,
+        primaryType: "RecordDataAccess",
+        message: {
+          ownerAddress: grant.grantorAddress,
+          // Note: scope is taken from the grant's first scope — the real
+          // gateway resolves the scope from the data-point row keyed by
+          // dataPointId; in the mock we collapse since each grant has one
+          // scope.
+          scope: grant.scopes[0],
+          version: BigInt(ar.version),
+          accessor: ar.accessor,
+          recordId: ar.recordId,
+        },
+        signature: ar.signature,
+      });
+      const owners =
+        this.trustedServers.get(
+          grant.grantorAddress.toLowerCase() as Address,
+        ) ?? new Set<Address>();
+      if (!owners.has(recoveredServer.toLowerCase() as Address)) {
+        return jsonResponse(
+          {
+            error:
+              "accessRecord signer is not a trusted server of the grant owner",
+            recoveredServer,
+          },
+          401,
+        );
+      }
     }
 
     const registrationDue =
@@ -1099,6 +1167,102 @@ describe("Escrow deposit + payment e2e", () => {
       grantId,
       body: `data-for-${scope}`,
     });
+  });
+
+  it("attaches a server-signed accessRecord to a data-access payment", async () => {
+    const sdk = createGatewayClient("https://gateway.example");
+    const scope = "instagram.profile";
+
+    // Stand up the same world as the happy path: builder, grant, deposit,
+    // first payment (which settles registration).
+    gateway.seedGrant({
+      id: GRANT_ID,
+      grantorAddress: grantor.address,
+      granteeId: GRANTEE_ID,
+      scopes: [scope],
+      paymentStatus: "paid",
+      grantVersion: "1",
+      fee: {
+        asset: NATIVE_VANA_ASSET,
+        registrationFee: 600n,
+        dataAccessFee: 400n,
+      },
+    });
+    // The personal server that's signing access records on behalf of the
+    // data owner. In the real flow the grantor registered this via POST
+    // /v1/servers; here we seed. Fresh key per run — address is referenced
+    // dynamically.
+    const personalServer = privateKeyToAccount(generatePrivateKey());
+    gateway.seedTrustedServer(grantor.address, personalServer.address);
+
+    // Deposit enough for two data-access payments.
+    const depositRequest = buildDepositNativeRequest(CONFIG, {
+      account: builder.address,
+      amount: 2_000n,
+    });
+    const depositTxHash = await withSender(builder.address, () =>
+      walletClient.sendTransaction({
+        account: builder,
+        chain: FAKE_CHAIN,
+        to: depositRequest.to,
+        data: depositRequest.data,
+        value: depositRequest.value,
+      }),
+    );
+    await sdk.submitEscrowDeposit({ txHash: depositTxHash });
+
+    // Build the server-signed access record. The recordId is a per-event
+    // bytes32 nonce; the contract dedupes via `_usedRecordIds`.
+    const recordId = keccak256(stringToHex(`record:${Date.now()}`));
+    const accessSignature = await personalServer.signTypedData({
+      domain: dataRegistryDomain(CONFIG),
+      types: RECORD_DATA_ACCESS_TYPES,
+      primaryType: "RecordDataAccess",
+      message: {
+        ownerAddress: grantor.address,
+        scope,
+        version: 1n,
+        accessor: builder.address,
+        recordId,
+      },
+    });
+
+    // Sign the GenericPayment (data-access only — registration already paid)
+    // and submit with the accessRecord attached.
+    const dataPointId = keccak256(stringToHex(`datapoint:${scope}`));
+    const paySig = await builder.signTypedData({
+      domain: escrowPaymentDomain(CONFIG),
+      types: GENERIC_PAYMENT_TYPES,
+      primaryType: "GenericPayment",
+      message: {
+        payerAddress: builder.address,
+        opType: "grant",
+        opId: GRANT_ID,
+        asset: NATIVE_VANA_ASSET,
+        amount: 400n,
+        paymentNonce: 7n,
+      },
+    });
+    const result = await sdk.payForOperation({
+      payerAddress: builder.address,
+      opType: "grant",
+      opId: GRANT_ID,
+      asset: NATIVE_VANA_ASSET,
+      amount: "400",
+      paymentNonce: "7",
+      signature: paySig,
+      accessRecord: {
+        dataPointId,
+        version: "1",
+        accessor: builder.address,
+        recordId,
+        signature: accessSignature,
+      },
+    });
+    // Data-access-only payment: registrationFee=0, registrationPaid=false.
+    expect(result.breakdown.registrationFee).toBe("0");
+    expect(result.breakdown.dataAccessFee).toBe("400");
+    expect(result.breakdown.registrationPaid).toBe(false);
   });
 
   it("rejects payment when escrow balance is insufficient (402)", async () => {

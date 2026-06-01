@@ -101,7 +101,8 @@
     "test:coverage:verbose": "vitest run --coverage --reporter=verbose --coverage.reporter=text",
     "discover-addresses": "tsx scripts/discover-addresses.ts",
     "fetch-abis": "tsx scripts/fetch-abis.ts",
-    "generate": "npm run discover-addresses && npm run fetch-abis"
+    "generate": "npm run discover-addresses && npm run fetch-abis",
+    "e2e:deposit": "tsx scripts/e2e-escrow-deposit.ts"
   },
   "keywords": [
     "vana",

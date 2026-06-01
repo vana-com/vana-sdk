@@ -53,6 +53,21 @@ export function fileRegistrationDomain(
   );
 }
 
+// Domain for the DataRegistryV2 contract — verifies the AddData and
+// RecordDataAccess EIP-712 signatures. The verifyingContract is the same as
+// `fileRegistrationDomain` (both point at `dataRegistry`); the distinction
+// lives in the primaryType, not the domain. Exported as a separate helper
+// so callers reading data-point flows aren't routed through a name that
+// reads as file-registration-only.
+export function dataRegistryDomain(
+  config: DataPortabilityGatewayConfig,
+): TypedDataDomain {
+  return buildDomain(
+    config.chainId,
+    config.contracts.dataRegistry as `0x${string}`,
+  );
+}
+
 export function grantRegistrationDomain(
   config: DataPortabilityGatewayConfig,
 ): TypedDataDomain {
@@ -169,6 +184,34 @@ export const GENERIC_PAYMENT_TYPES = {
   ],
 } as const;
 
+// AddData is signed by the data point's owner — registers (scope, dataHash,
+// metadataHash) on DataRegistryV2. expectedVersion is the version the caller
+// believes is current; the contract rejects with a CAS error if it isn't.
+// Used at POST /v1/data.
+export const ADD_DATA_TYPES = {
+  AddData: [
+    { name: "ownerAddress", type: "address" },
+    { name: "scope", type: "string" },
+    { name: "dataHash", type: "bytes32" },
+    { name: "metadataHash", type: "bytes32" },
+    { name: "expectedVersion", type: "uint256" },
+  ],
+} as const;
+
+// RecordDataAccess is signed by a *trusted personal server* of `ownerAddress`
+// — attests that (scope, version) was served to `accessor`. recordId is a
+// per-event bytes32 the contract pins in `_usedRecordIds` to prevent replay.
+// Used as the optional `accessRecord` on POST /v1/escrow/pay.
+export const RECORD_DATA_ACCESS_TYPES = {
+  RecordDataAccess: [
+    { name: "ownerAddress", type: "address" },
+    { name: "scope", type: "string" },
+    { name: "version", type: "uint256" },
+    { name: "accessor", type: "address" },
+    { name: "recordId", type: "bytes32" },
+  ],
+} as const;
+
 export interface FileRegistrationMessage {
   ownerAddress: `0x${string}`;
   url: string;
@@ -214,4 +257,20 @@ export interface GenericPaymentMessage {
   asset: `0x${string}`;
   amount: bigint;
   paymentNonce: bigint;
+}
+
+export interface AddDataMessage {
+  ownerAddress: `0x${string}`;
+  scope: string;
+  dataHash: `0x${string}`;
+  metadataHash: `0x${string}`;
+  expectedVersion: bigint;
+}
+
+export interface RecordDataAccessMessage {
+  ownerAddress: `0x${string}`;
+  scope: string;
+  version: bigint;
+  accessor: `0x${string}`;
+  recordId: `0x${string}`;
 }

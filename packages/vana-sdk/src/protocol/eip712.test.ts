@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADD_DATA_TYPES,
   BUILDER_REGISTRATION_TYPES,
   FILE_REGISTRATION_TYPES,
   GENERIC_PAYMENT_TYPES,
   GRANT_REGISTRATION_TYPES,
   GRANT_REVOCATION_TYPES,
   NATIVE_VANA_ASSET,
+  RECORD_DATA_ACCESS_TYPES,
   SERVER_REGISTRATION_TYPES,
   builderRegistrationDomain,
+  dataRegistryDomain,
   escrowPaymentDomain,
   fileRegistrationDomain,
   grantRegistrationDomain,
@@ -49,6 +52,11 @@ describe("Data Portability EIP-712 helpers", () => {
     });
     expect(escrowPaymentDomain(CONFIG)).toMatchObject({
       verifyingContract: CONFIG.contracts.dataPortabilityEscrow,
+    });
+    // dataRegistryDomain shares the verifyingContract with fileRegistrationDomain —
+    // both point at the DataRegistryV2 contract. Distinction lives in primaryType.
+    expect(dataRegistryDomain(CONFIG)).toMatchObject({
+      verifyingContract: CONFIG.contracts.dataRegistry,
     });
   });
 
@@ -95,6 +103,20 @@ describe("Data Portability EIP-712 helpers", () => {
       { name: "asset", type: "address" },
       { name: "amount", type: "uint256" },
       { name: "paymentNonce", type: "uint256" },
+    ]);
+    expect(ADD_DATA_TYPES.AddData).toEqual([
+      { name: "ownerAddress", type: "address" },
+      { name: "scope", type: "string" },
+      { name: "dataHash", type: "bytes32" },
+      { name: "metadataHash", type: "bytes32" },
+      { name: "expectedVersion", type: "uint256" },
+    ]);
+    expect(RECORD_DATA_ACCESS_TYPES.RecordDataAccess).toEqual([
+      { name: "ownerAddress", type: "address" },
+      { name: "scope", type: "string" },
+      { name: "version", type: "uint256" },
+      { name: "accessor", type: "address" },
+      { name: "recordId", type: "bytes32" },
     ]);
   });
 });

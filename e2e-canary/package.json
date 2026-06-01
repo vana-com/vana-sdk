@@ -1,0 +1,20 @@
+{
+  "name": "vana-sdk-e2e-canary",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone consumer test that exercises the published @opendatalabs/vana-sdk canary tarball against a live gateway + Moksha L1. Sits outside packages/* so npm resolves the SDK from the registry, not the workspace.",
+  "scripts": {
+    "e2e:deposit": "tsx e2e-escrow-deposit.ts"
+  },
+  "dependencies": {
+    "@noble/secp256k1": "^2.3.0",
+    "@opendatalabs/vana-sdk": "3.2.0-canary.88d802d",
+    "viem": "^2.35.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.3"
+  }
+}

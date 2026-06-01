@@ -684,40 +684,50 @@ async function main(): Promise<void> {
     console.log(`      chainBlockHeight: ${ourGrant.chainBlockHeight}`);
   }
 
-  const ourServer = settleResult.items.find(
-    (i) =>
-      i.opType === "server" && i.opId.toLowerCase() === serverId.toLowerCase(),
-  );
-  if (!ourServer) {
-    throw new Error(`settle did not include our serverId ${serverId}`);
-  }
-  console.log(`    server item: status=${ourServer.status}`);
-  assertEq(ourServer.status, "confirmed", "server settle status");
-
-  const ourData = settleResult.items.find(
-    (i) =>
-      i.opType === "data" && i.opId.toLowerCase() === dataPointId.toLowerCase(),
-  );
-  if (!ourData) {
-    throw new Error(`settle did not include our dataPointId ${dataPointId}`);
-  }
-  console.log(`    data item:   status=${ourData.status}`);
-  assertEq(ourData.status, "confirmed", "data point settle status");
-
-  const ourAccess = accessRecordIds.map((rid) => {
-    const item = settleResult.items.find(
-      (i) =>
-        i.opType === "access" && i.opId.toLowerCase() === rid.toLowerCase(),
-    );
-    if (!item) {
-      throw new Error(`settle did not include access recordId ${rid}`);
+  // server/data/access tolerate the same two intermediate states as the
+  // grant — 'confirmed' (receipt waited for inline) or 'submitting' (tx
+  // broadcast, receipt arrives later; the reconcile loop in step 18 picks
+  // it up). Anything else is a real failure.
+  type SettleItemType = (typeof settleResult.items)[number];
+  function requireSettleProgress(
+    item: SettleItemType | undefined,
+    label: string,
+    opId: Hex,
+  ): void {
+    if (!item) throw new Error(`settle did not include our ${label} ${opId}`);
+    if (item.status !== "confirmed" && item.status !== "submitting") {
+      throw new Error(`unexpected ${label} settle status: ${item.status}`);
     }
-    return { recordId: rid, item };
-  });
-  console.log(`    access items (${ourAccess.length}):`);
-  for (const { recordId, item } of ourAccess) {
-    console.log(`      ${recordId} → ${item.status}`);
-    assertEq(item.status, "confirmed", `access settle status ${recordId}`);
+    console.log(`    ${label} item: status=${item.status}`);
+  }
+
+  requireSettleProgress(
+    settleResult.items.find(
+      (i) =>
+        i.opType === "server" &&
+        i.opId.toLowerCase() === serverId.toLowerCase(),
+    ),
+    "server",
+    serverId,
+  );
+  requireSettleProgress(
+    settleResult.items.find(
+      (i) =>
+        i.opType === "data" &&
+        i.opId.toLowerCase() === dataPointId.toLowerCase(),
+    ),
+    "data",
+    dataPointId,
+  );
+  for (const rid of accessRecordIds) {
+    requireSettleProgress(
+      settleResult.items.find(
+        (i) =>
+          i.opType === "access" && i.opId.toLowerCase() === rid.toLowerCase(),
+      ),
+      "access",
+      rid,
+    );
   }
 
   // ─── 16. Re-read grant via SDK; assert chain status matches ─────────

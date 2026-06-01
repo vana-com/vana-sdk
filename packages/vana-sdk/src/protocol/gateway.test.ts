@@ -356,7 +356,7 @@ describe("createGatewayClient", () => {
       breakdown: {
         registrationFee: "200",
         dataAccessFee: "100",
-        registrationSettled: true,
+        registrationPaid: true,
       },
       paymentNonce: "1",
       paidAt: "2026-05-08T00:00:00.000Z",

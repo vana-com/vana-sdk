@@ -25,10 +25,12 @@ import {
   createWalletClient,
   decodeFunctionData,
   defineChain,
+  encodeAbiParameters,
   encodeFunctionData,
   keccak256,
   parseTransaction,
   recoverTypedDataAddress,
+  stringToHex,
   toHex,
   type Address,
   type Hex,
@@ -36,10 +38,14 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
+import { buildWeb3SignedHeader } from "../auth/web3-signed-builder";
+import { verifyWeb3Signed } from "../auth/web3-signed";
 import {
   GENERIC_PAYMENT_TYPES,
+  GRANT_REGISTRATION_TYPES,
   NATIVE_VANA_ASSET,
   escrowPaymentDomain,
+  grantRegistrationDomain,
   type DataPortabilityGatewayConfig,
 } from "./eip712";
 import {
@@ -51,6 +57,7 @@ import {
   type GatewayEnvelope,
   type GatewayGrantResponse,
 } from "./gateway";
+import { scopeCoveredByGrant } from "./scopes";
 
 // ─── Test fixtures ────────────────────────────────────────────────────────
 
@@ -344,6 +351,10 @@ class MockGateway {
     }
   >();
   private readonly grants = new Map<Hex, MockGrant>();
+  // granteeId → on-chain builder wallet address. Populated by seedBuilder;
+  // used by MockPersonalServer to check that the data-access request was
+  // signed by the wallet the grantor authorised.
+  private readonly builders = new Map<Hex, Address>();
   // (payer:nonce:kind) sentinel for replay detection. The real gateway uses
   // a DB unique key; same shape works for the test.
   private readonly usedNonces = new Set<string>();
@@ -361,9 +372,75 @@ class MockGateway {
     });
   }
 
+  // Register a builder out-of-band — the SDK doesn't yet expose a
+  // registerBuilder wrapper, so seeding keeps the test focused on the
+  // grant + payment + data-access seams.
+  seedBuilder(granteeId: Hex, granteeAddress: Address): void {
+    this.builders.set(granteeId.toLowerCase() as Hex, granteeAddress);
+  }
+
+  // Accessors the MockPersonalServer reaches into. The real PS would call
+  // the gateway over HTTP for these; we short-circuit since the data-access
+  // path's gateway-trust assumption is out of scope for this test.
+  getGrantById(id: Hex): MockGrant | undefined {
+    return this.grants.get(id.toLowerCase() as Hex);
+  }
+
+  getBuilderAddress(granteeId: Hex): Address | undefined {
+    return this.builders.get(granteeId.toLowerCase() as Hex);
+  }
+
   balanceOf(account: Address, asset: Address): bigint {
     return (
       this.balances.get(`${account.toLowerCase()}:${asset.toLowerCase()}`) ?? 0n
+    );
+  }
+
+  // Default fee schedule applied to every newly registered grant. In the
+  // real gateway this comes from OpFeeRegistry; here it's a constant the
+  // test inspects via getGrant.
+  private static readonly DEFAULT_FEE = {
+    asset: NATIVE_VANA_ASSET,
+    registrationFee: 600n,
+    dataAccessFee: 400n,
+  } as const;
+
+  // Deterministic grantId derivation — must match data-gateway/lib/grants.ts
+  // exactly: keccak256(abi.encode(domainSeparator, grantor, granteeId))
+  // where domainSeparator = keccak256(abi.encode(DOMAIN_TYPE_HASH, chainId,
+  // verifyingContract)). Computed here (rather than imported from the SDK,
+  // which doesn't export it yet) so a future divergence between the SDK's
+  // creator-side helpers and the real gateway surfaces as a test failure.
+  private static readonly DOMAIN_TYPE_HASH = keccak256(
+    stringToHex(
+      "DataPortabilityDomain(uint256 chainId,address verifyingContract)",
+    ),
+  );
+
+  private computeGrantId(grantorAddress: Address, granteeId: Hex): Hex {
+    const domainSeparator = keccak256(
+      encodeAbiParameters(
+        [
+          { name: "typeHash", type: "bytes32" },
+          { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
+        ],
+        [
+          MockGateway.DOMAIN_TYPE_HASH,
+          BigInt(CONFIG.chainId),
+          CONFIG.contracts.dataPortabilityPermissions as Address,
+        ],
+      ),
+    );
+    return keccak256(
+      encodeAbiParameters(
+        [
+          { name: "domainSeparator", type: "bytes32" },
+          { name: "grantorAddress", type: "address" },
+          { name: "granteeId", type: "bytes32" },
+        ],
+        [domainSeparator, grantorAddress, granteeId],
+      ),
     );
   }
 
@@ -376,6 +453,9 @@ class MockGateway {
     const path = new URL(url).pathname;
     const search = new URL(url).searchParams;
 
+    if (method === "POST" && path === "/v1/grants") {
+      return this.handleCreateGrant(init);
+    }
     if (method === "POST" && path === "/v1/escrow/deposit") {
       return this.handleSubmitDeposit(init);
     }
@@ -393,6 +473,60 @@ class MockGateway {
     return new Response(JSON.stringify({ error: "not mocked" }), {
       status: 404,
     });
+  }
+
+  private async handleCreateGrant(
+    init: RequestInit | undefined,
+  ): Promise<Response> {
+    const body = JSON.parse(init?.body as string) as {
+      grantorAddress: Address;
+      granteeId: Hex;
+      scopes: string[];
+      grantVersion: string;
+      expiresAt: string;
+    };
+    const authHeader = (init?.headers as Record<string, string> | undefined)?.[
+      "Authorization"
+    ];
+    if (!authHeader || !authHeader.startsWith("Web3Signed ")) {
+      return jsonResponse({ error: "missing signature" }, 401);
+    }
+    const signature = authHeader.slice("Web3Signed ".length) as Hex;
+
+    // Same recovery the real gateway runs (data-gateway/lib/eip712.ts).
+    // No server-delegated signing on this path in the test — keeps the
+    // assertion sharp: a working createGrant means the SDK's domain +
+    // type set matches the gateway's, exactly.
+    const recovered = await recoverTypedDataAddress({
+      domain: grantRegistrationDomain(CONFIG),
+      types: GRANT_REGISTRATION_TYPES,
+      primaryType: "GrantRegistration",
+      message: {
+        grantorAddress: body.grantorAddress,
+        granteeId: body.granteeId,
+        scopes: body.scopes,
+        grantVersion: BigInt(body.grantVersion),
+        expiresAt: BigInt(body.expiresAt),
+      },
+      signature,
+    });
+    if (recovered.toLowerCase() !== body.grantorAddress.toLowerCase()) {
+      return jsonResponse({ error: "signer does not match grantor" }, 401);
+    }
+
+    const grantId = this.computeGrantId(body.grantorAddress, body.granteeId);
+    this.grants.set(grantId.toLowerCase() as Hex, {
+      id: grantId,
+      grantorAddress: body.grantorAddress,
+      granteeId: body.granteeId,
+      scopes: body.scopes,
+      paymentStatus: "pending",
+      paidAt: null,
+      paidBy: null,
+      grantVersion: body.grantVersion,
+      fee: { ...MockGateway.DEFAULT_FEE },
+    });
+    return jsonResponse({ grantId });
   }
 
   private handleSubmitDeposit(init: RequestInit | undefined): Response {
@@ -570,8 +704,8 @@ class MockGateway {
     this.balances.set(key, available - BigInt(body.amount));
     this.usedNonces.add(nonceKey);
 
-    const registrationSettled = grant.paymentStatus !== "paid";
-    if (registrationSettled) {
+    const registrationPaid = grant.paymentStatus !== "paid";
+    if (registrationPaid) {
       grant.paymentStatus = "paid";
       grant.paidAt = new Date().toISOString();
       grant.paidBy = body.payerAddress;
@@ -586,7 +720,9 @@ class MockGateway {
       breakdown: {
         registrationFee: registrationDue.toString(),
         dataAccessFee: grant.fee.dataAccessFee.toString(),
-        registrationSettled,
+        // Mirror real /v1/escrow/pay shape (api/v1/escrow/pay.ts:659):
+        // `registrationPaid` is true on the call that settled the fee.
+        registrationPaid,
       },
       paymentNonce: body.paymentNonce,
       paidAt: new Date().toISOString(),
@@ -649,16 +785,119 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// ─── Mock Personal Server ────────────────────────────────────────────────
+// Implements the data-access seam: GET /v1/data/:scope authenticated with
+// a Web3Signed header carrying a `grantId` claim. Runs the same four
+// checks a real PS would:
+//   1. verifyWeb3Signed against the expected aud/method/uri
+//   2. grant exists at the given grantId and is paid
+//   3. recovered signer == the builder wallet on the grant's granteeId
+//   4. requested scope is covered by the grant's scopes
+
+const PERSONAL_SERVER_AUD = "https://ps.example.com";
+
+class MockPersonalServer {
+  readonly requests: Array<{ url: string; init: RequestInit | undefined }> = [];
+
+  constructor(private readonly gateway: MockGateway) {}
+
+  async handle(input: RequestInfo, init?: RequestInit): Promise<Response> {
+    const url = typeof input === "string" ? input : input.toString();
+    this.requests.push({ url, init });
+    const parsed = new URL(url);
+    const path = parsed.pathname;
+
+    if ((init?.method ?? "GET").toUpperCase() !== "GET") {
+      return jsonResponse({ error: "method not allowed" }, 405);
+    }
+    if (!path.startsWith("/v1/data/")) {
+      return jsonResponse({ error: "not found" }, 404);
+    }
+    const scope = path.slice("/v1/data/".length);
+    const authHeader = (init?.headers as Record<string, string> | undefined)?.[
+      "Authorization"
+    ];
+
+    let verified;
+    try {
+      verified = await verifyWeb3Signed({
+        headerValue: authHeader,
+        expectedOrigin: PERSONAL_SERVER_AUD,
+        expectedMethod: "GET",
+        expectedPath: path,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "auth failed";
+      // The SDK's auth errors map cleanly onto 401 — keeping a single bucket
+      // for parsing/signature/expiry failures so the test asserts only on
+      // status code, not the exact error class.
+      return jsonResponse({ error: message }, 401);
+    }
+
+    const claimedGrantId = verified.payload.grantId;
+    if (!claimedGrantId) {
+      return jsonResponse({ error: "grantId claim required" }, 401);
+    }
+    const grant = this.gateway.getGrantById(claimedGrantId as Hex);
+    if (!grant) {
+      return jsonResponse({ error: "grant not found" }, 404);
+    }
+    if (grant.paymentStatus !== "paid") {
+      // 402 Payment Required — same status the gateway uses upstream.
+      return jsonResponse(
+        { error: "grant has unpaid registration", grantId: claimedGrantId },
+        402,
+      );
+    }
+
+    const expectedBuilder = this.gateway.getBuilderAddress(grant.granteeId);
+    if (
+      !expectedBuilder ||
+      verified.signer.toLowerCase() !== expectedBuilder.toLowerCase()
+    ) {
+      return jsonResponse(
+        { error: "signer is not the registered builder for this grant" },
+        403,
+      );
+    }
+
+    if (!scopeCoveredByGrant(scope, grant.scopes)) {
+      return jsonResponse(
+        {
+          error: "scope not covered by grant",
+          requested: scope,
+          granted: grant.scopes,
+        },
+        403,
+      );
+    }
+
+    // Stub data payload — the test asserts on the wrapper shape only since
+    // actual decryption + storage paths aren't part of the e2e under test.
+    return jsonResponse({
+      scope,
+      grantId: claimedGrantId,
+      body: `data-for-${scope}`,
+    });
+  }
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────
 
 describe("Escrow deposit + payment e2e", () => {
   let l1: MockL1;
   let gateway: MockGateway;
+  let personalServer: MockPersonalServer;
   let walletClient: ReturnType<typeof createWalletClient>;
 
   beforeEach(() => {
     l1 = new MockL1(CHAIN_ID);
     gateway = new MockGateway(l1);
+    personalServer = new MockPersonalServer(gateway);
+    // The builder's wallet has to be discoverable to the PS via its grant's
+    // granteeId. Seeding the builder mapping is the cheapest stand-in for
+    // POST /v1/builders, which the SDK doesn't expose a wrapper for yet.
+    gateway.seedBuilder(GRANTEE_ID, builder.address);
     // Builder needs L1 funds to send the deposit tx. The mock chain doesn't
     // enforce gas-cost-against-balance (it just lets sends through), but we
     // set a balance anyway to mirror reality.
@@ -670,22 +909,60 @@ describe("Escrow deposit + payment e2e", () => {
       transport: createMockRpcTransport(l1),
     });
 
-    vi.stubGlobal("fetch", (input: RequestInfo, init?: RequestInit) =>
-      gateway.handle(input, init),
-    );
+    // Dispatch fetch by host: gateway-side endpoints go to `gateway`, the
+    // PS data-access route goes to `personalServer`. Both share state via
+    // the gateway reference, so a payment made in step 6 is visible to
+    // the PS check in step 8.
+    vi.stubGlobal("fetch", (input: RequestInfo, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const host = new URL(url).host;
+      if (host === "gateway.example") return gateway.handle(input, init);
+      if (host === "ps.example.com") return personalServer.handle(input, init);
+      return new Response(JSON.stringify({ error: `not mocked: ${host}` }), {
+        status: 404,
+      });
+    });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("funds escrow, pays the bundled registration+access fee, flips grant to paid", async () => {
+  it("registers a grant, funds escrow, pays the fee, and fetches data from the Personal Server", async () => {
     const sdk = createGatewayClient("https://gateway.example");
     const depositAmount = 1_000n;
     const grantFee = { registration: 600n, access: 400n };
     const totalDue = grantFee.registration + grantFee.access;
+    const scope = "instagram.profile";
 
-    // ── 1. Deposit ─────────────────────────────────────────────────────
+    // ── 1. Grantor signs GRANT_REGISTRATION_TYPES and registers ────────
+    // The signature commits to scopes/grantVersion/expiresAt — the SDK's
+    // exported domain + type set must agree with the gateway's recovery
+    // call below or this whole flow falls over.
+    const grantRegSignature = await grantor.signTypedData({
+      domain: grantRegistrationDomain(CONFIG),
+      types: GRANT_REGISTRATION_TYPES,
+      primaryType: "GrantRegistration",
+      message: {
+        grantorAddress: grantor.address,
+        granteeId: GRANTEE_ID,
+        scopes: [scope],
+        grantVersion: 1n,
+        expiresAt: 0n,
+      },
+    });
+    const createResult = await sdk.createGrant({
+      grantorAddress: grantor.address,
+      granteeId: GRANTEE_ID,
+      scopes: [scope],
+      grantVersion: "1",
+      expiresAt: "0",
+      signature: grantRegSignature,
+    });
+    expect(createResult.grantId).toMatch(/^0x[0-9a-f]{64}$/);
+    const grantId = createResult.grantId as Hex;
+
+    // ── 2. Deposit ─────────────────────────────────────────────────────
     const depositRequest = buildDepositNativeRequest(CONFIG, {
       account: builder.address,
       amount: depositAmount,
@@ -712,7 +989,7 @@ describe("Escrow deposit + payment e2e", () => {
       }),
     );
 
-    // ── 2. Announce to the gateway ─────────────────────────────────────
+    // ── 3. Announce to the gateway ─────────────────────────────────────
     const submitResult = await sdk.submitEscrowDeposit({
       txHash: depositTxHash,
     });
@@ -721,30 +998,15 @@ describe("Escrow deposit + payment e2e", () => {
       builder.address.toLowerCase(),
     );
 
-    // ── 3. Confirm the credited balance ────────────────────────────────
+    // ── 4. Confirm the credited balance ────────────────────────────────
     const balance = await sdk.getEscrowBalance(builder.address);
     expect(balance.balances).toHaveLength(1);
     expect(balance.balances[0].balance).toBe(depositAmount.toString());
     expect(balance.deposits.finalized).toHaveLength(1);
     expect(balance.deposits.finalized[0].txHash).toBe(depositTxHash);
 
-    // ── 4. Seed the grant the gateway would otherwise have on file ─────
-    gateway.seedGrant({
-      id: GRANT_ID,
-      grantorAddress: grantor.address,
-      granteeId: GRANTEE_ID,
-      scopes: ["instagram.profile"],
-      paymentStatus: "pending",
-      grantVersion: "1",
-      fee: {
-        asset: NATIVE_VANA_ASSET,
-        registrationFee: grantFee.registration,
-        dataAccessFee: grantFee.access,
-      },
-    });
-
     // ── 5. Read the grant to discover totalDue (the real flow) ────────
-    const grantBefore = await sdk.getGrant(GRANT_ID);
+    const grantBefore = await sdk.getGrant(grantId);
     expect(grantBefore?.paymentStatus).toBe("pending");
     expect(grantBefore?.fee.totalDue).toBe(totalDue.toString());
 
@@ -756,7 +1018,7 @@ describe("Escrow deposit + payment e2e", () => {
       message: {
         payerAddress: builder.address,
         opType: "grant",
-        opId: GRANT_ID,
+        opId: grantId,
         asset: NATIVE_VANA_ASSET,
         amount: totalDue,
         paymentNonce: 1n,
@@ -766,7 +1028,7 @@ describe("Escrow deposit + payment e2e", () => {
     const payResult = await sdk.payForOperation({
       payerAddress: builder.address,
       opType: "grant",
-      opId: GRANT_ID,
+      opId: grantId,
       asset: NATIVE_VANA_ASSET,
       amount: totalDue.toString(),
       paymentNonce: "1",
@@ -776,11 +1038,11 @@ describe("Escrow deposit + payment e2e", () => {
     expect(payResult.breakdown).toEqual({
       registrationFee: grantFee.registration.toString(),
       dataAccessFee: grantFee.access.toString(),
-      registrationSettled: true,
+      registrationPaid: true,
     });
 
     // ── 7. Grant now shows as paid, balance debited ────────────────────
-    const grantAfter = await sdk.getGrant(GRANT_ID);
+    const grantAfter = await sdk.getGrant(grantId);
     expect(grantAfter?.paymentStatus).toBe("paid");
     expect(grantAfter?.paidBy?.toLowerCase()).toBe(
       builder.address.toLowerCase(),
@@ -789,6 +1051,32 @@ describe("Escrow deposit + payment e2e", () => {
 
     const balanceAfter = await sdk.getEscrowBalance(builder.address);
     expect(balanceAfter.balances[0].balance).toBe("0");
+
+    // ── 8. Builder fetches data from the Personal Server ───────────────
+    // buildWeb3SignedHeader produces an EIP-191-signed JWT-like header
+    // pinned to (aud, method, uri, bodyHash, exp). The PS verifies the
+    // header, checks grant.paymentStatus === 'paid', confirms the signer
+    // is the grant's grantee, and runs scopeCoveredByGrant against the
+    // path. All four checks have to pass.
+    const dataPath = `/v1/data/${scope}`;
+    const header = await buildWeb3SignedHeader({
+      signMessage: (message) => builder.signMessage({ message }),
+      aud: PERSONAL_SERVER_AUD,
+      method: "GET",
+      uri: dataPath,
+      grantId,
+    });
+    const dataRes = await fetch(`${PERSONAL_SERVER_AUD}${dataPath}`, {
+      method: "GET",
+      headers: { Authorization: header },
+    });
+    expect(dataRes.status).toBe(200);
+    const dataBody = (await dataRes.json()) as { scope: string; body: string };
+    expect(dataBody).toEqual({
+      scope,
+      grantId,
+      body: `data-for-${scope}`,
+    });
   });
 
   it("rejects payment when escrow balance is insufficient (402)", async () => {
@@ -905,5 +1193,133 @@ describe("Escrow deposit + payment e2e", () => {
         signature,
       }),
     ).rejects.toThrow(/Gateway error: 409/);
+  });
+
+  it("rejects data access on an unpaid grant (402)", async () => {
+    const sdk = createGatewayClient("https://gateway.example");
+    const scope = "instagram.profile";
+
+    // Register the grant but never pay for it.
+    const sig = await grantor.signTypedData({
+      domain: grantRegistrationDomain(CONFIG),
+      types: GRANT_REGISTRATION_TYPES,
+      primaryType: "GrantRegistration",
+      message: {
+        grantorAddress: grantor.address,
+        granteeId: GRANTEE_ID,
+        scopes: [scope],
+        grantVersion: 1n,
+        expiresAt: 0n,
+      },
+    });
+    const { grantId } = await sdk.createGrant({
+      grantorAddress: grantor.address,
+      granteeId: GRANTEE_ID,
+      scopes: [scope],
+      grantVersion: "1",
+      expiresAt: "0",
+      signature: sig,
+    });
+
+    const dataPath = `/v1/data/${scope}`;
+    const header = await buildWeb3SignedHeader({
+      signMessage: (message) => builder.signMessage({ message }),
+      aud: PERSONAL_SERVER_AUD,
+      method: "GET",
+      uri: dataPath,
+      grantId,
+    });
+
+    const res = await fetch(`${PERSONAL_SERVER_AUD}${dataPath}`, {
+      method: "GET",
+      headers: { Authorization: header },
+    });
+    // 402 is what the PS uses for "grant exists but registration unpaid" —
+    // it surfaces back to the builder so they know to deposit + pay rather
+    // than retry the request.
+    expect(res.status).toBe(402);
+  });
+
+  it("rejects data access on a scope not covered by the grant (403)", async () => {
+    const sdk = createGatewayClient("https://gateway.example");
+    const grantedScope = "instagram.profile";
+    const requestedScope = "chatgpt.conversations";
+
+    // Full happy path through payment, but with a scope the grant doesn't
+    // include. Once registration+payment are settled, the only thing
+    // standing between the builder and the data is scopeCoveredByGrant —
+    // and that's what this test pins down.
+    const sig = await grantor.signTypedData({
+      domain: grantRegistrationDomain(CONFIG),
+      types: GRANT_REGISTRATION_TYPES,
+      primaryType: "GrantRegistration",
+      message: {
+        grantorAddress: grantor.address,
+        granteeId: GRANTEE_ID,
+        scopes: [grantedScope],
+        grantVersion: 1n,
+        expiresAt: 0n,
+      },
+    });
+    const { grantId } = await sdk.createGrant({
+      grantorAddress: grantor.address,
+      granteeId: GRANTEE_ID,
+      scopes: [grantedScope],
+      grantVersion: "1",
+      expiresAt: "0",
+      signature: sig,
+    });
+
+    // Deposit + pay so the grant flips to paid.
+    const depositRequest = buildDepositNativeRequest(CONFIG, {
+      account: builder.address,
+      amount: 1_000n,
+    });
+    const depositTxHash = await withSender(builder.address, () =>
+      walletClient.sendTransaction({
+        account: builder,
+        chain: FAKE_CHAIN,
+        to: depositRequest.to,
+        data: depositRequest.data,
+        value: depositRequest.value,
+      }),
+    );
+    await sdk.submitEscrowDeposit({ txHash: depositTxHash });
+    const paySig = await builder.signTypedData({
+      domain: escrowPaymentDomain(CONFIG),
+      types: GENERIC_PAYMENT_TYPES,
+      primaryType: "GenericPayment",
+      message: {
+        payerAddress: builder.address,
+        opType: "grant",
+        opId: grantId as Hex,
+        asset: NATIVE_VANA_ASSET,
+        amount: 1_000n,
+        paymentNonce: 1n,
+      },
+    });
+    await sdk.payForOperation({
+      payerAddress: builder.address,
+      opType: "grant",
+      opId: grantId as string,
+      asset: NATIVE_VANA_ASSET,
+      amount: "1000",
+      paymentNonce: "1",
+      signature: paySig,
+    });
+
+    const dataPath = `/v1/data/${requestedScope}`;
+    const header = await buildWeb3SignedHeader({
+      signMessage: (message) => builder.signMessage({ message }),
+      aud: PERSONAL_SERVER_AUD,
+      method: "GET",
+      uri: dataPath,
+      grantId,
+    });
+    const res = await fetch(`${PERSONAL_SERVER_AUD}${dataPath}`, {
+      method: "GET",
+      headers: { Authorization: header },
+    });
+    expect(res.status).toBe(403);
   });
 });

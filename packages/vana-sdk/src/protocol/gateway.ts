@@ -165,13 +165,15 @@ export interface PayForOperationResult {
   payerAddress: string;
   asset: string;
   amount: string;
-  // Echoes how the gateway split this payment. registrationSettled is true on
+  // Echoes how the gateway split this payment. `registrationPaid` is true on
   // the first payment for a grant (which bundles both fees) and false on
-  // subsequent data-access-only payments.
+  // subsequent data-access-only payments. Off-chain ledger state only — the
+  // on-chain settlement of the registration is tracked by the grant's
+  // `status` field, not this flag.
   breakdown: {
     registrationFee: string;
     dataAccessFee: string;
-    registrationSettled: boolean;
+    registrationPaid: boolean;
   };
   paymentNonce: string;
   paidAt: string;

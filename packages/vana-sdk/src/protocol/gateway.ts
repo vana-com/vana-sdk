@@ -234,6 +234,94 @@ export interface PayForOperationResult {
   paidAt: string;
 }
 
+// ── Settle / reconcile ──────────────────────────────────────────────────────
+// POST /v1/settle drains pending-on-chain rows (grants, servers, data points,
+// access records) to the relayer, then promotes 'submitting' → 'confirmed'
+// and 'confirmed' → 'finalized' for previously-submitted rows. One call does
+// all three; the response surfaces each phase's outcomes.
+
+// The four op-types the settle endpoint knows about. Kept as a union so
+// callers can narrow inside the discriminated SettleItem shape.
+export type SettleOpType = "grant" | "server" | "data" | "access";
+
+export type SettleItem =
+  | {
+      opType: SettleOpType;
+      opId: string;
+      // 'confirmed' when the submit function waited for the receipt and it
+      // mined (registerAndSettle path); 'submitting' when only the tx was
+      // sent (no receipt wait).
+      status: "submitting" | "confirmed";
+      settleTxHash: string | null;
+      settleSubmittedAt: string | null;
+      // Block height the tx mined in; only set when status === 'confirmed'.
+      chainBlockHeight: string | null;
+      revocationTxHash: string | null;
+      revocationSubmittedAt: string | null;
+      // True while lib/settle.ts is in placeholder mode for this row's pass.
+      placeholder: boolean;
+    }
+  | {
+      opType: SettleOpType;
+      opId: string;
+      status: "skipped";
+      reason: string;
+    }
+  | {
+      opType: SettleOpType;
+      opId: string;
+      status: "failed";
+      error: string;
+    };
+
+// Outcome of the housekeeping pass that retries earlier `submitting` rows
+// whose receipt arrived after the prior /v1/settle's wait budget elapsed.
+export interface SettlePromoteResult {
+  opType: SettleOpType;
+  opId: string;
+  status: "confirmed" | "failed" | "pending" | "skipped";
+  txHash: string;
+  chainBlockHeight: string | null;
+  reason?: string;
+}
+
+// Outcome of the reconcile pass that advances 'confirmed' → 'finalized' once
+// the chain's finalized tip catches up past the tx's block (or reverts to
+// 'pending' on reorg detection).
+export interface SettleReconcileItem {
+  opId: string;
+  status: "finalized" | "reorged" | "unchanged";
+  chainBlockHeight: string | null;
+  settleTxHash: string | null;
+  reason?: string;
+}
+
+export interface SettleParams {
+  // Per-phase cap. Bounded by MAX_LIMIT on the gateway side; omit to use
+  // the gateway's default BATCH_LIMIT.
+  limit?: number;
+}
+
+export interface SettleResult {
+  scanned: number;
+  submitted: number;
+  confirmed: number;
+  skipped: number;
+  failed: number;
+  items: SettleItem[];
+  promoted: { count: number; items: SettlePromoteResult[] };
+  reconciled: {
+    scanned: number;
+    finalized: number;
+    reorged: number;
+    unchanged: number;
+    items: SettleReconcileItem[];
+  };
+  // Present only when the gateway is configured for paced submission —
+  // spreads work across several blocks within one /v1/settle invocation.
+  paced?: { iterations: number };
+}
+
 // /v1/escrow/balance?account=... — pure read. Returns finalized balances by
 // asset, plus the lifecycle breakdown of deposits.
 export interface EscrowBalanceEntry {
@@ -332,6 +420,7 @@ export interface GatewayClient {
   payForOperation(
     params: PayForOperationParams,
   ): Promise<PayForOperationResult>;
+  settle(params?: SettleParams): Promise<SettleResult>;
 }
 
 export function createGatewayClient(baseUrl: string): GatewayClient {
@@ -701,6 +790,21 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
       return (await res.json()) as PayForOperationResult;
+    },
+
+    async settle(params?: SettleParams): Promise<SettleResult> {
+      const res = await fetch(`${base}/v1/settle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // The gateway accepts an empty body; only `limit` is recognised.
+        // Always send a JSON body so the gateway's req.body shape parse
+        // doesn't have to deal with an undefined.
+        body: JSON.stringify(params ?? {}),
+      });
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+      return (await res.json()) as SettleResult;
     },
   };
 }

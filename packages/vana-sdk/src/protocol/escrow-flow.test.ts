@@ -333,6 +333,13 @@ interface MockGrant {
   paidAt: string | null;
   paidBy: Address | null;
   grantVersion: string;
+  // Chain-side lifecycle — advanced by handleSettle. Matches the schema's
+  // `pending → submitting → confirmed → finalized` enum; commit 8 surfaces
+  // this on the GET response.
+  status: "pending" | "submitting" | "confirmed" | "finalized" | "reorged";
+  settleTxHash: Hex | null;
+  settleSubmittedAt: string | null;
+  chainBlockHeight: string | null;
   fee: {
     asset: Address;
     registrationFee: bigint;
@@ -382,11 +389,25 @@ class MockGateway {
 
   constructor(private readonly l1: MockL1) {}
 
-  seedGrant(grant: Omit<MockGrant, "paidAt" | "paidBy">): void {
+  seedGrant(
+    grant: Omit<
+      MockGrant,
+      | "paidAt"
+      | "paidBy"
+      | "status"
+      | "settleTxHash"
+      | "settleSubmittedAt"
+      | "chainBlockHeight"
+    >,
+  ): void {
     this.grants.set(grant.id.toLowerCase() as Hex, {
       ...grant,
       paidAt: null,
       paidBy: null,
+      status: "pending",
+      settleTxHash: null,
+      settleSubmittedAt: null,
+      chainBlockHeight: null,
     });
   }
 
@@ -509,6 +530,9 @@ class MockGateway {
     }
     if (method === "POST" && path === "/v1/escrow/pay") {
       return this.handlePay(init);
+    }
+    if (method === "POST" && path === "/v1/settle") {
+      return this.handleSettle();
     }
     if (method === "GET" && path.startsWith("/v1/grants/")) {
       const id = path.slice("/v1/grants/".length).toLowerCase() as Hex;
@@ -711,6 +735,10 @@ class MockGateway {
       paymentStatus: "pending",
       paidAt: null,
       paidBy: null,
+      status: "pending",
+      settleTxHash: null,
+      settleSubmittedAt: null,
+      chainBlockHeight: null,
       grantVersion: body.grantVersion,
       fee: { ...MockGateway.DEFAULT_FEE },
     });
@@ -976,6 +1004,53 @@ class MockGateway {
       },
       paymentNonce: body.paymentNonce,
       paidAt: new Date().toISOString(),
+    });
+  }
+
+  // Synthetic settle pass — flips paid+pending grants to confirmed with a
+  // stamped settleTxHash. Skips anything not in that state. The real gateway
+  // also drains servers/data/access; this mock only models grants for the
+  // wire-format check, which is what we're testing here.
+  private handleSettle(): Response {
+    const items: Array<Record<string, unknown>> = [];
+    for (const grant of this.grants.values()) {
+      if (grant.paymentStatus === "paid" && grant.status === "pending") {
+        const txHash = keccak256(
+          stringToHex(`settle:${grant.id}:${this.l1.blockNumber}`),
+        );
+        grant.status = "confirmed";
+        grant.settleTxHash = txHash;
+        grant.settleSubmittedAt = new Date().toISOString();
+        grant.chainBlockHeight = this.l1.blockNumber.toString();
+        items.push({
+          opType: "grant",
+          opId: grant.id,
+          status: "confirmed",
+          settleTxHash: txHash,
+          settleSubmittedAt: grant.settleSubmittedAt,
+          chainBlockHeight: grant.chainBlockHeight,
+          revocationTxHash: null,
+          revocationSubmittedAt: null,
+          placeholder: false,
+        });
+      }
+    }
+    return jsonResponse({
+      success: true,
+      scanned: items.length,
+      submitted: 0,
+      confirmed: items.length,
+      skipped: 0,
+      failed: 0,
+      items,
+      promoted: { count: 0, items: [] },
+      reconciled: {
+        scanned: 0,
+        finalized: 0,
+        reorged: 0,
+        unchanged: 0,
+        items: [],
+      },
     });
   }
 
@@ -1334,7 +1409,22 @@ describe("Escrow deposit + payment e2e", () => {
     expect(balanceAfter.balances[0].authorizedAmount).toBe(totalDue.toString());
     expect(balanceAfter.balances[0].availableAmount).toBe("0");
 
-    // ── 9. Builder fetches data from the Personal Server ───────────────
+    // ── 9. Drain the pending grant to the relayer via /v1/settle ───────
+    // Real gateway: bundles registration + payments into one
+    // registerAndSettle tx. Mock: flips status to 'confirmed' and stamps a
+    // synthetic settleTxHash. Either way, the wire shape is the same and
+    // this proves the SDK can parse the full settle envelope.
+    const settleResult = await sdk.settle();
+    expect(settleResult.scanned).toBe(1);
+    expect(settleResult.confirmed).toBe(1);
+    expect(settleResult.items).toHaveLength(1);
+    expect(settleResult.items[0]).toMatchObject({
+      opType: "grant",
+      opId: grantId,
+      status: "confirmed",
+    });
+
+    // ── 10. Builder fetches data from the Personal Server ──────────────
     // buildWeb3SignedHeader produces an EIP-191-signed JWT-like header
     // pinned to (aud, method, uri, bodyHash, exp). The PS verifies the
     // header, checks grant.paymentStatus === 'paid', confirms the signer

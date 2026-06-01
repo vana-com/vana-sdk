@@ -363,6 +363,55 @@ describe("createGatewayClient", () => {
     ).rejects.toThrow(/Gateway error: 409 Stale expectedVersion/);
   });
 
+  it("drains pending ops via settle() and parses the full reconcile envelope", async () => {
+    const settleBody = {
+      success: true,
+      scanned: 1,
+      submitted: 0,
+      confirmed: 1,
+      skipped: 0,
+      failed: 0,
+      items: [
+        {
+          opType: "grant",
+          opId: "0xgrant",
+          status: "confirmed",
+          settleTxHash: "0xtx",
+          settleSubmittedAt: "2026-05-08T00:00:00.000Z",
+          chainBlockHeight: "100",
+          revocationTxHash: null,
+          revocationSubmittedAt: null,
+          placeholder: false,
+        },
+      ],
+      promoted: { count: 0, items: [] },
+      reconciled: {
+        scanned: 0,
+        finalized: 0,
+        reorged: 0,
+        unchanged: 0,
+        items: [],
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(settleBody));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").settle({ limit: 50 }),
+    ).resolves.toMatchObject({
+      scanned: 1,
+      confirmed: 1,
+      items: [{ opType: "grant", status: "confirmed" }],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/settle",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ limit: 50 }),
+      }),
+    );
+  });
+
   it("treats 409 mutation responses as idempotent success", async () => {
     const fetchMock = vi
       .fn()

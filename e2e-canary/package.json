@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@noble/secp256k1": "^2.3.0",
-    "@opendatalabs/vana-sdk": "3.2.0-canary.88d802d",
+    "@opendatalabs/vana-sdk": "3.2.0-canary.2b8e377",
     "viem": "^2.35.1"
   },
   "devDependencies": {

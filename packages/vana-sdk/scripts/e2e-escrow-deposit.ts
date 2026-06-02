@@ -32,7 +32,7 @@
  *                                            this on-chain registry (same source
  *                                            the gateway re-reads on every pay)
  *   FUNDER_PRIVATE_KEY                       REQUIRED — funded testnet key
- *   DEPOSIT_AMOUNT                           default 0.1  (VANA)
+ *   DEPOSIT_AMOUNT                           default 1 gwei (= 0.000000001 VANA)
  *   SCOPE                                    default instagram.profile
  *   APP_URL                                  default https://example-app.test
  *   E2E_ACCESS_COUNT                         default 3
@@ -315,14 +315,15 @@ async function main(): Promise<void> {
     ? opFee.registrationPayee
     : opFee.dataAccessPayee;
 
-  // Auto-size the deposit to exactly the bundled total: 1 registration +
-  // (1 + EXTRA_ACCESS_COUNT) data-access payments. Env override stays for
-  // callers who want extra headroom for repeated runs or want to test the
-  // refund path. NOTE: the funder also needs gas on top of this amount;
-  // the script's funder pre-flight only checks DEPOSIT_AMOUNT, not gas.
+  // Default deposit: 1 gwei. Plenty to cover the bundled total on
+  // testnets where the FeeRegistry has sub-gwei fees (or both kinds
+  // disabled). Env override stays for callers running against deployments
+  // with larger enabled fees — the funder pre-flight below + the
+  // gateway's 402 'insufficient balance' will surface "needs more"
+  // cleanly when 1 gwei isn't enough.
   DEPOSIT_AMOUNT = DEPOSIT_AMOUNT_OVERRIDE
     ? parseEther(DEPOSIT_AMOUNT_OVERRIDE)
-    : REGISTRATION_FEE + BigInt(1 + EXTRA_ACCESS_COUNT) * DATA_ACCESS_FEE;
+    : 1_000_000_000n;
 
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  SDK E2E: escrow deposit + grant + payments + settle");
@@ -342,7 +343,7 @@ async function main(): Promise<void> {
     `  Fees:        registration=${formatEther(REGISTRATION_FEE)} VANA, data_access=${formatEther(DATA_ACCESS_FEE)} VANA, asset=${FEE_ASSET}, payee=${PROTOCOL_FEE_RECIPIENT}`,
   );
   console.log(
-    `  Deposit:     ${formatEther(DEPOSIT_AMOUNT)} VANA${DEPOSIT_AMOUNT_OVERRIDE ? " (env override)" : " (auto-sized to bundled total)"}`,
+    `  Deposit:     ${formatEther(DEPOSIT_AMOUNT)} VANA${DEPOSIT_AMOUNT_OVERRIDE ? " (env override)" : " (default 1 gwei)"}`,
   );
 
   // ─── 1. App wallet ──────────────────────────────────────────────────

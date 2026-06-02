@@ -1008,19 +1008,32 @@ async function main(): Promise<void> {
     let allFinalized = true;
     try {
       const r = await gateway.settle();
+      // Query the grant directly each iteration. The reconcile-pass
+      // output is keyed to the reconcile run that promoted the row, not
+      // to the row's current state — for the grant on the disabled-fee
+      // path it returns 'unchanged' indefinitely even after the row's
+      // actual `grants.status` moved to 'finalized'. Use the canonical
+      // DB state (via getGrant) for the grant; the reconcile output is
+      // fine for the other ops.
+      const grantSnapshot = await gateway.getGrant(grantId);
       for (const w of watched) {
-        const item = r.reconciled.items.find(
-          (i) => i.opId.toLowerCase() === w.opId.toLowerCase(),
-        );
-        const cur = item?.status ?? status[w.opId] ?? "pending";
+        let cur: string;
+        if (w.opId.toLowerCase() === grantId.toLowerCase()) {
+          cur = grantSnapshot?.status ?? status[w.opId] ?? "pending";
+        } else {
+          const item = r.reconciled.items.find(
+            (i) => i.opId.toLowerCase() === w.opId.toLowerCase(),
+          );
+          cur = item?.status ?? status[w.opId] ?? "pending";
+          if (cur === "reorged") {
+            throw new Error(
+              `reconcile flagged ${w.label.trim()} ${w.opId} as reorged: ${item?.reason ?? ""}`,
+            );
+          }
+        }
         status[w.opId] = cur;
         line += ` ${w.label}=${cur}`;
         if (cur !== "finalized") allFinalized = false;
-        if (cur === "reorged") {
-          throw new Error(
-            `reconcile flagged ${w.label.trim()} ${w.opId} as reorged: ${item?.reason ?? ""}`,
-          );
-        }
       }
       console.log(line);
       if (allFinalized) {

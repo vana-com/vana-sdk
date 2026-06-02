@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   grantRegistrationDomain,
   GRANT_REGISTRATION_TYPES,
@@ -21,9 +21,10 @@ const CONFIG: DataPortabilityGatewayConfig = {
   },
 };
 
-const owner = privateKeyToAccount(
-  "0x0000000000000000000000000000000000000000000000000000000000000001",
-);
+// Generated fresh per test run — `owner.address` is referenced dynamically
+// in every assertion below, so the test stays deterministic-within-run
+// without committing a key to the repo.
+const owner = privateKeyToAccount(generatePrivateKey());
 
 const granteeId =
   "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";

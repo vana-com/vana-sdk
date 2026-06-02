@@ -443,6 +443,14 @@ async function main(): Promise<void> {
   const dataExpectedVersion = 1n;
   const dataHash = keccak256(stringToHex(`e2e:dataHash:${Date.now()}`));
   const metadataHash = keccak256(stringToHex(`e2e:metadataHash:${Date.now()}`));
+  console.log(`    ownerAddress:    ${userAccount.address}`);
+  console.log(`    scope:           ${SCOPE}`);
+  console.log(`    dataHash:        ${dataHash}`);
+  console.log(`    metadataHash:    ${metadataHash}`);
+  console.log(`    expectedVersion: ${dataExpectedVersion}`);
+  console.log(
+    `    verifyingContract:${dataRegistryDomain(sdkConfig).verifyingContract} (DataRegistry)`,
+  );
   const addDataSig = await userAccount.signTypedData({
     domain: dataRegistryDomain(sdkConfig),
     types: ADD_DATA_TYPES,

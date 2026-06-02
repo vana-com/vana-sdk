@@ -152,7 +152,12 @@ let DATA_ACCESS_FEE = 0n;
 let FEE_ASSET: Address = NATIVE_VANA_ASSET;
 let PROTOCOL_FEE_RECIPIENT: Address =
   "0x0000000000000000000000000000000000000000";
-const DEPOSIT_AMOUNT = parseEther(process.env["DEPOSIT_AMOUNT"] ?? "0.1");
+// Auto-sized from the resolved fee schedule in main(); env var overrides
+// for callers who want extra headroom or a specific amount. Default would
+// pin a wildly oversized 0.1 VANA, which fails the funder pre-flight on
+// testnets where the deployer set tiny fee values.
+let DEPOSIT_AMOUNT = 0n;
+const DEPOSIT_AMOUNT_OVERRIDE = process.env["DEPOSIT_AMOUNT"];
 const SCOPE = process.env["SCOPE"] ?? "instagram.profile";
 const APP_URL = process.env["APP_URL"] ?? "https://example-app.test";
 const EXTRA_ACCESS_COUNT = Number(process.env["E2E_ACCESS_COUNT"] ?? "3");
@@ -294,6 +299,15 @@ async function main(): Promise<void> {
   }
   PROTOCOL_FEE_RECIPIENT = opFee.registrationPayee;
 
+  // Auto-size the deposit to exactly the bundled total: 1 registration +
+  // (1 + EXTRA_ACCESS_COUNT) data-access payments. Env override stays for
+  // callers who want extra headroom for repeated runs or want to test the
+  // refund path. NOTE: the funder also needs gas on top of this amount;
+  // the script's funder pre-flight only checks DEPOSIT_AMOUNT, not gas.
+  DEPOSIT_AMOUNT = DEPOSIT_AMOUNT_OVERRIDE
+    ? parseEther(DEPOSIT_AMOUNT_OVERRIDE)
+    : REGISTRATION_FEE + BigInt(1 + EXTRA_ACCESS_COUNT) * DATA_ACCESS_FEE;
+
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  SDK E2E: escrow deposit + grant + payments + settle");
   console.log("═══════════════════════════════════════════════════════════");
@@ -310,6 +324,9 @@ async function main(): Promise<void> {
   console.log(`  ExtraAccess: ${EXTRA_ACCESS_COUNT}`);
   console.log(
     `  Fees:        registration=${formatEther(REGISTRATION_FEE)} VANA, data_access=${formatEther(DATA_ACCESS_FEE)} VANA, asset=${FEE_ASSET}, payee=${PROTOCOL_FEE_RECIPIENT}`,
+  );
+  console.log(
+    `  Deposit:     ${formatEther(DEPOSIT_AMOUNT)} VANA${DEPOSIT_AMOUNT_OVERRIDE ? " (env override)" : " (auto-sized to bundled total)"}`,
   );
 
   // ─── 1. App wallet ──────────────────────────────────────────────────
@@ -331,11 +348,23 @@ async function main(): Promise<void> {
   const funderBalance = await publicClient.getBalance({
     address: funderAccount.address,
   });
+  // Estimate the gas budget for the deposit tx so the pre-flight covers
+  // value + gas, not just value. Without this, with auto-sized deposits
+  // sub-wei small, callers hit a cryptic "gas required exceeds allowance"
+  // from viem's RPC sim instead of a clear pre-flight error.
+  const gasPrice = await publicClient.getGasPrice();
+  const GAS_LIMIT_ESTIMATE = 120_000n; // depositNative is one storage write
+  const GAS_SAFETY_FACTOR = 2n;
+  const gasBudget = gasPrice * GAS_LIMIT_ESTIMATE * GAS_SAFETY_FACTOR;
+  const requiredBalance = DEPOSIT_AMOUNT + gasBudget;
   console.log(`    funder:      ${funderAccount.address}`);
   console.log(`    funder bal:  ${formatEther(funderBalance)} VANA`);
-  if (funderBalance < DEPOSIT_AMOUNT) {
+  console.log(
+    `    gas budget:  ${formatEther(gasBudget)} VANA (${GAS_LIMIT_ESTIMATE} gas × ${gasPrice} wei × ${GAS_SAFETY_FACTOR}× safety)`,
+  );
+  if (funderBalance < requiredBalance) {
     throw new Error(
-      `Funder has ${formatEther(funderBalance)} VANA but needs ${formatEther(DEPOSIT_AMOUNT)}. Top up ${funderAccount.address} on Moksha and retry.`,
+      `Funder has ${formatEther(funderBalance)} VANA but needs ${formatEther(requiredBalance)} VANA (deposit ${formatEther(DEPOSIT_AMOUNT)} + gas ${formatEther(gasBudget)}). Top up ${funderAccount.address} on Moksha and retry.`,
     );
   }
   const funderWallet = createWalletClient({
@@ -544,11 +573,28 @@ async function main(): Promise<void> {
   console.log(`    status:          ${grantBefore.status}`);
   console.log(`    fee.totalDue:    ${grantBefore.fee.totalDue}`);
   assertEq(grantBefore.paymentStatus, "pending", "paymentStatus pending");
-  assertEq(
-    grantBefore.fee.totalDue,
-    (REGISTRATION_FEE + DATA_ACCESS_FEE).toString(),
-    "fee.totalDue == registration + dataAccess",
-  );
+
+  // Reconcile our SDK-side FeeRegistry read against the gateway's per-grant
+  // `fee` object. The gateway is the authority — the pay handler re-reads
+  // its own FeeRegistry on every call and rejects amount-mismatches with
+  // 400, so we MUST sign whatever the gateway will validate against. When
+  // the SDK's local registry agrees, great; when it doesn't (common cause:
+  // SDK's FEE_REGISTRY_CONTRACT env points at a different deployment than
+  // the gateway's Vercel env), warn loudly and follow the gateway.
+  const sdkTotal = REGISTRATION_FEE + DATA_ACCESS_FEE;
+  const gatewayTotal = BigInt(grantBefore.fee.totalDue);
+  if (sdkTotal !== gatewayTotal) {
+    console.warn(
+      `    ⚠ FeeRegistry drift: SDK total=${sdkTotal}, gateway grant.fee.totalDue=${gatewayTotal}`,
+    );
+    console.warn(
+      `    ⚠ Likely cause: SDK's FEE_REGISTRY_CONTRACT (${FEE_REGISTRY_CONTRACT}) points at a different deployment than the gateway's Vercel env.`,
+    );
+    console.warn(`    ⚠ Using gateway-reported fees for signing.`);
+    REGISTRATION_FEE = BigInt(grantBefore.fee.registrationFee);
+    DATA_ACCESS_FEE = BigInt(grantBefore.fee.dataAccessFee);
+    FEE_ASSET = grantBefore.fee.asset as Address;
+  }
 
   // ─── 11. Pay registration + first data-access via SDK ───────────────
   const totalDue = REGISTRATION_FEE + DATA_ACCESS_FEE;

@@ -28,11 +28,10 @@
  *   DATA_PORTABILITY_PERMISSIONS_CONTRACT    default 0x0000…0000
  *   DATA_PORTABILITY_SERVER_CONTRACT         default 0x0000…0000
  *   DATA_REGISTRY_CONTRACT                   default 0x0000…0000
- *   PROTOCOL_FEE_RECIPIENT                   default 0x0000…0000
+ *   FEE_REGISTRY_CONTRACT                    REQUIRED — fees + payees come from
+ *                                            this on-chain registry (same source
+ *                                            the gateway re-reads on every pay)
  *   FUNDER_PRIVATE_KEY                       REQUIRED — funded testnet key
- *   OP_FEE_DEFAULT_REGISTRATION_FEE          default 1e16 (0.01 VANA)
- *   OP_FEE_DEFAULT_DATA_ACCESS_FEE           default 1e15 (0.001 VANA)
- *   OP_FEE_DEFAULT_ASSET                     default 0x0000…0000 (native)
  *   DEPOSIT_AMOUNT                           default 0.1  (VANA)
  *   SCOPE                                    default instagram.profile
  *   APP_URL                                  default https://example-app.test
@@ -73,6 +72,7 @@ import {
   createGatewayClient,
   dataRegistryDomain,
   escrowPaymentDomain,
+  getOpFee,
   grantRegistrationDomain,
   serverRegistrationDomain,
   type DataPortabilityGatewayConfig,
@@ -123,7 +123,7 @@ const SERVER_CONTRACT = (process.env["DATA_PORTABILITY_SERVER_CONTRACT"] ??
   "0x0000000000000000000000000000000000000000") as Address;
 const DATA_REGISTRY_CONTRACT = (process.env["DATA_REGISTRY_CONTRACT"] ??
   "0x0000000000000000000000000000000000000000") as Address;
-const PROTOCOL_FEE_RECIPIENT = (process.env["PROTOCOL_FEE_RECIPIENT"] ??
+const FEE_REGISTRY_CONTRACT = (process.env["FEE_REGISTRY_CONTRACT"] ??
   "0x0000000000000000000000000000000000000000") as Address;
 // No default — the script needs a real funded testnet wallet, and shipping
 // a hardcoded key is both a leak risk and a footgun if multiple devs run
@@ -137,14 +137,21 @@ const FUNDER_PRIVATE_KEY = (() => {
   }
   return v as Hex;
 })();
-const REGISTRATION_FEE = BigInt(
-  process.env["OP_FEE_DEFAULT_REGISTRATION_FEE"] ?? "10000000000000000",
-);
-const DATA_ACCESS_FEE = BigInt(
-  process.env["OP_FEE_DEFAULT_DATA_ACCESS_FEE"] ?? "1000000000000000",
-);
-const FEE_ASSET = (process.env["OP_FEE_DEFAULT_ASSET"] ??
-  NATIVE_VANA_ASSET) as Address;
+// Fees + payee come from the on-chain FeeRegistry at startup (see
+// initFeeSchedule below) — same source of truth the gateway's
+// /v1/escrow/pay handler uses. Hardcoded env defaults would only match
+// the gateway's local fixtures by coincidence; against a Vercel preview
+// or production gateway they'd nearly always trip the
+// "Payment amount does not match canonical fee total" 400.
+//
+// Initialised with sentinel zeros so TS doesn't trip on read-before-write
+// flow analysis — initFeeSchedule() rewrites all four at the top of main()
+// before any consumer reads them.
+let REGISTRATION_FEE = 0n;
+let DATA_ACCESS_FEE = 0n;
+let FEE_ASSET: Address = NATIVE_VANA_ASSET;
+let PROTOCOL_FEE_RECIPIENT: Address =
+  "0x0000000000000000000000000000000000000000";
 const DEPOSIT_AMOUNT = parseEther(process.env["DEPOSIT_AMOUNT"] ?? "0.1");
 const SCOPE = process.env["SCOPE"] ?? "instagram.profile";
 const APP_URL = process.env["APP_URL"] ?? "https://example-app.test";
@@ -173,6 +180,7 @@ const sdkConfig: DataPortabilityGatewayConfig = {
     dataPortabilityServer: SERVER_CONTRACT,
     dataPortabilityGrantees: GRANTEES_CONTRACT,
     dataPortabilityEscrow: ESCROW_CONTRACT,
+    feeRegistry: FEE_REGISTRY_CONTRACT,
   },
 };
 
@@ -259,6 +267,33 @@ function formatSignedEther(v: bigint): string {
 // ─── Main ────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  const publicClient = createPublicClient({
+    chain: moksha,
+    transport: http(RPC_URL),
+  });
+  const gateway = createGatewayClient(GATEWAY_URL);
+
+  // Resolve the canonical fee schedule from the on-chain FeeRegistry —
+  // same source the gateway re-reads on every /v1/escrow/pay, so the
+  // amount we sign is guaranteed to match the gateway's expected total.
+  // Throws cleanly when FEE_REGISTRY_CONTRACT is unset / zero-addressed.
+  const opFee = await getOpFee(publicClient, sdkConfig);
+  REGISTRATION_FEE = opFee.registrationFee;
+  DATA_ACCESS_FEE = opFee.dataAccessFee;
+  FEE_ASSET = opFee.asset;
+  // The gateway uses the registration payee in the Settled-event filter
+  // below. Per-kind payees can in principle differ; the gateway's e2e
+  // script asserts they match, and so do we.
+  if (
+    opFee.registrationPayee.toLowerCase() !==
+    opFee.dataAccessPayee.toLowerCase()
+  ) {
+    throw new Error(
+      `FeeRegistry payee mismatch: registration=${opFee.registrationPayee}, data_access=${opFee.dataAccessPayee}. The e2e assertions assume a single fee recipient — update the e2e or unify payees.`,
+    );
+  }
+  PROTOCOL_FEE_RECIPIENT = opFee.registrationPayee;
+
   console.log("═══════════════════════════════════════════════════════════");
   console.log("  SDK E2E: escrow deposit + grant + payments + settle");
   console.log("═══════════════════════════════════════════════════════════");
@@ -270,14 +305,12 @@ async function main(): Promise<void> {
   console.log(`  Permissions: ${PERMISSIONS_CONTRACT}`);
   console.log(`  Servers:     ${SERVER_CONTRACT}`);
   console.log(`  DataRegistry:${DATA_REGISTRY_CONTRACT}`);
+  console.log(`  FeeRegistry: ${FEE_REGISTRY_CONTRACT}`);
   console.log(`  Scope:       ${SCOPE}`);
   console.log(`  ExtraAccess: ${EXTRA_ACCESS_COUNT}`);
-
-  const publicClient = createPublicClient({
-    chain: moksha,
-    transport: http(RPC_URL),
-  });
-  const gateway = createGatewayClient(GATEWAY_URL);
+  console.log(
+    `  Fees:        registration=${formatEther(REGISTRATION_FEE)} VANA, data_access=${formatEther(DATA_ACCESS_FEE)} VANA, asset=${FEE_ASSET}, payee=${PROTOCOL_FEE_RECIPIENT}`,
+  );
 
   // ─── 1. App wallet ──────────────────────────────────────────────────
   step(

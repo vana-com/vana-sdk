@@ -20,6 +20,11 @@ export interface DataPortabilityContracts {
   // DataPortabilityEscrow — verifies GENERIC_PAYMENT_TYPES signatures backing
   // /v1/escrow/pay (the data-access payment path).
   dataPortabilityEscrow: string;
+  // FeeRegistry — per-operation `{amount, asset, payee, enabled}` records
+  // keyed on `keccak256(name)`. The gateway re-resolves fees against this
+  // contract on every /v1/escrow/pay so the SDK has to read the same
+  // source of truth to size payment amounts.
+  feeRegistry: string;
 }
 
 // Native VANA asset sentinel used by /v1/escrow/pay's `asset` field — pay any

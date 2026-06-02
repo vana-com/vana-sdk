@@ -240,6 +240,15 @@ export {
   type DepositTransactionRequest,
 } from "./protocol/escrow-deposit";
 export {
+  FEE_REGISTRY_ABI,
+  getFee,
+  getOpFee,
+  type FeeKind,
+  type FeeEntry,
+  type OpFee,
+  type FeeRegistryOptions,
+} from "./protocol/fee-registry";
+export {
   ScopeSchema,
   parseScope,
   scopeToPathSegments,

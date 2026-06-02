@@ -77,6 +77,7 @@ const CONFIG: DataPortabilityGatewayConfig = {
     dataPortabilityServer: "0x3333333333333333333333333333333333333333",
     dataPortabilityGrantees: "0x4444444444444444444444444444444444444444",
     dataPortabilityEscrow: ESCROW_ADDRESS,
+    feeRegistry: "0x6666666666666666666666666666666666666666",
   },
 };
 

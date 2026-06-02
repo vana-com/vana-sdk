@@ -39,6 +39,11 @@ export interface ServerInfo {
   publicKey: string;
   serverUrl: string;
   addedAt: string;
+  // ISO timestamp when the grantor deregistered this server, null while
+  // active. The gateway returns this on /v1/servers/:address GETs since
+  // covering revocation in the response keeps the attestation hash
+  // authoritative for both states.
+  revokedAt: string | null;
 }
 
 // Fee annotation surfaced on every GET grant response. Amounts are decimal

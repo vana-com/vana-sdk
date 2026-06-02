@@ -241,6 +241,7 @@ export {
 } from "./protocol/escrow-deposit";
 export {
   FEE_REGISTRY_ABI,
+  REGISTRATION_KIND_FOR_OP,
   getFee,
   getOpFee,
   type FeeKind,

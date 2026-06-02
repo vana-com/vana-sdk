@@ -278,26 +278,33 @@ async function main(): Promise<void> {
   });
   const gateway = createGatewayClient(GATEWAY_URL);
 
-  // Resolve the canonical fee schedule from the on-chain FeeRegistry —
-  // same source the gateway re-reads on every /v1/escrow/pay, so the
-  // amount we sign is guaranteed to match the gateway's expected total.
-  // Throws cleanly when FEE_REGISTRY_CONTRACT is unset / zero-addressed.
-  const opFee = await getOpFee(publicClient, sdkConfig);
+  // Resolve the canonical fee schedule for grants from the on-chain
+  // FeeRegistry — same source the gateway re-reads on every /v1/escrow/pay,
+  // so the amount we sign is guaranteed to match the gateway's expected
+  // total. Throws cleanly when FEE_REGISTRY_CONTRACT is unset.
+  //
+  // Disabled fees come back as amount=0 + enabled=false — the e2e treats
+  // those as "no payment required" later (matches the gateway's flow).
+  const opFee = await getOpFee(publicClient, sdkConfig, "grant");
   REGISTRATION_FEE = opFee.registrationFee;
   DATA_ACCESS_FEE = opFee.dataAccessFee;
   FEE_ASSET = opFee.asset;
-  // The gateway uses the registration payee in the Settled-event filter
-  // below. Per-kind payees can in principle differ; the gateway's e2e
-  // script asserts they match, and so do we.
+  // Settled-event filter below pins the payee — use whichever component is
+  // enabled. If both are disabled the on-chain validation block is skipped
+  // entirely (the gateway short-circuits and no Settled events fire).
   if (
+    opFee.registrationEnabled &&
+    opFee.dataAccessEnabled &&
     opFee.registrationPayee.toLowerCase() !==
-    opFee.dataAccessPayee.toLowerCase()
+      opFee.dataAccessPayee.toLowerCase()
   ) {
     throw new Error(
       `FeeRegistry payee mismatch: registration=${opFee.registrationPayee}, data_access=${opFee.dataAccessPayee}. The e2e assertions assume a single fee recipient — update the e2e or unify payees.`,
     );
   }
-  PROTOCOL_FEE_RECIPIENT = opFee.registrationPayee;
+  PROTOCOL_FEE_RECIPIENT = opFee.registrationEnabled
+    ? opFee.registrationPayee
+    : opFee.dataAccessPayee;
 
   // Auto-size the deposit to exactly the bundled total: 1 registration +
   // (1 + EXTRA_ACCESS_COUNT) data-access payments. Env override stays for

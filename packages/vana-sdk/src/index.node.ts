@@ -251,6 +251,7 @@ export {
   type GrantListItem,
   type FileRecord,
   type FileListResult,
+  type ListFilesOptions,
   type RegisterServerParams,
   type RegisterServerResult,
   type RegisterFileParams,

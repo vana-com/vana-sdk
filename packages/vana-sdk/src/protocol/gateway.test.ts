@@ -134,6 +134,7 @@ describe("createGatewayClient", () => {
             url: "https://files.example/file-1",
             schemaId: "schema-1",
             createdAt: "2026-05-08T00:00:00.000Z",
+            deletedAt: null,
           },
         ],
         cursor: null,
@@ -147,6 +148,48 @@ describe("createGatewayClient", () => {
       2,
       "https://g/v1/files?user=0xowner&since=cursor-1",
     );
+  });
+
+  it("requests includeDeleted and surfaces deletedAt for reconciliation", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse(
+        envelope({
+          files: [
+            {
+              id: "file-active",
+              ownerAddress: "0xowner",
+              url: "https://files.example/active",
+              schemaId: "schema-1",
+              addedAt: "2026-05-08T00:00:00.000Z",
+              deletedAt: null,
+            },
+            {
+              id: "file-gone",
+              ownerAddress: "0xowner",
+              url: "https://files.example/gone",
+              schemaId: "schema-1",
+              addedAt: "2026-05-08T00:00:00.000Z",
+              deletedAt: "2026-06-04T00:00:00.000Z",
+            },
+          ],
+          cursor: null,
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    const result = await client.listFilesSince("0xowner", null, {
+      includeDeleted: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/files?user=0xowner&includeDeleted=true",
+    );
+    expect(result.files.map((f) => f.deletedAt)).toEqual([
+      null,
+      "2026-06-04T00:00:00.000Z",
+    ]);
   });
 
   it("posts server, file, grant, and revocation mutations with Web3Signed auth", async () => {

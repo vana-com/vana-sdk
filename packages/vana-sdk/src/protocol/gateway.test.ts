@@ -223,6 +223,65 @@ describe("createGatewayClient", () => {
     );
   });
 
+  it("deletes a file via DELETE /v1/files/:id with Web3Signed auth and ownerAddress body", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.deleteFile({
+        fileId: "0xfile",
+        ownerAddress: "0xowner",
+        signature: "sig",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/files/0xfile",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Web3Signed sig",
+        }),
+        body: JSON.stringify({ ownerAddress: "0xowner" }),
+      }),
+    );
+  });
+
+  it("treats a 409 file deletion as idempotent success", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 409 })),
+    );
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.deleteFile({
+        fileId: "0xfile",
+        ownerAddress: "0xowner",
+        signature: "sig",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws when file deletion fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 403 })),
+    );
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.deleteFile({
+        fileId: "0xfile",
+        ownerAddress: "0xowner",
+        signature: "sig",
+      }),
+    ).rejects.toThrow(/Gateway error: 403/);
+  });
+
   it("treats 409 mutation responses as idempotent success", async () => {
     const fetchMock = vi
       .fn()

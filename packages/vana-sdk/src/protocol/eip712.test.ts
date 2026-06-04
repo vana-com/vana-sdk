@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   BUILDER_REGISTRATION_TYPES,
+  FILE_DELETION_TYPES,
   FILE_REGISTRATION_TYPES,
   GRANT_REGISTRATION_TYPES,
   GRANT_REVOCATION_TYPES,
   SERVER_REGISTRATION_TYPES,
   builderRegistrationDomain,
+  fileDeletionDomain,
   fileRegistrationDomain,
   grantRegistrationDomain,
   grantRevocationDomain,
@@ -37,6 +39,10 @@ describe("Data Portability EIP-712 helpers", () => {
     expect(grantRevocationDomain(CONFIG)).toMatchObject({
       verifyingContract: CONFIG.contracts.dataPortabilityPermissions,
     });
+    // File deletion uses the same DataRegistry domain as file registration.
+    expect(fileDeletionDomain(CONFIG)).toMatchObject({
+      verifyingContract: CONFIG.contracts.dataRegistry,
+    });
     expect(serverRegistrationDomain(CONFIG)).toMatchObject({
       verifyingContract: CONFIG.contracts.dataPortabilityServer,
     });
@@ -60,6 +66,10 @@ describe("Data Portability EIP-712 helpers", () => {
     expect(GRANT_REVOCATION_TYPES.GrantRevocation).toEqual([
       { name: "grantorAddress", type: "address" },
       { name: "grantId", type: "bytes32" },
+    ]);
+    expect(FILE_DELETION_TYPES.FileDeletion).toEqual([
+      { name: "ownerAddress", type: "address" },
+      { name: "fileId", type: "bytes32" },
     ]);
     expect(SERVER_REGISTRATION_TYPES.ServerRegistration).toEqual([
       { name: "ownerAddress", type: "address" },

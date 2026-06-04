@@ -72,10 +72,11 @@ export interface FileRecord {
   schemaId: string;
   createdAt: string;
   /**
-   * Soft-deletion timestamp (ISO 8601), or null if the file is active. Only populated when the file
-   * was listed with `includeDeleted` (or fetched directly); drives the PS sync delete-reconciliation.
+   * Soft-deletion timestamp (ISO 8601), or null if the file is active. Always present
+   * (`normalizeFileRecord` populates it); non-null only when the gateway returns deletion state
+   * (e.g. listed with `includeDeleted`). Drives the PS sync delete-reconciliation.
    */
-  deletedAt?: string | null;
+  deletedAt: string | null;
 }
 
 export interface FileListResult {

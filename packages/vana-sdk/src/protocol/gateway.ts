@@ -110,6 +110,13 @@ export interface RevokeGrantParams {
   signature: string;
 }
 
+export interface DeleteFileParams {
+  fileId: string;
+  ownerAddress: string;
+  /** EIP-712 FileDeletion signature, signed by the owner or the owner's registered server. */
+  signature: string;
+}
+
 export interface RegisterServerParams {
   ownerAddress: string;
   serverAddress: string;
@@ -137,6 +144,13 @@ export interface GatewayClient {
   registerFile(params: RegisterFileParams): Promise<{ fileId?: string }>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
+  /**
+   * Soft-deletes (de-registers) a file at the gateway. Resolves on 200 and on 409
+   * (already deleted) — 409 is treated as idempotent success. Other non-2xx, including
+   * 404 (file not registered), throw; the PS delete cascade decides whether a 404 is
+   * benign (blob already gone) or a hard failure.
+   */
+  deleteFile(params: DeleteFileParams): Promise<void>;
 }
 
 export function createGatewayClient(baseUrl: string): GatewayClient {
@@ -361,6 +375,24 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
           grantorAddress: params.grantorAddress,
         }),
       });
+      if (res.status === 409) return;
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+    },
+
+    async deleteFile(params: DeleteFileParams): Promise<void> {
+      const res = await fetch(`${base}/v1/files/${params.fileId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${params.signature}`,
+        },
+        body: JSON.stringify({
+          ownerAddress: params.ownerAddress,
+        }),
+      });
+      // 409 = already deleted; treat as success (idempotent), same as revokeGrant.
       if (res.status === 409) return;
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);

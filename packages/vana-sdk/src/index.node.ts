@@ -143,11 +143,13 @@ export {
 // Data Portability protocol signing helpers
 export {
   fileRegistrationDomain,
+  fileDeletionDomain,
   grantRegistrationDomain,
   grantRevocationDomain,
   serverRegistrationDomain,
   builderRegistrationDomain,
   FILE_REGISTRATION_TYPES,
+  FILE_DELETION_TYPES,
   GRANT_REGISTRATION_TYPES,
   GRANT_REVOCATION_TYPES,
   SERVER_REGISTRATION_TYPES,
@@ -155,6 +157,7 @@ export {
   type DataPortabilityContracts,
   type DataPortabilityGatewayConfig,
   type FileRegistrationMessage,
+  type FileDeletionMessage,
   type GrantRegistrationMessage,
   type GrantRevocationMessage,
   type ServerRegistrationMessage,
@@ -253,6 +256,7 @@ export {
   type RegisterFileParams,
   type CreateGrantParams,
   type RevokeGrantParams,
+  type DeleteFileParams,
   type GatewayClient,
 } from "./protocol/gateway";
 

@@ -45,6 +45,15 @@ export function fileRegistrationDomain(
   );
 }
 
+export function fileDeletionDomain(
+  config: DataPortabilityGatewayConfig,
+): TypedDataDomain {
+  return buildDomain(
+    config.chainId,
+    config.contracts.dataRegistry as `0x${string}`,
+  );
+}
+
 export function grantRegistrationDomain(
   config: DataPortabilityGatewayConfig,
 ): TypedDataDomain {
@@ -89,6 +98,13 @@ export const FILE_REGISTRATION_TYPES = {
   ],
 } as const;
 
+export const FILE_DELETION_TYPES = {
+  FileDeletion: [
+    { name: "ownerAddress", type: "address" },
+    { name: "fileId", type: "bytes32" },
+  ],
+} as const;
+
 export const GRANT_REGISTRATION_TYPES = {
   GrantRegistration: [
     { name: "grantorAddress", type: "address" },
@@ -127,6 +143,16 @@ export interface FileRegistrationMessage {
   ownerAddress: `0x${string}`;
   url: string;
   schemaId: `0x${string}`;
+}
+
+export interface FileDeletionMessage {
+  ownerAddress: `0x${string}`;
+  /**
+   * Off-chain gateway file ID — bytes32, as returned by `GET /v1/files`. This is NOT the on-chain
+   * uint256 DataRegistry file ID; consumers (e.g. the PS delete cascade) must source it from the
+   * gateway, not derive it from a numeric on-chain ID.
+   */
+  fileId: `0x${string}`;
 }
 
 export interface GrantRegistrationMessage {

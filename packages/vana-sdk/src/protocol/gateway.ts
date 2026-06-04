@@ -144,6 +144,12 @@ export interface GatewayClient {
   registerFile(params: RegisterFileParams): Promise<{ fileId?: string }>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
+  /**
+   * Soft-deletes (de-registers) a file at the gateway. Resolves on 200 and on 409
+   * (already deleted) — 409 is treated as idempotent success. Other non-2xx, including
+   * 404 (file not registered), throw; the PS delete cascade decides whether a 404 is
+   * benign (blob already gone) or a hard failure.
+   */
   deleteFile(params: DeleteFileParams): Promise<void>;
 }
 

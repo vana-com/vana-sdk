@@ -147,6 +147,11 @@ export interface FileRegistrationMessage {
 
 export interface FileDeletionMessage {
   ownerAddress: `0x${string}`;
+  /**
+   * Off-chain gateway file ID — bytes32, as returned by `GET /v1/files`. This is NOT the on-chain
+   * uint256 DataRegistry file ID; consumers (e.g. the PS delete cascade) must source it from the
+   * gateway, not derive it from a numeric on-chain ID.
+   */
   fileId: `0x${string}`;
 }
 

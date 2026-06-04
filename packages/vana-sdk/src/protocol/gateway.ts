@@ -71,11 +71,25 @@ export interface FileRecord {
   url: string;
   schemaId: string;
   createdAt: string;
+  /**
+   * Soft-deletion timestamp (ISO 8601), or null if the file is active. Always present
+   * (`normalizeFileRecord` populates it); non-null only when the gateway returns deletion state
+   * (e.g. listed with `includeDeleted`). Drives the PS sync delete-reconciliation.
+   */
+  deletedAt: string | null;
 }
 
 export interface FileListResult {
   files: FileRecord[];
   cursor: string | null;
+}
+
+export interface ListFilesOptions {
+  /**
+   * Include soft-deleted files in the result (each carries a non-null `deletedAt`). Default false.
+   * Used by the PS sync download worker to reconcile deletions of files it already holds locally.
+   */
+  includeDeleted?: boolean;
 }
 
 interface GatewayFileRecord {
@@ -87,6 +101,7 @@ interface GatewayFileRecord {
   schemaId: string;
   addedAt?: string;
   createdAt?: string;
+  deletedAt?: string | null;
 }
 
 export interface RegisterFileParams {
@@ -138,7 +153,11 @@ export interface GatewayClient {
   getSchemaForScope(scope: string): Promise<Schema | null>;
   getServer(address: string): Promise<ServerInfo | null>;
   getFile(fileId: string): Promise<FileRecord | null>;
-  listFilesSince(owner: string, cursor: string | null): Promise<FileListResult>;
+  listFilesSince(
+    owner: string,
+    cursor: string | null,
+    options?: ListFilesOptions,
+  ): Promise<FileListResult>;
   getSchema(schemaId: string): Promise<Schema | null>;
   registerServer(params: RegisterServerParams): Promise<RegisterServerResult>;
   registerFile(params: RegisterFileParams): Promise<{ fileId?: string }>;
@@ -168,6 +187,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       url: record.url,
       schemaId: record.schemaId,
       createdAt: record.createdAt ?? record.addedAt ?? "",
+      deletedAt: record.deletedAt ?? null,
     };
   }
 
@@ -242,10 +262,14 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
     async listFilesSince(
       owner: string,
       cursor: string | null,
+      options?: ListFilesOptions,
     ): Promise<FileListResult> {
       const params = new URLSearchParams({ user: owner });
       if (cursor !== null) {
         params.set("since", cursor);
+      }
+      if (options?.includeDeleted) {
+        params.set("includeDeleted", "true");
       }
       const res = await fetch(`${base}/v1/files?${params.toString()}`);
       if (!res.ok) {

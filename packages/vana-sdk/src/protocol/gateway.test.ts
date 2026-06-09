@@ -10,7 +10,10 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
   });
 }
 
-function envelope<T>(data: T) {
+function envelope<T>(
+  data: T,
+  pagination?: { limit: number; hasMore: boolean; nextCursor: string | null },
+) {
   return {
     data,
     proof: {
@@ -23,6 +26,7 @@ function envelope<T>(data: T) {
       status: "ok",
       chainBlockHeight: 1,
     },
+    ...(pagination ? { pagination } : {}),
   };
 }
 
@@ -146,7 +150,56 @@ describe("createGatewayClient", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://g/v1/files?user=0xowner&since=cursor-1",
+      "https://g/v1/files?user=0xowner&cursor=cursor-1",
+    );
+  });
+
+  it("paginates files via pagination.nextCursor until hasMore is false", async () => {
+    // Regression: the gateway returns the next-page cursor in the envelope's
+    // `pagination` block (a sibling of `data`), and accepts it back as the
+    // `cursor` query param. A previous implementation read `data.cursor` and
+    // sent `?since=`, so it always stopped after the first page — silently
+    // truncating an owner's files to a single page.
+    const page = (id: string, nextCursor: string | null) =>
+      jsonResponse(
+        envelope(
+          {
+            files: [
+              {
+                id,
+                ownerAddress: "0xowner",
+                url: `https://files.example/${id}`,
+                schemaId: "schema-1",
+                addedAt: "2026-05-08T00:00:00.000Z",
+              },
+            ],
+          },
+          { limit: 1, hasMore: nextCursor !== null, nextCursor },
+        ),
+      );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(page("file-1", "cursor-2"))
+      .mockResolvedValueOnce(page("file-2", null));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    const all: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const result = await client.listFilesSince("0xowner", cursor);
+      all.push(...result.files.map((f) => f.fileId));
+      cursor = result.cursor;
+    } while (cursor);
+
+    expect(all).toEqual(["file-1", "file-2"]);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://g/v1/files?user=0xowner",
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://g/v1/files?user=0xowner&cursor=cursor-2",
     );
   });
 

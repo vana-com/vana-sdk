@@ -1,6 +1,23 @@
 export interface GatewayEnvelope<T> {
   data: T;
   proof: GatewayProof;
+  /**
+   * Cursor-based pagination metadata, present on list endpoints (e.g.
+   * `GET /v1/files`). A sibling of `data`, not nested inside it — so callers
+   * that need it must read the full envelope rather than going through
+   * `unwrapEnvelope`, which intentionally returns only `data`.
+   */
+  pagination?: GatewayPagination;
+}
+
+export interface GatewayPagination {
+  limit: number;
+  hasMore: boolean;
+  /**
+   * Opaque cursor for the NEXT page; pass back as the `cursor` query param.
+   * Null when there are no further pages.
+   */
+  nextCursor: string | null;
 }
 
 export interface GatewayProof {
@@ -266,7 +283,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
     ): Promise<FileListResult> {
       const params = new URLSearchParams({ user: owner });
       if (cursor !== null) {
-        params.set("since", cursor);
+        params.set("cursor", cursor);
       }
       if (options?.includeDeleted) {
         params.set("includeDeleted", "true");
@@ -275,13 +292,22 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      const data = await unwrapEnvelope<{
+      // The next-page cursor lives in the envelope's `pagination.nextCursor`
+      // (a sibling of `data`), so read the full envelope rather than going
+      // through `unwrapEnvelope`, which returns only `data`. Fall back to a
+      // legacy `data.cursor` for older gateways that nested it there.
+      const envelope = (await res.json()) as GatewayEnvelope<{
         files: GatewayFileRecord[];
-        cursor: string | null;
-      }>(res);
+        cursor?: string | null;
+      }>;
+      const { pagination } = envelope;
+      const nextCursor =
+        pagination?.hasMore === false
+          ? null
+          : (pagination?.nextCursor ?? envelope.data.cursor ?? null);
       return {
-        files: data.files.map(normalizeFileRecord),
-        cursor: data.cursor,
+        files: envelope.data.files.map(normalizeFileRecord),
+        cursor: nextCursor,
       };
     },
 

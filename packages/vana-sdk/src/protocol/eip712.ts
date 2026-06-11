@@ -49,32 +49,11 @@ function buildDomain(
   };
 }
 
-export function fileRegistrationDomain(
-  config: DataPortabilityGatewayConfig,
-): TypedDataDomain {
-  return buildDomain(
-    config.chainId,
-    config.contracts.dataRegistry as `0x${string}`,
-  );
-}
-
-// Domain for the DataRegistryV2 contract — verifies the AddData,
-// RecordDataAccess, and FileDeletion EIP-712 signatures. The
-// verifyingContract is the same as `fileRegistrationDomain` (both point at
-// `dataRegistry`); the distinction lives in the primaryType, not the
-// domain. Three names alias the same domain for caller ergonomics:
-// `dataRegistryDomain` reads naturally for data-point flows,
-// `fileDeletionDomain` for the file-deletion flow, both behave identically.
+// Domain for the DataRegistryV2 contract — verifies the AddData and
+// RecordDataAccess EIP-712 signatures. The v2 contract dropped the file
+// concept entirely in favor of versioned data points keyed on (owner,
+// scope); the primaryType distinguishes the two flows.
 export function dataRegistryDomain(
-  config: DataPortabilityGatewayConfig,
-): TypedDataDomain {
-  return buildDomain(
-    config.chainId,
-    config.contracts.dataRegistry as `0x${string}`,
-  );
-}
-
-export function fileDeletionDomain(
   config: DataPortabilityGatewayConfig,
 ): TypedDataDomain {
   return buildDomain(
@@ -131,21 +110,6 @@ export function escrowPaymentDomain(
     config.contracts.dataPortabilityEscrow as `0x${string}`,
   );
 }
-
-export const FILE_REGISTRATION_TYPES = {
-  FileRegistration: [
-    { name: "ownerAddress", type: "address" },
-    { name: "url", type: "string" },
-    { name: "schemaId", type: "bytes32" },
-  ],
-} as const;
-
-export const FILE_DELETION_TYPES = {
-  FileDeletion: [
-    { name: "ownerAddress", type: "address" },
-    { name: "fileId", type: "bytes32" },
-  ],
-} as const;
 
 // grantVersion is a monotonic uint256 nonce per (grantor, grantee) pair. The
 // gateway rejects any registration whose version is <= the stored value,
@@ -233,22 +197,6 @@ export const RECORD_DATA_ACCESS_TYPES = {
     { name: "recordId", type: "bytes32" },
   ],
 } as const;
-
-export interface FileRegistrationMessage {
-  ownerAddress: `0x${string}`;
-  url: string;
-  schemaId: `0x${string}`;
-}
-
-export interface FileDeletionMessage {
-  ownerAddress: `0x${string}`;
-  /**
-   * Off-chain gateway file ID — bytes32, as returned by `GET /v1/files`. This is NOT the on-chain
-   * uint256 DataRegistry file ID; consumers (e.g. the PS delete cascade) must source it from the
-   * gateway, not derive it from a numeric on-chain ID.
-   */
-  fileId: `0x${string}`;
-}
 
 export interface GrantRegistrationMessage {
   grantorAddress: `0x${string}`;

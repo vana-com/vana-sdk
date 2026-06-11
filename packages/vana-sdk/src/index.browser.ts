@@ -142,16 +142,12 @@ export {
 
 // Data Portability protocol signing helpers
 export {
-  fileRegistrationDomain,
-  fileDeletionDomain,
   grantRegistrationDomain,
   grantRevocationDomain,
   serverRegistrationDomain,
   builderRegistrationDomain,
   escrowPaymentDomain,
   dataRegistryDomain,
-  FILE_REGISTRATION_TYPES,
-  FILE_DELETION_TYPES,
   GRANT_REGISTRATION_TYPES,
   GRANT_REVOCATION_TYPES,
   SERVER_REGISTRATION_TYPES,
@@ -162,8 +158,6 @@ export {
   NATIVE_VANA_ASSET,
   type DataPortabilityContracts,
   type DataPortabilityGatewayConfig,
-  type FileRegistrationMessage,
-  type FileDeletionMessage,
   type GrantRegistrationMessage,
   type GrantRevocationMessage,
   type ServerRegistrationMessage,
@@ -243,6 +237,16 @@ export {
   type DepositTransactionRequest,
 } from "./protocol/escrow-deposit";
 export {
+  DATA_REGISTRY_STATUS_ABI,
+  DataPointStatus,
+  dataRegistryContractAddress,
+  encodeSetDataPointStatusData,
+  buildSetDataPointStatusRequest,
+  buildMarkDataPointUnavailableRequest,
+  type SetDataPointStatusInput,
+  type DataPointStatusTransactionRequest,
+} from "./protocol/data-point-status";
+export {
   FEE_REGISTRY_ABI,
   REGISTRATION_KIND_FOR_OP,
   getFee,
@@ -279,12 +283,11 @@ export {
   type GatewayGrantStatus,
   type GatewayGrantFee,
   type GrantListItem,
-  type FileRecord,
-  type FileListResult,
-  type ListFilesOptions,
+  type DataPointRecord,
+  type DataPointListResult,
+  type ListDataPointsOptions,
   type RegisterServerParams,
   type RegisterServerResult,
-  type RegisterFileParams,
   type RegisterBuilderParams,
   type RegisterBuilderResult,
   type RegisterDataPointParams,
@@ -307,7 +310,6 @@ export {
   type EscrowDepositSubmitted,
   type EscrowDepositFinalized,
   type EscrowDepositFailed,
-  type DeleteFileParams,
   type GatewayClient,
 } from "./protocol/gateway";
 

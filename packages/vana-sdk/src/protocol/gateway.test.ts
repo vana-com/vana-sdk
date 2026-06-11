@@ -79,7 +79,7 @@ describe("createGatewayClient", () => {
     );
 
     await expect(
-      createGatewayClient("https://g").getFile("file-1"),
+      createGatewayClient("https://g").getDataPoint("0xdp"),
     ).rejects.toThrow("Gateway error: 503 Down");
   });
 
@@ -105,71 +105,59 @@ describe("createGatewayClient", () => {
     ).resolves.toBe(true);
   });
 
-  it("lists grants and files with query parameters", async () => {
+  it("lists grants and data points with query parameters", async () => {
+    const dataPoint = {
+      id: "0xdp1",
+      ownerAddress: "0xowner",
+      scope: "instagram.profile",
+      dataHash: "0xdata",
+      metadataHash: "0xmeta",
+      expectedVersion: "1",
+      addedAt: "2026-05-08T00:00:00.000Z",
+    };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(envelope([])))
       .mockResolvedValueOnce(
-        jsonResponse(
-          envelope({
-            files: [
-              {
-                id: "file-1",
-                ownerAddress: "0xowner",
-                url: "https://files.example/file-1",
-                schemaId: "schema-1",
-                addedAt: "2026-05-08T00:00:00.000Z",
-              },
-            ],
-            cursor: null,
-          }),
-        ),
+        jsonResponse(envelope({ dataPoints: [dataPoint] })),
       );
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
     await expect(client.listGrantsByUser("0xuser")).resolves.toEqual([]);
-    await expect(client.listFilesSince("0xowner", "cursor-1")).resolves.toEqual(
-      {
-        files: [
-          {
-            fileId: "file-1",
-            owner: "0xowner",
-            url: "https://files.example/file-1",
-            schemaId: "schema-1",
-            createdAt: "2026-05-08T00:00:00.000Z",
-            deletedAt: null,
-          },
-        ],
-        cursor: null,
-      },
-    );
+    await expect(
+      client.listDataPointsByOwner("0xowner", "cursor-1"),
+    ).resolves.toEqual({
+      dataPoints: [dataPoint],
+      cursor: null,
+    });
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "https://g/v1/grants?user=0xuser",
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://g/v1/files?user=0xowner&cursor=cursor-1",
+      "https://g/v1/data?user=0xowner&cursor=cursor-1",
     );
   });
 
-  it("paginates files via pagination.nextCursor until hasMore is false", async () => {
-    // Regression: the gateway returns the next-page cursor in the envelope's
-    // `pagination` block (a sibling of `data`), and accepts it back as the
-    // `cursor` query param. A previous implementation read `data.cursor` and
-    // sent `?since=`, so it always stopped after the first page — silently
-    // truncating an owner's files to a single page.
+  it("paginates data points via pagination.nextCursor until hasMore is false", async () => {
+    // Regression guard: the gateway returns the next-page cursor in the
+    // envelope's `pagination` block (a sibling of `data`), and accepts it
+    // back as the `cursor` query param. A prior implementation read
+    // `data.cursor` and sent `?since=`, so it stopped after the first page.
     const page = (id: string, nextCursor: string | null) =>
       jsonResponse(
         envelope(
           {
-            files: [
+            dataPoints: [
               {
                 id,
                 ownerAddress: "0xowner",
-                url: `https://files.example/${id}`,
-                schemaId: "schema-1",
+                scope: "instagram.profile",
+                dataHash: "0xdata",
+                metadataHash: "0xmeta",
+                expectedVersion: "1",
                 addedAt: "2026-05-08T00:00:00.000Z",
               },
             ],
@@ -179,77 +167,55 @@ describe("createGatewayClient", () => {
       );
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(page("file-1", "cursor-2"))
-      .mockResolvedValueOnce(page("file-2", null));
+      .mockResolvedValueOnce(page("0xdp1", "cursor-2"))
+      .mockResolvedValueOnce(page("0xdp2", null));
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
     const all: string[] = [];
     let cursor: string | null = null;
     do {
-      const result = await client.listFilesSince("0xowner", cursor);
-      all.push(...result.files.map((f) => f.fileId));
+      const result = await client.listDataPointsByOwner("0xowner", cursor);
+      all.push(...result.dataPoints.map((d) => d.id));
       cursor = result.cursor;
     } while (cursor);
 
-    expect(all).toEqual(["file-1", "file-2"]);
+    expect(all).toEqual(["0xdp1", "0xdp2"]);
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://g/v1/files?user=0xowner",
+      "https://g/v1/data?user=0xowner",
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://g/v1/files?user=0xowner&cursor=cursor-2",
+      "https://g/v1/data?user=0xowner&cursor=cursor-2",
     );
   });
 
-  it("requests includeDeleted and surfaces deletedAt for reconciliation", async () => {
+  it("threads `since` and `limit` into the data-points list query", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
       jsonResponse(
         envelope({
-          files: [
-            {
-              id: "file-active",
-              ownerAddress: "0xowner",
-              url: "https://files.example/active",
-              schemaId: "schema-1",
-              addedAt: "2026-05-08T00:00:00.000Z",
-              deletedAt: null,
-            },
-            {
-              id: "file-gone",
-              ownerAddress: "0xowner",
-              url: "https://files.example/gone",
-              schemaId: "schema-1",
-              addedAt: "2026-05-08T00:00:00.000Z",
-              deletedAt: "2026-06-04T00:00:00.000Z",
-            },
-          ],
-          cursor: null,
+          dataPoints: [],
         }),
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
-    const result = await client.listFilesSince("0xowner", null, {
-      includeDeleted: true,
+    await client.listDataPointsByOwner("0xowner", null, {
+      since: "2026-05-01T00:00:00.000Z",
+      limit: 50,
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://g/v1/files?user=0xowner&includeDeleted=true",
+      "https://g/v1/data?user=0xowner&since=2026-05-01T00%3A00%3A00.000Z&limit=50",
     );
-    expect(result.files.map((f) => f.deletedAt)).toEqual([
-      null,
-      "2026-06-04T00:00:00.000Z",
-    ]);
   });
 
-  it("posts server, file, grant, and revocation mutations with Web3Signed auth", async () => {
+  it("posts server, grant, and revocation mutations with Web3Signed auth", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ serverId: "server-1" }))
-      .mockResolvedValueOnce(jsonResponse({ fileId: "file-1" }))
       .mockResolvedValueOnce(jsonResponse({ grantId: "grant-1" }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -267,14 +233,6 @@ describe("createGatewayClient", () => {
       serverId: "server-1",
       alreadyRegistered: false,
     });
-    await expect(
-      client.registerFile({
-        ownerAddress: "0xowner",
-        url: "https://files.example/file-1",
-        schemaId: "schema-1",
-        signature: "sig",
-      }),
-    ).resolves.toEqual({ fileId: "file-1" });
     await expect(
       client.createGrant({
         grantorAddress: "0xowner",
@@ -306,16 +264,6 @@ describe("createGatewayClient", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://g/v1/files",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          Authorization: "Web3Signed sig",
-        }),
-      }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
       "https://g/v1/grants",
       expect.objectContaining({
         method: "POST",
@@ -329,7 +277,7 @@ describe("createGatewayClient", () => {
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
+      3,
       "https://g/v1/grants/grant-1",
       expect.objectContaining({
         method: "DELETE",
@@ -508,70 +456,10 @@ describe("createGatewayClient", () => {
     );
   });
 
-  it("deletes a file via DELETE /v1/files/:id with Web3Signed auth and ownerAddress body", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    const client = createGatewayClient("https://g");
-
-    await expect(
-      client.deleteFile({
-        fileId: "0xfile",
-        ownerAddress: "0xowner",
-        signature: "sig",
-      }),
-    ).resolves.toBeUndefined();
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://g/v1/files/0xfile",
-      expect.objectContaining({
-        method: "DELETE",
-        headers: expect.objectContaining({
-          Authorization: "Web3Signed sig",
-        }),
-        body: JSON.stringify({ ownerAddress: "0xowner" }),
-      }),
-    );
-  });
-
-  it("treats a 409 file deletion as idempotent success", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response(null, { status: 409 })),
-    );
-    const client = createGatewayClient("https://g");
-
-    await expect(
-      client.deleteFile({
-        fileId: "0xfile",
-        ownerAddress: "0xowner",
-        signature: "sig",
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it("throws when file deletion fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response(null, { status: 403 })),
-    );
-    const client = createGatewayClient("https://g");
-
-    await expect(
-      client.deleteFile({
-        fileId: "0xfile",
-        ownerAddress: "0xowner",
-        signature: "sig",
-      }),
-    ).rejects.toThrow(/Gateway error: 403/);
-  });
-
   it("treats 409 mutation responses as idempotent success", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: "server-1" }, { status: 409 }))
-      .mockResolvedValueOnce(jsonResponse({ id: "file-1" }, { status: 409 }))
       .mockResolvedValueOnce(jsonResponse({ id: "grant-1" }, { status: 409 }))
       .mockResolvedValueOnce(new Response(null, { status: 409 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -589,14 +477,6 @@ describe("createGatewayClient", () => {
       serverId: "server-1",
       alreadyRegistered: true,
     });
-    await expect(
-      client.registerFile({
-        ownerAddress: "0xowner",
-        url: "https://files.example/file-1",
-        schemaId: "schema-1",
-        signature: "sig",
-      }),
-    ).resolves.toEqual({ fileId: "file-1" });
     await expect(
       client.createGrant({
         grantorAddress: "0xowner",

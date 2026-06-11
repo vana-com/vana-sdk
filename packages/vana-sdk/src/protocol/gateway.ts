@@ -3,7 +3,7 @@ export interface GatewayEnvelope<T> {
   proof: GatewayProof;
   /**
    * Cursor-based pagination metadata, present on list endpoints (e.g.
-   * `GET /v1/files`). A sibling of `data`, not nested inside it — so callers
+   * `GET /v1/data`). A sibling of `data`, not nested inside it — so callers
    * that need it must read the full envelope rather than going through
    * `unwrapEnvelope`, which intentionally returns only `data`.
    */
@@ -121,50 +121,38 @@ export interface GatewayGrantResponse {
 
 export type GrantListItem = GatewayGrantResponse;
 
-export interface FileRecord {
-  fileId: string;
-  owner: string;
-  url: string;
-  schemaId: string;
-  createdAt: string;
-  /**
-   * Soft-deletion timestamp (ISO 8601), or null if the file is active. Always present
-   * (`normalizeFileRecord` populates it); non-null only when the gateway returns deletion state
-   * (e.g. listed with `includeDeleted`). Drives the PS sync delete-reconciliation.
-   */
-  deletedAt: string | null;
+// Mirror of a DataRegistryV2 row as the gateway exposes it. `id` is the
+// deterministic `keccak256(abi.encode(owner, scope))` dataPointId — the same
+// value the contract uses as its primary key. `expectedVersion` is the latest
+// version the gateway has accepted; the on-chain row may be one version behind
+// while a settle is still pending. The gateway response intentionally drops
+// `status` from the body — read it from the on-chain contract when you need
+// the canonical lifecycle state.
+export interface DataPointRecord {
+  id: string;
+  ownerAddress: string;
+  scope: string;
+  dataHash: string;
+  metadataHash: string;
+  // Decimal-string uint256.
+  expectedVersion: string;
+  // ISO 8601 timestamp of the most recent gateway-side upsert.
+  addedAt: string;
 }
 
-export interface FileListResult {
-  files: FileRecord[];
+export interface DataPointListResult {
+  dataPoints: DataPointRecord[];
   cursor: string | null;
 }
 
-export interface ListFilesOptions {
+export interface ListDataPointsOptions {
   /**
-   * Include soft-deleted files in the result (each carries a non-null `deletedAt`). Default false.
-   * Used by the PS sync download worker to reconcile deletions of files it already holds locally.
+   * Only return rows added at or after this ISO 8601 timestamp. Used by sync
+   * loops that want incremental tails — pass the last seen `addedAt`.
    */
-  includeDeleted?: boolean;
-}
-
-interface GatewayFileRecord {
-  id?: string;
-  fileId?: string;
-  ownerAddress?: string;
-  owner?: string;
-  url: string;
-  schemaId: string;
-  addedAt?: string;
-  createdAt?: string;
-  deletedAt?: string | null;
-}
-
-export interface RegisterFileParams {
-  ownerAddress: string;
-  url: string;
-  schemaId: string;
-  signature: string;
+  since?: string;
+  /** Page size. Capped at 1000 by the gateway. */
+  limit?: number;
 }
 
 // grantVersion and expiresAt are decimal-string uint256s — same wire format
@@ -184,13 +172,6 @@ export interface RevokeGrantParams {
   grantId: string;
   grantorAddress: string;
   grantVersion: string;
-  signature: string;
-}
-
-export interface DeleteFileParams {
-  fileId: string;
-  ownerAddress: string;
-  /** EIP-712 FileDeletion signature, signed by the owner or the owner's registered server. */
   signature: string;
 }
 
@@ -468,12 +449,21 @@ export interface GatewayClient {
   listGrantsByUser(userAddress: string): Promise<GrantListItem[]>;
   getSchemaForScope(scope: string): Promise<Schema | null>;
   getServer(address: string): Promise<ServerInfo | null>;
-  getFile(fileId: string): Promise<FileRecord | null>;
-  listFilesSince(
+  /**
+   * Fetch a single data point by its deterministic id (keccak256 of (owner, scope)).
+   * Returns null on 404. The gateway omits `status` from the response body — read it
+   * from the on-chain DataRegistryV2 contract when you need the canonical lifecycle state.
+   */
+  getDataPoint(dataPointId: string): Promise<DataPointRecord | null>;
+  /**
+   * Page through an owner's data points. Cursor is opaque; pass `null` for the first
+   * page and feed back `result.cursor` until it returns null.
+   */
+  listDataPointsByOwner(
     owner: string,
     cursor: string | null,
-    options?: ListFilesOptions,
-  ): Promise<FileListResult>;
+    options?: ListDataPointsOptions,
+  ): Promise<DataPointListResult>;
   getSchema(schemaId: string): Promise<Schema | null>;
   registerServer(params: RegisterServerParams): Promise<RegisterServerResult>;
   registerBuilder(
@@ -482,7 +472,6 @@ export interface GatewayClient {
   registerDataPoint(
     params: RegisterDataPointParams,
   ): Promise<RegisterDataPointResult>;
-  registerFile(params: RegisterFileParams): Promise<{ fileId?: string }>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
   getEscrowBalance(account: string): Promise<EscrowBalance>;
@@ -491,13 +480,6 @@ export interface GatewayClient {
     params: PayForOperationParams,
   ): Promise<PayForOperationResult>;
   settle(params?: SettleParams): Promise<SettleResult>;
-  /**
-   * Soft-deletes (de-registers) a file at the gateway. Resolves on 200 and on 409
-   * (already deleted) — 409 is treated as idempotent success. Other non-2xx, including
-   * 404 (file not registered), throw; the PS delete cascade decides whether a 404 is
-   * benign (blob already gone) or a hard failure.
-   */
-  deleteFile(params: DeleteFileParams): Promise<void>;
 }
 
 export function createGatewayClient(baseUrl: string): GatewayClient {
@@ -506,17 +488,6 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
   async function unwrapEnvelope<T>(res: Response): Promise<T> {
     const envelope = (await res.json()) as GatewayEnvelope<T>;
     return envelope.data;
-  }
-
-  function normalizeFileRecord(record: GatewayFileRecord): FileRecord {
-    return {
-      fileId: record.fileId ?? record.id ?? "",
-      owner: record.owner ?? record.ownerAddress ?? "",
-      url: record.url,
-      schemaId: record.schemaId,
-      createdAt: record.createdAt ?? record.addedAt ?? "",
-      deletedAt: record.deletedAt ?? null,
-    };
   }
 
   function getMutationId(
@@ -578,46 +549,46 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       return unwrapEnvelope<ServerInfo>(res);
     },
 
-    async getFile(fileId: string): Promise<FileRecord | null> {
-      const res = await fetch(`${base}/v1/files/${fileId}`);
+    async getDataPoint(dataPointId: string): Promise<DataPointRecord | null> {
+      const res = await fetch(`${base}/v1/data/${dataPointId}`);
       if (res.status === 404) return null;
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      return normalizeFileRecord(await unwrapEnvelope<GatewayFileRecord>(res));
+      return unwrapEnvelope<DataPointRecord>(res);
     },
 
-    async listFilesSince(
+    async listDataPointsByOwner(
       owner: string,
       cursor: string | null,
-      options?: ListFilesOptions,
-    ): Promise<FileListResult> {
+      options?: ListDataPointsOptions,
+    ): Promise<DataPointListResult> {
       const params = new URLSearchParams({ user: owner });
       if (cursor !== null) {
         params.set("cursor", cursor);
       }
-      if (options?.includeDeleted) {
-        params.set("includeDeleted", "true");
+      if (options?.since) {
+        params.set("since", options.since);
       }
-      const res = await fetch(`${base}/v1/files?${params.toString()}`);
+      if (options?.limit !== undefined) {
+        params.set("limit", String(options.limit));
+      }
+      const res = await fetch(`${base}/v1/data?${params.toString()}`);
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      // The next-page cursor lives in the envelope's `pagination.nextCursor`
+      // Next-page cursor lives in the envelope's `pagination.nextCursor`
       // (a sibling of `data`), so read the full envelope rather than going
-      // through `unwrapEnvelope`, which returns only `data`. Fall back to a
-      // legacy `data.cursor` for older gateways that nested it there.
+      // through `unwrapEnvelope`, which returns only `data`.
       const envelope = (await res.json()) as GatewayEnvelope<{
-        files: GatewayFileRecord[];
-        cursor?: string | null;
+        dataPoints: DataPointRecord[];
       }>;
-      const { pagination } = envelope;
       const nextCursor =
-        pagination?.hasMore === false
+        envelope.pagination?.hasMore === false
           ? null
-          : (pagination?.nextCursor ?? envelope.data.cursor ?? null);
+          : (envelope.pagination?.nextCursor ?? null);
       return {
-        files: envelope.data.files.map(normalizeFileRecord),
+        dataPoints: envelope.data.dataPoints,
         cursor: nextCursor,
       };
     },
@@ -740,36 +711,6 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
           "dataPointId",
         ),
         expectedVersion: body.expectedVersion,
-      };
-    },
-
-    async registerFile(
-      params: RegisterFileParams,
-    ): Promise<{ fileId?: string }> {
-      const res = await fetch(`${base}/v1/files`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Web3Signed ${params.signature}`,
-        },
-        body: JSON.stringify({
-          ownerAddress: params.ownerAddress,
-          url: params.url,
-          schemaId: params.schemaId,
-        }),
-      });
-      if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          fileId: getMutationId(body as Record<string, unknown>, "fileId"),
-        };
-      }
-      if (!res.ok) {
-        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
-      }
-      const body = await res.json();
-      return {
-        fileId: getMutationId(body as Record<string, unknown>, "fileId"),
       };
     },
 
@@ -896,24 +837,6 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
       return (await res.json()) as SettleResult;
-    },
-
-    async deleteFile(params: DeleteFileParams): Promise<void> {
-      const res = await fetch(`${base}/v1/files/${params.fileId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Web3Signed ${params.signature}`,
-        },
-        body: JSON.stringify({
-          ownerAddress: params.ownerAddress,
-        }),
-      });
-      // 409 = already deleted; treat as success (idempotent), same as revokeGrant.
-      if (res.status === 409) return;
-      if (!res.ok) {
-        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
-      }
     },
   };
 }

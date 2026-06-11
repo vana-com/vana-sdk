@@ -58,13 +58,23 @@ export function fileRegistrationDomain(
   );
 }
 
-// Domain for the DataRegistryV2 contract — verifies the AddData and
-// RecordDataAccess EIP-712 signatures. The verifyingContract is the same as
-// `fileRegistrationDomain` (both point at `dataRegistry`); the distinction
-// lives in the primaryType, not the domain. Exported as a separate helper
-// so callers reading data-point flows aren't routed through a name that
-// reads as file-registration-only.
+// Domain for the DataRegistryV2 contract — verifies the AddData,
+// RecordDataAccess, and FileDeletion EIP-712 signatures. The
+// verifyingContract is the same as `fileRegistrationDomain` (both point at
+// `dataRegistry`); the distinction lives in the primaryType, not the
+// domain. Three names alias the same domain for caller ergonomics:
+// `dataRegistryDomain` reads naturally for data-point flows,
+// `fileDeletionDomain` for the file-deletion flow, both behave identically.
 export function dataRegistryDomain(
+  config: DataPortabilityGatewayConfig,
+): TypedDataDomain {
+  return buildDomain(
+    config.chainId,
+    config.contracts.dataRegistry as `0x${string}`,
+  );
+}
+
+export function fileDeletionDomain(
   config: DataPortabilityGatewayConfig,
 ): TypedDataDomain {
   return buildDomain(
@@ -127,6 +137,13 @@ export const FILE_REGISTRATION_TYPES = {
     { name: "ownerAddress", type: "address" },
     { name: "url", type: "string" },
     { name: "schemaId", type: "bytes32" },
+  ],
+} as const;
+
+export const FILE_DELETION_TYPES = {
+  FileDeletion: [
+    { name: "ownerAddress", type: "address" },
+    { name: "fileId", type: "bytes32" },
   ],
 } as const;
 
@@ -221,6 +238,16 @@ export interface FileRegistrationMessage {
   ownerAddress: `0x${string}`;
   url: string;
   schemaId: `0x${string}`;
+}
+
+export interface FileDeletionMessage {
+  ownerAddress: `0x${string}`;
+  /**
+   * Off-chain gateway file ID — bytes32, as returned by `GET /v1/files`. This is NOT the on-chain
+   * uint256 DataRegistry file ID; consumers (e.g. the PS delete cascade) must source it from the
+   * gateway, not derive it from a numeric on-chain ID.
+   */
+  fileId: `0x${string}`;
 }
 
 export interface GrantRegistrationMessage {

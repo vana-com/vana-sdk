@@ -1,6 +1,23 @@
 export interface GatewayEnvelope<T> {
   data: T;
   proof: GatewayProof;
+  /**
+   * Cursor-based pagination metadata, present on list endpoints (e.g.
+   * `GET /v1/files`). A sibling of `data`, not nested inside it — so callers
+   * that need it must read the full envelope rather than going through
+   * `unwrapEnvelope`, which intentionally returns only `data`.
+   */
+  pagination?: GatewayPagination;
+}
+
+export interface GatewayPagination {
+  limit: number;
+  hasMore: boolean;
+  /**
+   * Opaque cursor for the NEXT page; pass back as the `cursor` query param.
+   * Null when there are no further pages.
+   */
+  nextCursor: string | null;
 }
 
 export interface GatewayProof {
@@ -110,11 +127,25 @@ export interface FileRecord {
   url: string;
   schemaId: string;
   createdAt: string;
+  /**
+   * Soft-deletion timestamp (ISO 8601), or null if the file is active. Always present
+   * (`normalizeFileRecord` populates it); non-null only when the gateway returns deletion state
+   * (e.g. listed with `includeDeleted`). Drives the PS sync delete-reconciliation.
+   */
+  deletedAt: string | null;
 }
 
 export interface FileListResult {
   files: FileRecord[];
   cursor: string | null;
+}
+
+export interface ListFilesOptions {
+  /**
+   * Include soft-deleted files in the result (each carries a non-null `deletedAt`). Default false.
+   * Used by the PS sync download worker to reconcile deletions of files it already holds locally.
+   */
+  includeDeleted?: boolean;
 }
 
 interface GatewayFileRecord {
@@ -126,6 +157,7 @@ interface GatewayFileRecord {
   schemaId: string;
   addedAt?: string;
   createdAt?: string;
+  deletedAt?: string | null;
 }
 
 export interface RegisterFileParams {
@@ -152,6 +184,13 @@ export interface RevokeGrantParams {
   grantId: string;
   grantorAddress: string;
   grantVersion: string;
+  signature: string;
+}
+
+export interface DeleteFileParams {
+  fileId: string;
+  ownerAddress: string;
+  /** EIP-712 FileDeletion signature, signed by the owner or the owner's registered server. */
   signature: string;
 }
 
@@ -430,7 +469,11 @@ export interface GatewayClient {
   getSchemaForScope(scope: string): Promise<Schema | null>;
   getServer(address: string): Promise<ServerInfo | null>;
   getFile(fileId: string): Promise<FileRecord | null>;
-  listFilesSince(owner: string, cursor: string | null): Promise<FileListResult>;
+  listFilesSince(
+    owner: string,
+    cursor: string | null,
+    options?: ListFilesOptions,
+  ): Promise<FileListResult>;
   getSchema(schemaId: string): Promise<Schema | null>;
   registerServer(params: RegisterServerParams): Promise<RegisterServerResult>;
   registerBuilder(
@@ -448,6 +491,13 @@ export interface GatewayClient {
     params: PayForOperationParams,
   ): Promise<PayForOperationResult>;
   settle(params?: SettleParams): Promise<SettleResult>;
+  /**
+   * Soft-deletes (de-registers) a file at the gateway. Resolves on 200 and on 409
+   * (already deleted) — 409 is treated as idempotent success. Other non-2xx, including
+   * 404 (file not registered), throw; the PS delete cascade decides whether a 404 is
+   * benign (blob already gone) or a hard failure.
+   */
+  deleteFile(params: DeleteFileParams): Promise<void>;
 }
 
 export function createGatewayClient(baseUrl: string): GatewayClient {
@@ -465,6 +515,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       url: record.url,
       schemaId: record.schemaId,
       createdAt: record.createdAt ?? record.addedAt ?? "",
+      deletedAt: record.deletedAt ?? null,
     };
   }
 
@@ -539,22 +590,35 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
     async listFilesSince(
       owner: string,
       cursor: string | null,
+      options?: ListFilesOptions,
     ): Promise<FileListResult> {
       const params = new URLSearchParams({ user: owner });
       if (cursor !== null) {
-        params.set("since", cursor);
+        params.set("cursor", cursor);
+      }
+      if (options?.includeDeleted) {
+        params.set("includeDeleted", "true");
       }
       const res = await fetch(`${base}/v1/files?${params.toString()}`);
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      const data = await unwrapEnvelope<{
+      // The next-page cursor lives in the envelope's `pagination.nextCursor`
+      // (a sibling of `data`), so read the full envelope rather than going
+      // through `unwrapEnvelope`, which returns only `data`. Fall back to a
+      // legacy `data.cursor` for older gateways that nested it there.
+      const envelope = (await res.json()) as GatewayEnvelope<{
         files: GatewayFileRecord[];
-        cursor: string | null;
-      }>(res);
+        cursor?: string | null;
+      }>;
+      const { pagination } = envelope;
+      const nextCursor =
+        pagination?.hasMore === false
+          ? null
+          : (pagination?.nextCursor ?? envelope.data.cursor ?? null);
       return {
-        files: data.files.map(normalizeFileRecord),
-        cursor: data.cursor,
+        files: envelope.data.files.map(normalizeFileRecord),
+        cursor: nextCursor,
       };
     },
 
@@ -832,6 +896,24 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
       return (await res.json()) as SettleResult;
+    },
+
+    async deleteFile(params: DeleteFileParams): Promise<void> {
+      const res = await fetch(`${base}/v1/files/${params.fileId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${params.signature}`,
+        },
+        body: JSON.stringify({
+          ownerAddress: params.ownerAddress,
+        }),
+      });
+      // 409 = already deleted; treat as success (idempotent), same as revokeGrant.
+      if (res.status === 409) return;
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
     },
   };
 }

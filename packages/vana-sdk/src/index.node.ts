@@ -143,6 +143,7 @@ export {
 // Data Portability protocol signing helpers
 export {
   fileRegistrationDomain,
+  fileDeletionDomain,
   grantRegistrationDomain,
   grantRevocationDomain,
   serverRegistrationDomain,
@@ -150,6 +151,7 @@ export {
   escrowPaymentDomain,
   dataRegistryDomain,
   FILE_REGISTRATION_TYPES,
+  FILE_DELETION_TYPES,
   GRANT_REGISTRATION_TYPES,
   GRANT_REVOCATION_TYPES,
   SERVER_REGISTRATION_TYPES,
@@ -161,6 +163,7 @@ export {
   type DataPortabilityContracts,
   type DataPortabilityGatewayConfig,
   type FileRegistrationMessage,
+  type FileDeletionMessage,
   type GrantRegistrationMessage,
   type GrantRevocationMessage,
   type ServerRegistrationMessage,
@@ -278,6 +281,7 @@ export {
   type GrantListItem,
   type FileRecord,
   type FileListResult,
+  type ListFilesOptions,
   type RegisterServerParams,
   type RegisterServerResult,
   type RegisterFileParams,
@@ -303,6 +307,7 @@ export {
   type EscrowDepositSubmitted,
   type EscrowDepositFinalized,
   type EscrowDepositFailed,
+  type DeleteFileParams,
   type GatewayClient,
 } from "./protocol/gateway";
 

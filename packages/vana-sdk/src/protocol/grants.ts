@@ -69,6 +69,14 @@ export function isDataPortabilityGatewayConfig(
 
 function toUint256(value: bigint | number | string): bigint | null {
   try {
+    // Reject `number` inputs outside the safe-integer range — `BigInt(2**53 + 1)`
+    // doesn't throw, it just converts whatever rounded value JS already stored,
+    // which would silently corrupt grantVersion/expiresAt for any uint256 large
+    // enough to lose precision in a double. Callers that need values past
+    // `MAX_SAFE_INTEGER` must pass a string or bigint.
+    if (typeof value === "number" && !Number.isSafeInteger(value)) {
+      return null;
+    }
     const big = typeof value === "bigint" ? value : BigInt(value);
     if (big < 0n) return null;
     return big;

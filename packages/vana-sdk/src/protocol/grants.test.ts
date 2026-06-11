@@ -161,4 +161,40 @@ describe("Data Portability grant helpers", () => {
       error: "grantVersion must be a uint256 >= 1",
     });
   });
+
+  it("rejects number inputs outside the safe-integer range", async () => {
+    // 2**53 + 1 can't be represented exactly in JS — it rounds to 2**53.
+    // BigInt() would happily convert the rounded value with no warning, so
+    // toUint256 must reject the unsafe number up front and force the caller
+    // to pass a string/bigint when they need precision past MAX_SAFE_INTEGER.
+    const unsafe = Number.MAX_SAFE_INTEGER + 2;
+    await expect(
+      verifyGrantRegistration({
+        gatewayConfig: CONFIG,
+        grantorAddress: owner.address,
+        granteeId,
+        scopes: SCOPES,
+        grantVersion: unsafe,
+        expiresAt: 0,
+        signature: ("0x" + "00".repeat(65)) as `0x${string}`,
+      }),
+    ).resolves.toEqual({
+      valid: false,
+      error: "grantVersion must be a uint256 >= 1",
+    });
+    await expect(
+      verifyGrantRegistration({
+        gatewayConfig: CONFIG,
+        grantorAddress: owner.address,
+        granteeId,
+        scopes: SCOPES,
+        grantVersion: 1,
+        expiresAt: unsafe,
+        signature: ("0x" + "00".repeat(65)) as `0x${string}`,
+      }),
+    ).resolves.toEqual({
+      valid: false,
+      error: "expiresAt must be a non-negative uint256",
+    });
+  });
 });

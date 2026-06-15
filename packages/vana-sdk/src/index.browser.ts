@@ -273,6 +273,13 @@ export {
   type IngestResponse,
 } from "./protocol/data-file";
 export {
+  personalServerDataReadPath,
+  buildPersonalServerDataReadRequest,
+  readPersonalServerData,
+  type BuildPersonalServerDataReadRequestParams,
+  type ReadPersonalServerDataParams,
+} from "./protocol/personal-server-data";
+export {
   createGatewayClient,
   type GatewayEnvelope,
   type GatewayProof,

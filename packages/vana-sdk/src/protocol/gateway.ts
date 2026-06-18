@@ -282,14 +282,24 @@ export interface PayForOperationResult {
 }
 
 // ── Settle / reconcile ──────────────────────────────────────────────────────
-// POST /v1/settle drains pending-on-chain rows (grants, servers, data points,
-// access records) to the relayer, then promotes 'submitting' → 'confirmed'
-// and 'confirmed' → 'finalized' for previously-submitted rows. One call does
-// all three; the response surfaces each phase's outcomes.
+// POST /v1/settle drains pending-on-chain rows (grants, servers, builders,
+// data points, data-point statuses, access records) to the relayer, then
+// promotes 'submitting' → 'confirmed' and 'confirmed' → 'finalized' for
+// previously-submitted rows. One call does all three; the response surfaces
+// each phase's outcomes.
 
-// The four op-types the settle endpoint knows about. Kept as a union so
-// callers can narrow inside the discriminated SettleItem shape.
-export type SettleOpType = "grant" | "server" | "data" | "access";
+// The op-types the settle endpoint emits in `items[]`. Kept as a union so
+// callers can narrow inside the discriminated SettleItem shape. Mirrors the
+// gateway's drain phases (drainGrants/drainServers/drainBuilders/
+// drainDataPoints/drainDataPointStatuses/drainAccessRecords) — keep in sync
+// when the gateway adds a drain.
+export type SettleOpType =
+  | "grant"
+  | "server"
+  | "data"
+  | "access"
+  | "builder"
+  | "data-status";
 
 export type SettleItem =
   | {

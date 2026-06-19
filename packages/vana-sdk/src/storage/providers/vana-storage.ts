@@ -14,6 +14,8 @@ import {
 const DEFAULT_ENDPOINT = "https://storage.vana.org";
 const BLOB_PATH_PREFIX = "/v1/blobs";
 const DEFAULT_TOKEN_TTL_SECONDS = 300;
+const MAX_UPLOAD_ATTEMPTS = 4;
+const MAX_RATE_LIMIT_DELAY_MS = 30_000;
 
 /**
  * Wallet-style signer used by {@link VanaStorage} to authenticate every
@@ -139,28 +141,50 @@ export class VanaStorage implements StorageProvider {
 
     const header = await this.signRequest("PUT", path, body);
 
-    let response: Response;
-    try {
-      response = await this.fetchImpl(`${this.endpoint}${path}`, {
-        method: "PUT",
-        headers: {
-          authorization: header,
-          "content-type": contentType,
-        },
-        body,
-      });
-    } catch (cause) {
+    let response: Response | null = null;
+    let responseText = "";
+    for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+      try {
+        response = await this.fetchImpl(`${this.endpoint}${path}`, {
+          method: "PUT",
+          headers: {
+            authorization: header,
+            "content-type": contentType,
+          },
+          body,
+        });
+      } catch (cause) {
+        throw new StorageError(
+          `vana-storage upload network error: ${describe(cause)}`,
+          "UPLOAD_ERROR",
+          "vana-storage",
+          { cause: cause instanceof Error ? cause : undefined },
+        );
+      }
+
+      if (response.ok) {
+        break;
+      }
+
+      responseText = await safeText(response);
+      if (response.status === 429 && attempt < MAX_UPLOAD_ATTEMPTS) {
+        const delayMs = retryDelayMs(response, responseText);
+        if (delayMs > 0) {
+          await sleep(delayMs);
+        }
+        continue;
+      }
+
       throw new StorageError(
-        `vana-storage upload network error: ${describe(cause)}`,
-        "UPLOAD_ERROR",
+        `vana-storage upload failed: ${response.status} ${response.statusText} - ${responseText}`,
+        "UPLOAD_FAILED",
         "vana-storage",
-        { cause: cause instanceof Error ? cause : undefined },
       );
     }
 
-    if (!response.ok) {
+    if (!response?.ok) {
       throw new StorageError(
-        `vana-storage upload failed: ${response.status} ${response.statusText} - ${await safeText(response)}`,
+        `vana-storage upload failed after ${MAX_UPLOAD_ATTEMPTS} attempts - ${responseText}`,
         "UPLOAD_FAILED",
         "vana-storage",
       );
@@ -343,6 +367,53 @@ function encodeRelativePath(filename: string): string {
 function describe(value: unknown): string {
   if (value instanceof Error) return value.message;
   return String(value);
+}
+
+function retryDelayMs(response: Response, responseText: string): number {
+  const headerDelayMs = parseRetryAfterHeaderMs(
+    response.headers.get("retry-after"),
+  );
+  if (headerDelayMs !== null) {
+    return clampRateLimitDelay(headerDelayMs);
+  }
+
+  return clampRateLimitDelay(parseRetryAfterBodyMs(responseText) ?? 0);
+}
+
+function parseRetryAfterHeaderMs(value: string | null): number | null {
+  if (!value) return null;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) {
+    return seconds * 1000;
+  }
+
+  const dateMs = Date.parse(value);
+  if (Number.isFinite(dateMs)) {
+    return Math.max(0, dateMs - Date.now());
+  }
+
+  return null;
+}
+
+function parseRetryAfterBodyMs(responseText: string): number | null {
+  if (!responseText) return null;
+
+  try {
+    const parsed = JSON.parse(responseText) as { retryAfter?: unknown };
+    const seconds = Number(parsed.retryAfter);
+    return Number.isFinite(seconds) ? seconds * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function clampRateLimitDelay(delayMs: number): number {
+  return Math.min(Math.max(0, delayMs), MAX_RATE_LIMIT_DELAY_MS);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function safeText(response: Response): Promise<string> {

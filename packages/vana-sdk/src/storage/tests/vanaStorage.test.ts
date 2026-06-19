@@ -208,6 +208,67 @@ describe("VanaStorage", () => {
       ).rejects.toThrow(/upload failed/i);
     });
 
+    it("retries upload when vana-storage returns RATE_LIMITED with retryAfter", async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse(
+            {
+              error: "RATE_LIMITED",
+              message: "Rate limit exceeded",
+              retryAfter: 0,
+            },
+            429,
+            "Too Many Requests",
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            key: `${signerAddress}/scope/at`,
+            url: `${ENDPOINT}/v1/blobs/${signerAddress}/scope/at`,
+            etag: "etag-retry",
+            size: 1,
+          }),
+        );
+
+      const result = await storage.upload(
+        new Blob([new Uint8Array([1])]),
+        "scope/at",
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result.metadata).toMatchObject({ etag: "etag-retry" });
+    });
+
+    it("honors Retry-After headers when retrying upload rate limits", async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ error: "RATE_LIMITED" }), {
+            status: 429,
+            statusText: "Too Many Requests",
+            headers: {
+              "Content-Type": "application/json",
+              "Retry-After": "0",
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            key: `${signerAddress}/scope/at`,
+            url: `${ENDPOINT}/v1/blobs/${signerAddress}/scope/at`,
+            etag: "etag-header",
+            size: 1,
+          }),
+        );
+
+      const result = await storage.upload(
+        new Blob([new Uint8Array([1])]),
+        "scope/at",
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result.metadata).toMatchObject({ etag: "etag-header" });
+    });
+
     it("wraps fetch errors as StorageError(UPLOAD_ERROR)", async () => {
       mockFetch.mockRejectedValue(new Error("ECONNREFUSED"));
       await expect(

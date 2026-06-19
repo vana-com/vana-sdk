@@ -5,7 +5,7 @@
  * for opening the user's local encrypted runtime. This is intentionally
  * separate from Personal Server registration, which is EIP-712 typed data.
  *
- * @category Protocol
+ * @category Personal Server Lite
  */
 
 import {
@@ -16,7 +16,8 @@ import {
   type SignableMessage,
 } from "viem";
 
-export const PERSONAL_SERVER_LITE_OWNER_BINDING_VERSION = "vana.account.v1";
+export const PERSONAL_SERVER_LITE_OWNER_BINDING_VERSION =
+  "vana.ps-lite.owner-binding.v1";
 export const PERSONAL_SERVER_LITE_OWNER_BINDING_PURPOSE = "ps-lite-owner";
 export const PERSONAL_SERVER_LITE_OWNER_BINDING_PREFIX =
   `${PERSONAL_SERVER_LITE_OWNER_BINDING_VERSION}:${PERSONAL_SERVER_LITE_OWNER_BINDING_PURPOSE}:` as const;

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { vanaMainnet } from "../chains/definitions";
+import { getContractAddress } from "../generated/addresses";
 import {
   PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
   PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
@@ -17,6 +19,16 @@ const SERVER_URL = "https://ps.example.com";
 const SIGNATURE = `0x${"aa".repeat(65)}` as const;
 
 describe("Personal Server registration", () => {
+  it("derives default domain values from SDK chain and address helpers", () => {
+    expect(PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID).toBe(vanaMainnet.id);
+    expect(PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT).toBe(
+      getContractAddress(
+        PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
+        "DataPortabilityServers",
+      ),
+    );
+  });
+
   it("builds the canonical ServerRegistration typed data shape", () => {
     expect(
       buildPersonalServerRegistrationTypedData({
@@ -58,6 +70,15 @@ describe("Personal Server registration", () => {
       chainId: PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
       verifyingContract:
         PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
+    });
+  });
+
+  it("looks up the DataPortabilityServers contract for explicit chain defaults", () => {
+    expect(personalServerRegistrationDomain({ chainId: 14800 })).toEqual({
+      name: "Vana Data Portability",
+      version: "1",
+      chainId: 14800,
+      verifyingContract: getContractAddress(14800, "DataPortabilityServers"),
     });
   });
 

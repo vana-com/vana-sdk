@@ -6,7 +6,7 @@ import {
   createViemPersonalServerLiteOwnerBindingSigner,
   PERSONAL_SERVER_LITE_OWNER_BINDING_PREFIX,
   PERSONAL_SERVER_LITE_OWNER_BINDING_PURPOSE,
-} from "./personal-server-lite-owner-binding";
+} from "./owner-binding";
 
 const OWNER_ADDRESS = "0x2ab394e4be7c43ac360d226a31e1c90bc01aafa1" as Address;
 const LOWER_OWNER_ADDRESS = "0x2ab394e4be7c43ac360d226a31e1c90bc01aafa1";
@@ -15,10 +15,10 @@ const SIGNATURE = `0x${"bb".repeat(65)}` as const;
 describe("PS Lite owner-binding helpers", () => {
   it("builds the stable owner-binding message expected by PS Lite", () => {
     expect(PERSONAL_SERVER_LITE_OWNER_BINDING_PREFIX).toBe(
-      "vana.account.v1:ps-lite-owner:",
+      "vana.ps-lite.owner-binding.v1:ps-lite-owner:",
     );
     expect(buildPersonalServerLiteOwnerBindingMessage(OWNER_ADDRESS)).toBe(
-      `vana.account.v1:ps-lite-owner:${LOWER_OWNER_ADDRESS}`,
+      `vana.ps-lite.owner-binding.v1:ps-lite-owner:${LOWER_OWNER_ADDRESS}`,
     );
   });
 
@@ -38,7 +38,7 @@ describe("PS Lite owner-binding helpers", () => {
       signer,
     });
 
-    const message = `vana.account.v1:ps-lite-owner:${LOWER_OWNER_ADDRESS}`;
+    const message = `vana.ps-lite.owner-binding.v1:ps-lite-owner:${LOWER_OWNER_ADDRESS}`;
     expect(signer.signMessage).toHaveBeenCalledWith({ message });
     expect(result).toEqual({
       signature: SIGNATURE,

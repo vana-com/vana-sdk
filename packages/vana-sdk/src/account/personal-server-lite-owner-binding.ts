@@ -1,7 +1,7 @@
 /**
  * Optional first-party Account integration for PS Lite owner binding.
  *
- * The protocol helper lives in `protocol/personal-server-lite-owner-binding`.
+ * The PS Lite helper lives in `personal-server-lite/owner-binding`.
  * This module adapts any Account-style client exposing `getAddress` and
  * `signMessage` to the SDK owner-binding signature shape.
  *
@@ -13,7 +13,7 @@ import {
   buildPersonalServerLiteOwnerBindingMessage,
   PERSONAL_SERVER_LITE_OWNER_BINDING_PURPOSE,
   type PersonalServerLiteOwnerBindingSignature,
-} from "../protocol/personal-server-lite-owner-binding";
+} from "../personal-server-lite/owner-binding";
 
 export interface AccountPersonalServerLiteOwnerBindingClient {
   getAddress(): Promise<Address | null> | Address | null;

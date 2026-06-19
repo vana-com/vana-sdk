@@ -256,5 +256,27 @@ export {
   type GatewayClient,
 } from "./protocol/gateway";
 
+// DPv2 escrow payment helpers
+export {
+  createEscrowGatewayClient,
+  genericPaymentDomain,
+  GENERIC_PAYMENT_TYPES,
+  ESCROW_DEPOSIT_ABI,
+  NATIVE_ASSET_ADDRESS,
+  type GenericPaymentMessage,
+  type EscrowBalanceEntry,
+  type EscrowBalanceResult,
+  type EscrowBalanceSyncResult,
+  type DepositSubmissionResult,
+  type PaymentBreakdown,
+  type EscrowPayResult,
+  type SubmitDepositParams,
+  type PayForOpParams,
+  type EscrowGatewayClient,
+  type SubmittedDepositEntry,
+  type FinalizedDepositEntry,
+  type FailedDepositEntry,
+} from "./protocol/escrow";
+
 // Personal Server typed errors
 export { PSError, parsePSError, type PSErrorCode } from "./types/ps-errors";

@@ -142,26 +142,27 @@ export {
 
 // Data Portability protocol signing helpers
 export {
-  fileRegistrationDomain,
-  fileDeletionDomain,
+  NATIVE_VANA_ASSET,
+  dataRegistryDomain,
   grantRegistrationDomain,
   grantRevocationDomain,
   serverRegistrationDomain,
   builderRegistrationDomain,
-  FILE_REGISTRATION_TYPES,
-  FILE_DELETION_TYPES,
+  escrowPaymentDomain,
   GRANT_REGISTRATION_TYPES,
   GRANT_REVOCATION_TYPES,
   SERVER_REGISTRATION_TYPES,
   BUILDER_REGISTRATION_TYPES,
+  ADD_DATA_TYPES,
+  RECORD_DATA_ACCESS_TYPES,
   type DataPortabilityContracts,
   type DataPortabilityGatewayConfig,
-  type FileRegistrationMessage,
-  type FileDeletionMessage,
   type GrantRegistrationMessage,
   type GrantRevocationMessage,
   type ServerRegistrationMessage,
   type BuilderRegistrationMessage,
+  type AddDataMessage,
+  type RecordDataAccessMessage,
 } from "./protocol/eip712";
 export {
   PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,
@@ -218,9 +219,7 @@ export {
 } from "./account/personal-server-lite-owner-binding";
 export {
   isDataPortabilityGatewayConfig,
-  parseGrantRegistrationPayload,
   verifyGrantRegistration,
-  type DataPortabilityGrantPayload,
   type VerifyGrantRegistrationInput,
   type VerifyGrantRegistrationResult,
 } from "./protocol/grants";
@@ -234,6 +233,33 @@ export {
   type OpFee,
   type FeeRegistryOptions,
 } from "./protocol/fee-registry";
+export {
+  escrowContractAddress,
+  encodeDepositNativeData,
+  encodeDepositTokenData,
+  buildDepositNativeRequest,
+  buildDepositTokenRequest,
+  type DepositNativeInput,
+  type DepositTokenInput,
+  type DepositTransactionRequest,
+} from "./protocol/escrow-deposit";
+export {
+  DATA_REGISTRY_STATUS_ABI,
+  DataPointStatus,
+  dataRegistryContractAddress,
+  encodeSetDataPointStatusData,
+  buildSetDataPointStatusRequest,
+  buildMarkDataPointUnavailableRequest,
+  type SetDataPointStatusInput,
+  type DataPointStatusTransactionRequest,
+} from "./protocol/data-point-status";
+export {
+  personalServerDataReadPath,
+  buildPersonalServerDataReadRequest,
+  readPersonalServerData,
+  type BuildPersonalServerDataReadRequestParams,
+  type ReadPersonalServerDataParams,
+} from "./protocol/personal-server-data";
 export {
   ScopeSchema,
   parseScope,
@@ -259,18 +285,28 @@ export {
   type ServerInfo,
   type GatewayGrantResponse,
   type GrantListItem,
-  type FileRecord,
-  type FileListResult,
-  type ListFilesOptions,
+  type DataPointRecord,
+  type DataPointListResult,
+  type ListDataPointsOptions,
   type RegisterServerParams,
   type RegisterServerResult,
-  type RegisterFileParams,
+  type RegisterBuilderParams,
+  type RegisterBuilderResult,
+  type RegisterDataPointParams,
+  type RegisterDataPointResult,
   type CreateGrantParams,
   type RevokeGrantParams,
-  type DeleteFileParams,
+  type AccessRecord,
+  type PayForOperationParams,
+  type PayForOperationResult,
+  type SettleOpType,
+  type SettleItem,
+  type SettlePromoteResult,
+  type SettleReconcileItem,
+  type SettleParams,
+  type SettleResult,
   type GatewayClient,
 } from "./protocol/gateway";
-
 // DPv2 escrow payment helpers
 export {
   createEscrowGatewayClient,

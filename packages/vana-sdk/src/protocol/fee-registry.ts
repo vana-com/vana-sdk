@@ -1,20 +1,12 @@
 /**
  * Adapter for the on-chain FeeRegistry contract — the source of truth the
- * gateway re-reads on every `/v1/escrow/pay` to size the payment amount.
+ * gateway re-reads on every /v1/escrow/pay to size the payment amount.
  *
  * The registry stores per-operation `{amount, asset, payee, enabled}`
  * records keyed on `keccak256(name)`. SDK consumers (builders sizing
  * payments) MUST read fees from this contract rather than hardcoding
  * them, or the signed `amount` won't match the gateway's expected total
- * and `/v1/escrow/pay` returns 400.
- *
- * This is the price-discovery surface PR #157 (the Direct Data Controller)
- * deliberately left out: the controller signs and pays a `GenericPayment`
- * (see {@link ./escrow}) but expects the caller to already know the
- * `amount`. These helpers fill that gap. They take the FeeRegistry address
- * directly (matching `escrow.ts`'s `genericPaymentDomain(chainId, escrow)`
- * convention) so they compose with the escrow flow without bolting fee/escrow
- * addresses onto the shared {@link ./eip712!DataPortabilityContracts} type.
+ * and /v1/escrow/pay returns 400.
  *
  * Five operation kinds are wired up; each kind's name matches the
  * corresponding `payments.kind` column value on the gateway:
@@ -42,12 +34,13 @@
  *
  * This module is signer/transport-agnostic — callers pass in their own
  * `PublicClient` for the contract reads. No caching here; long-running
- * service consumers should wrap with their own TTL.
+ * service consumers should wrap with their own TTL. Mirrors
+ * data-gateway/lib/fee-registry.ts byte-for-byte.
  *
  * @category Protocol
- * @module fee-registry
  */
 import { parseAbi, type Address, type Hex, type PublicClient } from "viem";
+import type { DataPortabilityGatewayConfig } from "./eip712";
 
 export const FEE_REGISTRY_ABI = parseAbi([
   "struct Fee { uint256 amount; address asset; address payee; bool enabled; }",
@@ -64,8 +57,8 @@ export type FeeKind =
 
 /**
  * Map from a user-facing opType (POST /v1/escrow/pay body field, matches
- * the gateway's `payments.op_type` column and {@link ./escrow!GenericPaymentMessage.opType})
- * to the FeeKind that gates its one-time registration fee.
+ * the gateway's `payments.op_type` column) to the FeeKind that gates its
+ * one-time registration fee.
  *
  * Data access is a per-call surcharge on grants only — it's not a
  * registration fee for any op, so it lives outside this map.
@@ -90,7 +83,7 @@ export interface FeeEntry {
 
 /**
  * Compound fee schedule for one op type, mirroring the gateway's
- * `lib/op-fees.ts` `OpFee`. For ANY op type, `registrationFee` is the
+ * lib/op-fees.ts `OpFee`. For ANY op type, `registrationFee` is the
  * one-time fee charged at registration. For `'grant'` only, `dataAccessFee`
  * is the per-access surcharge — for any other op type it's always 0n with
  * `dataAccessEnabled: false`.
@@ -100,9 +93,6 @@ export interface FeeEntry {
  * payment for that kind. When both are off (for a grant) or registration
  * is off (for any other op type), the entire payment flow is skipped —
  * the op settles directly via the no-payment path.
- *
- * The total a caller signs into {@link ./escrow!GenericPaymentMessage.amount}
- * is `registrationFee + dataAccessFee`.
  */
 export interface OpFee {
   // Asset for whichever components are enabled. Falls back to native VANA
@@ -159,29 +149,25 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
  * valid steady state on the gateway. The only validation is the
  * zero-payee check, and that only fires when the fee is enabled
  * (a disabled fee never lands as a SettleOp `to`).
- *
- * @param client - A viem `PublicClient` pointed at the Vana chain.
- * @param feeRegistry - Deployed address of the FeeRegistry contract.
- * @param kind - Which fee record to read.
- * @param opts - Optional on-chain operation-name overrides.
  */
 export async function getFee(
   client: PublicClient,
-  feeRegistry: Address,
+  config: DataPortabilityGatewayConfig,
   kind: FeeKind,
   opts?: FeeRegistryOptions,
 ): Promise<FeeEntry> {
+  const address = config.contracts.feeRegistry as Address;
   const opName = operationNameFor(kind, opts);
 
   const opKey = (await client.readContract({
-    address: feeRegistry,
+    address,
     abi: FEE_REGISTRY_ABI,
     functionName: "operationKey",
     args: [opName],
   })) as Hex;
 
   const fee = (await client.readContract({
-    address: feeRegistry,
+    address,
     abi: FEE_REGISTRY_ABI,
     functionName: "fees",
     args: [opKey],
@@ -198,7 +184,7 @@ export async function getFee(
 
 /**
  * Convenience: combine the FeeRegistry reads for one op type into the
- * compound shape a caller validates the signed payment against.
+ * compound shape the pay handler validates against.
  *
  * For 'grant' opType the result includes both registration + data_access
  * components; for other op types data_access is always disabled with
@@ -209,15 +195,10 @@ export async function getFee(
  *
  * Throws on asset mismatch ONLY when both components are enabled — a
  * disabled fee never lands as a SettleOp, so its asset is moot.
- *
- * @param client - A viem `PublicClient` pointed at the Vana chain.
- * @param feeRegistry - Deployed address of the FeeRegistry contract.
- * @param opType - User-facing op type (see {@link REGISTRATION_KIND_FOR_OP}).
- * @param opts - Optional on-chain operation-name overrides.
  */
 export async function getOpFee(
   client: PublicClient,
-  feeRegistry: Address,
+  config: DataPortabilityGatewayConfig,
   opType: string,
   opts?: FeeRegistryOptions,
 ): Promise<OpFee> {
@@ -230,9 +211,9 @@ export async function getOpFee(
 
   const includeDataAccess = opType === "grant";
   const [registration, dataAccess] = await Promise.all([
-    getFee(client, feeRegistry, registrationKind, opts),
+    getFee(client, config, registrationKind, opts),
     includeDataAccess
-      ? getFee(client, feeRegistry, "data_access", opts)
+      ? getFee(client, config, "data_access", opts)
       : Promise.resolve<FeeEntry>({
           amount: 0n,
           asset: ZERO_ADDRESS,

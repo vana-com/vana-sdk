@@ -79,7 +79,7 @@ describe("createGatewayClient", () => {
     );
 
     await expect(
-      createGatewayClient("https://g").getFile("file-1"),
+      createGatewayClient("https://g").getDataPoint("0xdp"),
     ).rejects.toThrow("Gateway error: 503 Down");
   });
 
@@ -105,71 +105,59 @@ describe("createGatewayClient", () => {
     ).resolves.toBe(true);
   });
 
-  it("lists grants and files with query parameters", async () => {
+  it("lists grants and data points with query parameters", async () => {
+    const dataPoint = {
+      id: "0xdp1",
+      ownerAddress: "0xowner",
+      scope: "instagram.profile",
+      dataHash: "0xdata",
+      metadataHash: "0xmeta",
+      expectedVersion: "1",
+      addedAt: "2026-05-08T00:00:00.000Z",
+    };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(envelope([])))
       .mockResolvedValueOnce(
-        jsonResponse(
-          envelope({
-            files: [
-              {
-                id: "file-1",
-                ownerAddress: "0xowner",
-                url: "https://files.example/file-1",
-                schemaId: "schema-1",
-                addedAt: "2026-05-08T00:00:00.000Z",
-              },
-            ],
-            cursor: null,
-          }),
-        ),
+        jsonResponse(envelope({ dataPoints: [dataPoint] })),
       );
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
     await expect(client.listGrantsByUser("0xuser")).resolves.toEqual([]);
-    await expect(client.listFilesSince("0xowner", "cursor-1")).resolves.toEqual(
-      {
-        files: [
-          {
-            fileId: "file-1",
-            owner: "0xowner",
-            url: "https://files.example/file-1",
-            schemaId: "schema-1",
-            createdAt: "2026-05-08T00:00:00.000Z",
-            deletedAt: null,
-          },
-        ],
-        cursor: null,
-      },
-    );
+    await expect(
+      client.listDataPointsByOwner("0xowner", "cursor-1"),
+    ).resolves.toEqual({
+      dataPoints: [dataPoint],
+      cursor: null,
+    });
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "https://g/v1/grants?user=0xuser",
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://g/v1/files?user=0xowner&cursor=cursor-1",
+      "https://g/v1/data?user=0xowner&cursor=cursor-1",
     );
   });
 
-  it("paginates files via pagination.nextCursor until hasMore is false", async () => {
-    // Regression: the gateway returns the next-page cursor in the envelope's
-    // `pagination` block (a sibling of `data`), and accepts it back as the
-    // `cursor` query param. A previous implementation read `data.cursor` and
-    // sent `?since=`, so it always stopped after the first page — silently
-    // truncating an owner's files to a single page.
+  it("paginates data points via pagination.nextCursor until hasMore is false", async () => {
+    // Regression guard: the gateway returns the next-page cursor in the
+    // envelope's `pagination` block (a sibling of `data`), and accepts it
+    // back as the `cursor` query param. A prior implementation read
+    // `data.cursor` and sent `?since=`, so it stopped after the first page.
     const page = (id: string, nextCursor: string | null) =>
       jsonResponse(
         envelope(
           {
-            files: [
+            dataPoints: [
               {
                 id,
                 ownerAddress: "0xowner",
-                url: `https://files.example/${id}`,
-                schemaId: "schema-1",
+                scope: "instagram.profile",
+                dataHash: "0xdata",
+                metadataHash: "0xmeta",
+                expectedVersion: "1",
                 addedAt: "2026-05-08T00:00:00.000Z",
               },
             ],
@@ -179,77 +167,55 @@ describe("createGatewayClient", () => {
       );
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(page("file-1", "cursor-2"))
-      .mockResolvedValueOnce(page("file-2", null));
+      .mockResolvedValueOnce(page("0xdp1", "cursor-2"))
+      .mockResolvedValueOnce(page("0xdp2", null));
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
     const all: string[] = [];
     let cursor: string | null = null;
     do {
-      const result = await client.listFilesSince("0xowner", cursor);
-      all.push(...result.files.map((f) => f.fileId));
+      const result = await client.listDataPointsByOwner("0xowner", cursor);
+      all.push(...result.dataPoints.map((d) => d.id));
       cursor = result.cursor;
     } while (cursor);
 
-    expect(all).toEqual(["file-1", "file-2"]);
+    expect(all).toEqual(["0xdp1", "0xdp2"]);
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://g/v1/files?user=0xowner",
+      "https://g/v1/data?user=0xowner",
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://g/v1/files?user=0xowner&cursor=cursor-2",
+      "https://g/v1/data?user=0xowner&cursor=cursor-2",
     );
   });
 
-  it("requests includeDeleted and surfaces deletedAt for reconciliation", async () => {
+  it("threads `since` and `limit` into the data-points list query", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
       jsonResponse(
         envelope({
-          files: [
-            {
-              id: "file-active",
-              ownerAddress: "0xowner",
-              url: "https://files.example/active",
-              schemaId: "schema-1",
-              addedAt: "2026-05-08T00:00:00.000Z",
-              deletedAt: null,
-            },
-            {
-              id: "file-gone",
-              ownerAddress: "0xowner",
-              url: "https://files.example/gone",
-              schemaId: "schema-1",
-              addedAt: "2026-05-08T00:00:00.000Z",
-              deletedAt: "2026-06-04T00:00:00.000Z",
-            },
-          ],
-          cursor: null,
+          dataPoints: [],
         }),
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
-    const result = await client.listFilesSince("0xowner", null, {
-      includeDeleted: true,
+    await client.listDataPointsByOwner("0xowner", null, {
+      since: "2026-05-01T00:00:00.000Z",
+      limit: 50,
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://g/v1/files?user=0xowner&includeDeleted=true",
+      "https://g/v1/data?user=0xowner&since=2026-05-01T00%3A00%3A00.000Z&limit=50",
     );
-    expect(result.files.map((f) => f.deletedAt)).toEqual([
-      null,
-      "2026-06-04T00:00:00.000Z",
-    ]);
   });
 
-  it("posts server, file, grant, and revocation mutations with Web3Signed auth", async () => {
+  it("posts server, grant, and revocation mutations with Web3Signed auth", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ serverId: "server-1" }))
-      .mockResolvedValueOnce(jsonResponse({ fileId: "file-1" }))
       .mockResolvedValueOnce(jsonResponse({ grantId: "grant-1" }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -268,19 +234,12 @@ describe("createGatewayClient", () => {
       alreadyRegistered: false,
     });
     await expect(
-      client.registerFile({
-        ownerAddress: "0xowner",
-        url: "https://files.example/file-1",
-        schemaId: "schema-1",
-        signature: "sig",
-      }),
-    ).resolves.toEqual({ fileId: "file-1" });
-    await expect(
       client.createGrant({
         grantorAddress: "0xowner",
         granteeId: "builder-1",
-        grant: "grant",
-        fileIds: ["file-1"],
+        scopes: ["instagram.profile"],
+        grantVersion: "1",
+        expiresAt: "0",
         signature: "sig",
       }),
     ).resolves.toEqual({ grantId: "grant-1" });
@@ -288,6 +247,7 @@ describe("createGatewayClient", () => {
       client.revokeGrant({
         grantId: "grant-1",
         grantorAddress: "0xowner",
+        grantVersion: "2",
         signature: "sig",
       }),
     ).resolves.toBeUndefined();
@@ -304,85 +264,202 @@ describe("createGatewayClient", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://g/v1/files",
+      "https://g/v1/grants",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          grantorAddress: "0xowner",
+          granteeId: "builder-1",
+          scopes: ["instagram.profile"],
+          grantVersion: "1",
+          expiresAt: "0",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://g/v1/grants/grant-1",
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({
+          grantorAddress: "0xowner",
+          grantVersion: "2",
+        }),
+      }),
+    );
+  });
+
+  it("registers a builder with Web3Signed auth, returns the gateway-computed builderId", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: true, builderId: "0xbuilder" },
+          { status: 201 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { success: false, error: "Builder already registered" },
+          { status: 409 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.registerBuilder({
+        ownerAddress: "0xowner",
+        granteeAddress: "0xgrantee",
+        publicKey: "0xpub",
+        appUrl: "https://app.example",
+        signature: "sig",
+      }),
+    ).resolves.toEqual({ builderId: "0xbuilder", alreadyRegistered: false });
+
+    // 409 → alreadyRegistered:true, builderId stays undefined since the
+    // gateway's current 409 body doesn't include the id.
+    await expect(
+      client.registerBuilder({
+        ownerAddress: "0xowner",
+        granteeAddress: "0xgrantee",
+        publicKey: "0xpub",
+        appUrl: "https://app.example",
+        signature: "sig",
+      }),
+    ).resolves.toEqual({ builderId: undefined, alreadyRegistered: true });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://g/v1/builders",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
           Authorization: "Web3Signed sig",
         }),
+        body: JSON.stringify({
+          ownerAddress: "0xowner",
+          granteeAddress: "0xgrantee",
+          publicKey: "0xpub",
+          appUrl: "https://app.example",
+        }),
       }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
-      "https://g/v1/grants/grant-1",
-      expect.objectContaining({ method: "DELETE" }),
     );
   });
 
-  it("deletes a file via DELETE /v1/files/:id with Web3Signed auth and ownerAddress body", async () => {
+  it("registers a data point and surfaces the stale-version 409 as a thrown error", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            success: true,
+            dataPointId: "0xdatapoint",
+            expectedVersion: "1",
+          },
+          { status: 201 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            success: false,
+            error:
+              "Stale expectedVersion 1: must be strictly greater than the stored value 3",
+            currentExpectedVersion: "3",
+          },
+          { status: 409 },
+        ),
+      );
     vi.stubGlobal("fetch", fetchMock);
     const client = createGatewayClient("https://g");
 
     await expect(
-      client.deleteFile({
-        fileId: "0xfile",
+      client.registerDataPoint({
         ownerAddress: "0xowner",
+        scope: "instagram.profile",
+        dataHash:
+          "0x1111111111111111111111111111111111111111111111111111111111111111",
+        metadataHash:
+          "0x2222222222222222222222222222222222222222222222222222222222222222",
+        expectedVersion: "1",
         signature: "sig",
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({
+      dataPointId: "0xdatapoint",
+      expectedVersion: "1",
+    });
 
+    // Stale-CAS 409 is a real failure here, not an idempotent replay —
+    // the SDK throws with the gateway's error string so callers can read
+    // `currentExpectedVersion` out of the message.
+    await expect(
+      client.registerDataPoint({
+        ownerAddress: "0xowner",
+        scope: "instagram.profile",
+        dataHash:
+          "0x1111111111111111111111111111111111111111111111111111111111111111",
+        metadataHash:
+          "0x2222222222222222222222222222222222222222222222222222222222222222",
+        expectedVersion: "1",
+        signature: "sig",
+      }),
+    ).rejects.toThrow(/Gateway error: 409 Stale expectedVersion/);
+  });
+
+  it("drains pending ops via settle() and parses the full reconcile envelope", async () => {
+    const settleBody = {
+      success: true,
+      scanned: 1,
+      submitted: 0,
+      confirmed: 1,
+      skipped: 0,
+      failed: 0,
+      items: [
+        {
+          opType: "grant",
+          opId: "0xgrant",
+          status: "confirmed",
+          settleTxHash: "0xtx",
+          settleSubmittedAt: "2026-05-08T00:00:00.000Z",
+          chainBlockHeight: "100",
+          revocationTxHash: null,
+          revocationSubmittedAt: null,
+          placeholder: false,
+        },
+      ],
+      promoted: { count: 0, items: [] },
+      reconciled: {
+        scanned: 0,
+        finalized: 0,
+        reorged: 0,
+        unchanged: 0,
+        items: [],
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(settleBody));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").settle({ limit: 50 }),
+    ).resolves.toMatchObject({
+      scanned: 1,
+      confirmed: 1,
+      items: [{ opType: "grant", status: "confirmed" }],
+    });
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://g/v1/files/0xfile",
+      "https://g/v1/settle",
       expect.objectContaining({
-        method: "DELETE",
-        headers: expect.objectContaining({
-          Authorization: "Web3Signed sig",
-        }),
-        body: JSON.stringify({ ownerAddress: "0xowner" }),
+        method: "POST",
+        body: JSON.stringify({ limit: 50 }),
       }),
     );
-  });
-
-  it("treats a 409 file deletion as idempotent success", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response(null, { status: 409 })),
-    );
-    const client = createGatewayClient("https://g");
-
-    await expect(
-      client.deleteFile({
-        fileId: "0xfile",
-        ownerAddress: "0xowner",
-        signature: "sig",
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it("throws when file deletion fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response(null, { status: 403 })),
-    );
-    const client = createGatewayClient("https://g");
-
-    await expect(
-      client.deleteFile({
-        fileId: "0xfile",
-        ownerAddress: "0xowner",
-        signature: "sig",
-      }),
-    ).rejects.toThrow(/Gateway error: 403/);
   });
 
   it("treats 409 mutation responses as idempotent success", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: "server-1" }, { status: 409 }))
-      .mockResolvedValueOnce(jsonResponse({ id: "file-1" }, { status: 409 }))
       .mockResolvedValueOnce(jsonResponse({ id: "grant-1" }, { status: 409 }))
       .mockResolvedValueOnce(new Response(null, { status: 409 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -401,19 +478,12 @@ describe("createGatewayClient", () => {
       alreadyRegistered: true,
     });
     await expect(
-      client.registerFile({
-        ownerAddress: "0xowner",
-        url: "https://files.example/file-1",
-        schemaId: "schema-1",
-        signature: "sig",
-      }),
-    ).resolves.toEqual({ fileId: "file-1" });
-    await expect(
       client.createGrant({
         grantorAddress: "0xowner",
         granteeId: "builder-1",
-        grant: "grant",
-        fileIds: ["file-1"],
+        scopes: ["instagram.profile"],
+        grantVersion: "1",
+        expiresAt: "0",
         signature: "sig",
       }),
     ).resolves.toEqual({ grantId: "grant-1" });
@@ -421,8 +491,147 @@ describe("createGatewayClient", () => {
       client.revokeGrant({
         grantId: "grant-1",
         grantorAddress: "0xowner",
+        grantVersion: "2",
         signature: "sig",
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("reads escrow balance without an envelope wrap", async () => {
+    const balanceBody = {
+      account: "0xpayer",
+      balances: [
+        {
+          asset: "0x0000000000000000000000000000000000000000",
+          balance: "1000",
+          pendingAmount: "200",
+          authorizedAmount: "300",
+          availableAmount: "700",
+          updatedAt: "2026-05-08T00:00:00.000Z",
+        },
+      ],
+      deposits: { submitted: [], finalized: [], failed: [] },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(balanceBody));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").getEscrowBalance("0xpayer"),
+    ).resolves.toEqual(balanceBody);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/escrow/balance?account=0xpayer",
+    );
+  });
+
+  it("posts deposit submissions and accepts the 202 confirming-status response", async () => {
+    const depositBody = {
+      txHash: "0xtx",
+      account: "0xpayer",
+      status: "submitted",
+      blockNumber: null,
+      submittedAt: "2026-05-08T00:00:00.000Z",
+      finalizedAt: null,
+      lastError: null,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(depositBody, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").submitEscrowDeposit({ txHash: "0xtx" }),
+    ).resolves.toEqual(depositBody);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/escrow/deposit",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ txHash: "0xtx" }),
+      }),
+    );
+  });
+
+  it("pays for an operation with a Web3Signed EIP-712 signature", async () => {
+    const payBody = {
+      opType: "grant",
+      opId: "0xgrant",
+      payerAddress: "0xpayer",
+      asset: "0x0000000000000000000000000000000000000000",
+      amount: "300",
+      breakdown: {
+        registrationFee: "200",
+        dataAccessFee: "100",
+        registrationPaid: true,
+      },
+      paymentNonce: "1",
+      paidAt: "2026-05-08T00:00:00.000Z",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(payBody));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").payForOperation({
+        payerAddress: "0xpayer",
+        opType: "grant",
+        opId: "0xgrant",
+        asset: "0x0000000000000000000000000000000000000000",
+        amount: "300",
+        paymentNonce: "1",
+        signature: "sig",
+      }),
+    ).resolves.toEqual(payBody);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/escrow/pay",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Web3Signed sig",
+        }),
+        body: JSON.stringify({
+          payerAddress: "0xpayer",
+          opType: "grant",
+          opId: "0xgrant",
+          asset: "0x0000000000000000000000000000000000000000",
+          amount: "300",
+          paymentNonce: "1",
+        }),
+      }),
+    );
+  });
+
+  it("surfaces 402 insufficient-balance and 409 nonce-replay as thrown errors", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({}, { status: 402, statusText: "Payment Required" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({}, { status: 409, statusText: "Conflict" }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.payForOperation({
+        payerAddress: "0xpayer",
+        opType: "grant",
+        opId: "0xgrant",
+        asset: "0x0000000000000000000000000000000000000000",
+        amount: "300",
+        paymentNonce: "1",
+        signature: "sig",
+      }),
+    ).rejects.toThrow("Gateway error: 402 Payment Required");
+    await expect(
+      client.payForOperation({
+        payerAddress: "0xpayer",
+        opType: "grant",
+        opId: "0xgrant",
+        asset: "0x0000000000000000000000000000000000000000",
+        amount: "100",
+        paymentNonce: "1",
+        signature: "sig",
+      }),
+    ).rejects.toThrow("Gateway error: 409 Conflict");
   });
 });

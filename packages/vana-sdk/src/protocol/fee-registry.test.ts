@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { keccak256, stringToHex, type Address, type PublicClient } from "viem";
+import { keccak256, stringToHex, type PublicClient } from "viem";
 
 import {
   FEE_REGISTRY_ABI,
@@ -8,9 +8,21 @@ import {
   getOpFee,
   type FeeKind,
 } from "./fee-registry";
+import type { DataPortabilityGatewayConfig } from "./eip712";
 
-const FEE_REGISTRY_ADDRESS =
-  "0x6666666666666666666666666666666666666666" as Address;
+const FEE_REGISTRY_ADDRESS = "0x6666666666666666666666666666666666666666";
+
+const CONFIG: DataPortabilityGatewayConfig = {
+  chainId: 14800,
+  contracts: {
+    dataRegistry: "0x1111111111111111111111111111111111111111",
+    dataPortabilityPermissions: "0x2222222222222222222222222222222222222222",
+    dataPortabilityServer: "0x3333333333333333333333333333333333333333",
+    dataPortabilityGrantees: "0x4444444444444444444444444444444444444444",
+    dataPortabilityEscrow: "0x5555555555555555555555555555555555555555",
+    feeRegistry: FEE_REGISTRY_ADDRESS,
+  },
+};
 
 const PAYEE_A = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const PAYEE_B = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -63,14 +75,14 @@ describe("FeeRegistry adapter", () => {
         enabled: true,
       },
     });
-    await expect(
-      getFee(client, FEE_REGISTRY_ADDRESS, "grant_registration"),
-    ).resolves.toEqual({
-      amount: 10_000_000_000_000_000n,
-      asset: NATIVE,
-      payee: PAYEE_A,
-      enabled: true,
-    });
+    await expect(getFee(client, CONFIG, "grant_registration")).resolves.toEqual(
+      {
+        amount: 10_000_000_000_000_000n,
+        asset: NATIVE,
+        payee: PAYEE_A,
+        enabled: true,
+      },
+    );
     expect(client.readContract).toHaveBeenCalledWith(
       expect.objectContaining({
         address: FEE_REGISTRY_ADDRESS,
@@ -91,7 +103,7 @@ describe("FeeRegistry adapter", () => {
       },
     });
     await expect(
-      getFee(client, FEE_REGISTRY_ADDRESS, "grant_registration", {
+      getFee(client, CONFIG, "grant_registration", {
         grantRegistrationOpName: "grant_registration.v2",
       }),
     ).resolves.toMatchObject({ amount: 1n });
@@ -109,14 +121,14 @@ describe("FeeRegistry adapter", () => {
         enabled: false,
       },
     });
-    await expect(
-      getFee(client, FEE_REGISTRY_ADDRESS, "grant_registration"),
-    ).resolves.toEqual({
-      amount: 0n,
-      asset: NATIVE,
-      payee: NATIVE,
-      enabled: false,
-    });
+    await expect(getFee(client, CONFIG, "grant_registration")).resolves.toEqual(
+      {
+        amount: 0n,
+        asset: NATIVE,
+        payee: NATIVE,
+        enabled: false,
+      },
+    );
   });
 
   it("throws when an ENABLED fee has a zero-address payee", async () => {
@@ -126,9 +138,9 @@ describe("FeeRegistry adapter", () => {
     const client = mockClient({
       data_access: { amount: 1n, asset: NATIVE, payee: NATIVE, enabled: true },
     });
-    await expect(
-      getFee(client, FEE_REGISTRY_ADDRESS, "data_access"),
-    ).rejects.toThrow(/zero-address payee/);
+    await expect(getFee(client, CONFIG, "data_access")).rejects.toThrow(
+      /zero-address payee/,
+    );
   });
 
   it("getOpFee('grant') combines registration + data_access with enabled flags", async () => {
@@ -141,9 +153,7 @@ describe("FeeRegistry adapter", () => {
       },
       data_access: { amount: 1n, asset: NATIVE, payee: PAYEE_B, enabled: true },
     });
-    await expect(
-      getOpFee(client, FEE_REGISTRY_ADDRESS, "grant"),
-    ).resolves.toEqual({
+    await expect(getOpFee(client, CONFIG, "grant")).resolves.toEqual({
       asset: NATIVE,
       registrationFee: 10n,
       dataAccessFee: 1n,
@@ -158,7 +168,7 @@ describe("FeeRegistry adapter", () => {
     // Both kinds disabled → totalDue = 0, gateway 'Payment not required'.
     // Callers detect by checking either *Enabled flag or seeing zero amounts.
     const client = mockClient({});
-    const fee = await getOpFee(client, FEE_REGISTRY_ADDRESS, "grant");
+    const fee = await getOpFee(client, CONFIG, "grant");
     expect(fee.registrationEnabled).toBe(false);
     expect(fee.dataAccessEnabled).toBe(false);
     expect(fee.registrationFee).toBe(0n);
@@ -179,7 +189,7 @@ describe("FeeRegistry adapter", () => {
         enabled: true,
       },
     });
-    const fee = await getOpFee(client, FEE_REGISTRY_ADDRESS, "server");
+    const fee = await getOpFee(client, CONFIG, "server");
     expect(fee).toEqual({
       asset: NATIVE,
       registrationFee: 5n,
@@ -210,9 +220,9 @@ describe("FeeRegistry adapter", () => {
       },
       data_access: { amount: 1n, asset: ERC20, payee: PAYEE_B, enabled: true },
     });
-    await expect(
-      getOpFee(client, FEE_REGISTRY_ADDRESS, "grant"),
-    ).rejects.toThrow(/asset mismatch/);
+    await expect(getOpFee(client, CONFIG, "grant")).rejects.toThrow(
+      /asset mismatch/,
+    );
   });
 
   it("getOpFee tolerates asset 'mismatch' when one kind is disabled", async () => {
@@ -232,7 +242,7 @@ describe("FeeRegistry adapter", () => {
         enabled: false,
       },
     });
-    const fee = await getOpFee(client, FEE_REGISTRY_ADDRESS, "grant");
+    const fee = await getOpFee(client, CONFIG, "grant");
     expect(fee.asset).toBe(NATIVE);
     expect(fee.dataAccessEnabled).toBe(false);
     expect(fee.dataAccessFee).toBe(0n);
@@ -240,8 +250,8 @@ describe("FeeRegistry adapter", () => {
 
   it("getOpFee throws on unknown opType", async () => {
     const client = mockClient({});
-    await expect(
-      getOpFee(client, FEE_REGISTRY_ADDRESS, "schema"),
-    ).rejects.toThrow(/unknown opType "schema"/);
+    await expect(getOpFee(client, CONFIG, "schema")).rejects.toThrow(
+      /unknown opType "schema"/,
+    );
   });
 });

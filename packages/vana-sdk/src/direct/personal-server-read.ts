@@ -79,7 +79,7 @@ export async function buildPersonalServerDataReadRequest(params: {
   scope: string;
   /** Grant id authorizing the read. */
   grantId: string;
-  /** EIP-191 signer for the Web3Signed header (the builder/app key). */
+  /** EIP-191 signer for the Web3Signed header (the app key). */
   signMessage: Web3SignedSignFn;
   /** Optional `X-PAYMENT` header value (set on a payment retry). */
   paymentHeader?: string;

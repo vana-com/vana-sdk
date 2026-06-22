@@ -12,7 +12,7 @@
  *
  * export const vana = createDirectDataController({
  *   env: process.env.VANA_ENV === "dev" ? "dev" : "production",
- *   builderPrivateKey: process.env.VANA_BUILDER_PRIVATE_KEY!,
+ *   appPrivateKey: process.env.VANA_APP_PRIVATE_KEY!,
  *   app: { id: "notes-lens", name: "Notes Lens", homepageUrl: process.env.VANA_APP_URL! },
  *   source: "icloud_notes",
  *   scopes: ["icloud_notes.notes"],

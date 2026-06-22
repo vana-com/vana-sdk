@@ -3,9 +3,8 @@
  * Portability flow.
  *
  * @remarks
- * One controller owns an app's builder private key, source, scopes, app
- * identity, and payment flow. It exposes the three methods the builder guide
- * documents:
+ * One controller owns an app's private key, source, scopes, app identity, and
+ * payment flow. It exposes the three methods the builder guide documents:
  *
  * - {@link DirectDataController.createAccessRequest} — start an approval request.
  * - {@link DirectDataController.getAccessRequestStatus} — poll while the Vana tab is open.
@@ -18,7 +17,7 @@
  * - `accessRequestClient` — the app-dev service that issues `dcr_*` ids. The
  *   default implementation is **PROVISIONAL** (see {@link createDefaultAccessRequestClient}).
  * - `paymentSigner` — the x402 settlement scheme. The default is derived from
- *   `builderPrivateKey` and is also **PROVISIONAL** (see {@link createDefaultPaymentSigner}).
+ *   `appPrivateKey` and is also **PROVISIONAL** (see {@link createDefaultPaymentSigner}).
  *
  * The Personal Server read and the Web3Signed auth are real and built on the
  * SDK's existing primitives.
@@ -47,6 +46,7 @@ import type {
   AccessRequestClient,
   AccessRequestStatus,
   ApprovedDataResult,
+  AppIdentity,
   DirectAppConfig,
   DirectEnv,
   DirectServiceEndpoints,
@@ -57,8 +57,16 @@ import type {
 export interface DirectDataControllerConfig {
   /** Target environment. Defaults to `"production"`. */
   env?: DirectEnv;
-  /** The app/builder private key (`0x`-prefixed). Server-side only. */
-  builderPrivateKey: string;
+  /**
+   * The app private key (`0x`-prefixed, 32 bytes). Server-side only — this key
+   * is the app's on-chain identity and is never exposed to the browser.
+   */
+  appPrivateKey?: string;
+  /**
+   * @deprecated Use {@link DirectDataControllerConfig.appPrivateKey}. Accepted as
+   * a backwards-compatible alias; if both are set, `appPrivateKey` wins.
+   */
+  builderPrivateKey?: string;
   /** App identity advertised during approval. */
   app: DirectAppConfig;
   /** Data source key (e.g. `"icloud_notes"`). */
@@ -78,7 +86,7 @@ export interface DirectDataControllerConfig {
   accessRequestClient?: AccessRequestClient;
   /**
    * Injected payment signer for 402 challenges. Defaults to a provisional signer
-   * derived from `builderPrivateKey`.
+   * derived from `appPrivateKey`.
    */
   paymentSigner?: PaymentSigner;
   /** `fetch` used by the default access-request client. Defaults to `globalThis.fetch`. */
@@ -93,8 +101,25 @@ export interface DirectDataControllerConfig {
  * @typeParam T - Shape of the data returned by {@link DirectDataController.readApprovedData}.
  */
 export interface DirectDataController {
-  /** The on-chain address of the app/builder derived from `builderPrivateKey`. */
+  /** The on-chain address of the app, derived from `appPrivateKey`. */
   readonly appAddress: string;
+
+  /**
+   * The app's on-chain address — the address to fund and inspect in the Builder
+   * activity report. Equivalent to {@link DirectDataController.appAddress}.
+   *
+   * @returns The app's `0x`-prefixed address.
+   */
+  getAppAddress(): string;
+
+  /**
+   * The app's full identity: its configured id/name/homepage plus the derived
+   * on-chain address. Useful for telling builders which app address to fund or
+   * look up.
+   *
+   * @returns `{ id, name, homepageUrl, address }`.
+   */
+  getAppIdentity(): AppIdentity;
 
   /**
    * Create an access request the user can approve.
@@ -143,9 +168,12 @@ function isHexPrivateKey(value: string): value is Hex {
 export function createDirectDataController(
   config: DirectDataControllerConfig,
 ): DirectDataController {
-  if (!config.builderPrivateKey || !isHexPrivateKey(config.builderPrivateKey)) {
+  // `appPrivateKey` is the documented field; `builderPrivateKey` is a
+  // deprecated alias kept for backwards compatibility.
+  const privateKey = config.appPrivateKey ?? config.builderPrivateKey;
+  if (!privateKey || !isHexPrivateKey(privateKey)) {
     throw new DirectConfigError(
-      "builderPrivateKey must be a 0x-prefixed 32-byte hex string",
+      "appPrivateKey must be a 0x-prefixed 32-byte hex string",
     );
   }
   if (!config.scopes || config.scopes.length === 0) {
@@ -162,7 +190,7 @@ export function createDirectDataController(
     ...config.endpoints,
   };
 
-  const account = privateKeyToAccount(config.builderPrivateKey);
+  const account = privateKeyToAccount(privateKey as Hex);
   const signMessage: Web3SignedSignFn = (message: string) =>
     account.signMessage({ message });
 
@@ -179,6 +207,19 @@ export function createDirectDataController(
 
   return {
     appAddress: account.address,
+
+    getAppAddress(): string {
+      return account.address;
+    },
+
+    getAppIdentity(): AppIdentity {
+      return {
+        id: config.app.id,
+        name: config.app.name,
+        homepageUrl: config.app.homepageUrl,
+        address: account.address,
+      };
+    },
 
     async createAccessRequest(input): Promise<AccessRequest> {
       return accessRequestClient.createAccessRequest({

@@ -13,9 +13,9 @@ import type {
 } from "./types";
 import type { FetchResponseLike } from "./personal-server-read";
 
-const BUILDER_KEY =
+const APP_KEY =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
-const BUILDER_ADDRESS = privateKeyToAccount(BUILDER_KEY).address;
+const APP_ADDRESS = privateKeyToAccount(APP_KEY).address;
 
 const APP = {
   id: "notes-lens",
@@ -48,20 +48,69 @@ function jsonResponse(
 }
 
 describe("createDirectDataController — config validation", () => {
-  it("derives appAddress from the builder private key", () => {
+  it("derives appAddress from appPrivateKey", () => {
     const vana = createDirectDataController({
-      builderPrivateKey: BUILDER_KEY,
+      appPrivateKey: APP_KEY,
       app: APP,
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],
     });
-    expect(vana.appAddress).toBe(BUILDER_ADDRESS);
+    expect(vana.appAddress).toBe(APP_ADDRESS);
+    expect(vana.getAppAddress()).toBe(APP_ADDRESS);
+  });
+
+  it("exposes the full app identity via getAppIdentity()", () => {
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+    });
+    expect(vana.getAppIdentity()).toEqual({
+      id: APP.id,
+      name: APP.name,
+      homepageUrl: APP.homepageUrl,
+      address: APP_ADDRESS,
+    });
+  });
+
+  it("accepts the deprecated builderPrivateKey alias", () => {
+    const vana = createDirectDataController({
+      builderPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+    });
+    expect(vana.getAppAddress()).toBe(APP_ADDRESS);
+  });
+
+  it("prefers appPrivateKey when both keys are provided", () => {
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      // A different (also-valid) key as the deprecated alias; appPrivateKey wins.
+      builderPrivateKey:
+        "0x0000000000000000000000000000000000000000000000000000000000000002",
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+    });
+    expect(vana.getAppAddress()).toBe(APP_ADDRESS);
+  });
+
+  it("rejects when no private key is provided", () => {
+    expect(() =>
+      createDirectDataController({
+        app: APP,
+        source: "icloud_notes",
+        scopes: ["icloud_notes.notes"],
+      }),
+    ).toThrow(DirectConfigError);
   });
 
   it("rejects a non-hex private key", () => {
     expect(() =>
       createDirectDataController({
-        builderPrivateKey: "not-a-key",
+        appPrivateKey: "not-a-key",
         app: APP,
         source: "icloud_notes",
         scopes: ["icloud_notes.notes"],
@@ -72,7 +121,7 @@ describe("createDirectDataController — config validation", () => {
   it("rejects an empty scopes array", () => {
     expect(() =>
       createDirectDataController({
-        builderPrivateKey: BUILDER_KEY,
+        appPrivateKey: APP_KEY,
         app: APP,
         source: "icloud_notes",
         scopes: [],
@@ -83,7 +132,7 @@ describe("createDirectDataController — config validation", () => {
   it("rejects a malformed scope", () => {
     expect(() =>
       createDirectDataController({
-        builderPrivateKey: BUILDER_KEY,
+        appPrivateKey: APP_KEY,
         app: APP,
         source: "icloud_notes",
         scopes: ["NOTAVALIDSCOPE"],
@@ -98,13 +147,13 @@ describe("createDirectDataController — createAccessRequest", () => {
       createAccessRequest: vi.fn(async () => ({
         requestId: "dcr_123",
         approvalUrl: "https://app.vana.org/data-connection-requests/dcr_123",
-        appAddress: BUILDER_ADDRESS,
+        appAddress: APP_ADDRESS,
       })),
       getAccessRequestStatus: vi.fn(),
     };
 
     const vana = createDirectDataController({
-      builderPrivateKey: BUILDER_KEY,
+      appPrivateKey: APP_KEY,
       app: APP,
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],
@@ -117,7 +166,7 @@ describe("createDirectDataController — createAccessRequest", () => {
 
     expect(result.requestId).toBe("dcr_123");
     expect(accessRequestClient.createAccessRequest).toHaveBeenCalledWith({
-      appAddress: BUILDER_ADDRESS,
+      appAddress: APP_ADDRESS,
       app: APP,
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],
@@ -139,7 +188,7 @@ describe("createDirectDataController — readApprovedData", () => {
       getAccessRequestStatus: vi.fn(async () => status),
     };
     return createDirectDataController({
-      builderPrivateKey: BUILDER_KEY,
+      appPrivateKey: APP_KEY,
       app: APP,
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],
@@ -224,7 +273,7 @@ describe("createDirectDataController — readApprovedData", () => {
       },
     };
     const vana = createDirectDataController({
-      builderPrivateKey: BUILDER_KEY,
+      appPrivateKey: APP_KEY,
       app: APP,
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],

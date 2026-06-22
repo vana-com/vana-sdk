@@ -34,6 +34,15 @@ export interface DirectAppConfig {
 }
 
 /**
+ * Resolved app identity: the configured {@link DirectAppConfig} plus the app's
+ * derived on-chain address (the address to fund and inspect).
+ */
+export interface AppIdentity extends DirectAppConfig {
+  /** The app's `0x`-prefixed on-chain address (derived from `appPrivateKey`). */
+  address: string;
+}
+
+/**
  * Resolved service URLs for a given {@link DirectEnv}.
  *
  * @remarks
@@ -58,7 +67,7 @@ export interface AccessRequest {
   requestId: string;
   /** URL the browser opens so the user can approve the requested scopes. */
   approvalUrl: string;
-  /** On-chain address of the (registered or reused) app/builder. */
+  /** On-chain address of the (registered or reused) app. */
   appAddress: string;
 }
 
@@ -131,7 +140,7 @@ export interface AccessRequestClient {
  * **PROVISIONAL.** When a Personal Server responds `402 Payment Required`, the
  * controller hands the parsed challenge to this signer and retries the read with
  * the returned value as the `X-PAYMENT` header. The default signer is derived
- * from `builderPrivateKey`; the exact challenge/voucher format is not yet fixed
+ * from `appPrivateKey`; the exact challenge/voucher format is not yet fixed
  * by an in-repo protocol and may change.
  */
 export interface PaymentSigner {

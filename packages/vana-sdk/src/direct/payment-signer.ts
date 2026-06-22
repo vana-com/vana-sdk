@@ -4,7 +4,7 @@
  * @remarks
  * **PROVISIONAL.** There is no finalized payment-voucher scheme in this repo.
  * This default signer selects the first offered {@link PaymentRequirement},
- * signs a deterministic JSON payload describing the payment with the builder's
+ * signs a deterministic JSON payload describing the payment with the app's
  * EIP-191 key, and base64url-encodes a `{requirement, payload, signature}`
  * voucher as the `X-PAYMENT` header value. The shape is intended to be replaced
  * by the real x402 settlement format once defined; apps needing a stable scheme
@@ -33,7 +33,7 @@ function base64url(input: string): string {
 /**
  * Create the default {@link PaymentSigner} from an EIP-191 signer.
  *
- * @param signMessage - The builder/app EIP-191 signer (e.g. `account.signMessage`).
+ * @param signMessage - The app's EIP-191 signer (e.g. `account.signMessage`).
  * @returns A {@link PaymentSigner} that produces a provisional `X-PAYMENT` voucher.
  */
 export function createDefaultPaymentSigner(

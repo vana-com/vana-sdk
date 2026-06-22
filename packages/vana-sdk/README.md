@@ -128,7 +128,7 @@ import { createDirectDataController } from "@opendatalabs/vana-sdk/server";
 
 export const vana = createDirectDataController({
   env: process.env.VANA_ENV === "dev" ? "dev" : "production",
-  builderPrivateKey: process.env.VANA_BUILDER_PRIVATE_KEY!,
+  appPrivateKey: process.env.VANA_APP_PRIVATE_KEY!,
   app: {
     id: "notes-lens",
     name: "Notes Lens",
@@ -137,6 +137,10 @@ export const vana = createDirectDataController({
   source: "icloud_notes",
   scopes: ["icloud_notes.notes"],
 });
+
+// The app's on-chain address — fund and inspect this in the Builder activity
+// report. (`vana.getAppIdentity()` also returns the configured id/name/homepage.)
+console.log(vana.getAppAddress()); // 0x...
 ```
 
 Wire it to three routes — your backend chooses the source and scopes, owns the

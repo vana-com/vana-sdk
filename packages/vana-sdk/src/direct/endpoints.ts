@@ -16,14 +16,16 @@ import type { DirectEnv, DirectServiceEndpoints } from "./types";
 
 /** Production (mainnet) service URLs. */
 export const PRODUCTION_ENDPOINTS: DirectServiceEndpoints = {
+  chainId: 1480,
   accessRequestBaseUrl: "https://app.vana.org",
   approvalAppBaseUrl: "https://app.vana.org",
   gatewayBaseUrl: "https://gateway.vana.org",
   builderReportBaseUrl: "https://builders.vana.org",
 } as const;
 
-/** Dev/testnet service URLs. */
+/** Dev/testnet (moksha) service URLs. */
 export const DEV_ENDPOINTS: DirectServiceEndpoints = {
+  chainId: 14800,
   accessRequestBaseUrl: "https://app.dev.vana.org",
   approvalAppBaseUrl: "https://app.dev.vana.org",
   gatewayBaseUrl: "https://gateway.dev.vana.org",

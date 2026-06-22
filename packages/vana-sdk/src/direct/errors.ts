@@ -47,8 +47,13 @@ export class PersonalServerReadError extends VanaError {
 }
 
 /**
- * Thrown when a Personal Server requires payment (HTTP 402) but the controller
- * has no {@link PaymentSigner}, or the payment retry still fails.
+ * Thrown when a Personal Server requires payment (HTTP 402) but no escrow config
+ * is set, or the read still requires payment after escrow settlement.
+ *
+ * @remarks
+ * `details` carries structured debug data (`scope`, `grantId`, `asset`,
+ * `amount`, and — after a settlement attempt — the `payment` receipt) so callers
+ * can see exactly what was owed.
  */
 export class PaymentRequiredError extends VanaError {
   constructor(

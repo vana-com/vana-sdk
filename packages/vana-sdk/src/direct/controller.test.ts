@@ -6,16 +6,18 @@ import {
   DirectConfigError,
   PaymentRequiredError,
 } from "./errors";
-import type {
-  AccessRequestClient,
-  AccessRequestStatus,
-  PaymentChallenge,
-} from "./types";
+import type { AccessRequestClient, AccessRequestStatus } from "./types";
 import type { FetchResponseLike } from "./personal-server-read";
+import type { DirectEscrowConfig } from "./controller";
+import { NATIVE_ASSET_ADDRESS, type EscrowPayResult } from "../protocol/escrow";
 
 const APP_KEY =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 const APP_ADDRESS = privateKeyToAccount(APP_KEY).address;
+
+// A valid 32-byte grant id (the escrow opId must be bytes32 for EIP-712 signing).
+const GRANT_ID =
+  "0x1111111111111111111111111111111111111111111111111111111111111111";
 
 const APP = {
   id: "notes-lens",
@@ -27,7 +29,7 @@ function approvedStatus(): AccessRequestStatus {
   return {
     status: "approved",
     personalServerUrl: "https://ps.example.com",
-    grantId: "0xgrant",
+    grantId: GRANT_ID,
     scope: "icloud_notes.notes",
   };
 }
@@ -175,6 +177,38 @@ describe("createDirectDataController — createAccessRequest", () => {
   });
 });
 
+function payResultFixture(): EscrowPayResult {
+  return {
+    success: true,
+    opType: "grant",
+    opId: GRANT_ID,
+    payerAddress: APP_ADDRESS,
+    asset: NATIVE_ASSET_ADDRESS,
+    amount: "1000000000000000000",
+    breakdown: {
+      registrationFee: "100000000000000000",
+      dataAccessFee: "900000000000000000",
+      registrationPaid: true,
+    },
+    paymentNonce: "1",
+    paidAt: "2026-01-01T00:00:00.000Z",
+  };
+}
+
+function mockEscrowConfig(
+  payForOp = vi.fn(async () => payResultFixture()),
+): DirectEscrowConfig {
+  return {
+    client: {
+      submitDeposit: vi.fn(),
+      getEscrowBalance: vi.fn(),
+      syncEscrowBalance: vi.fn(),
+      payForOp,
+    },
+    escrowContract: "0x000000000000000000000000000000000000dEaD",
+  };
+}
+
 describe("createDirectDataController — readApprovedData", () => {
   function makeController(
     status: AccessRequestStatus,
@@ -182,6 +216,7 @@ describe("createDirectDataController — readApprovedData", () => {
       url: string,
       init: { method: string; headers: Record<string, string> },
     ) => Promise<FetchResponseLike>,
+    escrow?: DirectEscrowConfig,
   ) {
     const accessRequestClient: AccessRequestClient = {
       createAccessRequest: vi.fn(),
@@ -194,6 +229,7 @@ describe("createDirectDataController — readApprovedData", () => {
       scopes: ["icloud_notes.notes"],
       accessRequestClient,
       personalServerFetch,
+      escrow,
     });
   }
 
@@ -206,7 +242,7 @@ describe("createDirectDataController — readApprovedData", () => {
     );
   });
 
-  it("reads approved data with a Web3Signed Authorization header", async () => {
+  it("reads approved data with a Web3Signed Authorization header (no payment)", async () => {
     const seen: { url: string; headers: Record<string, string> }[] = [];
     const vana = makeController(approvedStatus(), async (url, init) => {
       seen.push({ url, headers: init.headers });
@@ -219,6 +255,7 @@ describe("createDirectDataController — readApprovedData", () => {
 
     expect(result.scope).toBe("icloud_notes.notes");
     expect(result.data).toEqual({ items: [1, 2, 3] });
+    expect(result.payment).toBeUndefined();
     expect(seen).toHaveLength(1);
     expect(seen[0].url).toBe(
       "https://ps.example.com/v1/data/icloud_notes.notes",
@@ -226,84 +263,67 @@ describe("createDirectDataController — readApprovedData", () => {
     expect(seen[0].headers.Authorization).toMatch(/^Web3Signed /);
   });
 
-  it("handles 402 by signing the challenge and retrying with X-PAYMENT", async () => {
+  it("settles a 402 via escrow and returns a structured payment receipt", async () => {
     let call = 0;
-    const headersByCall: Record<string, string>[] = [];
-    const vana = makeController(approvedStatus(), async (_url, init) => {
-      headersByCall.push(init.headers);
-      call += 1;
-      if (call === 1) {
-        return jsonResponse(
-          {
-            resource: "https://ps.example.com/v1/data/icloud_notes.notes",
-            accepts: [
-              {
-                scheme: "exact",
-                network: "vana",
-                maxAmountRequired: "1000",
-                payTo: "0xpayto",
-                asset: "0xasset",
-              },
-            ],
-          },
-          { status: 402, ok: false },
-        );
-      }
-      return jsonResponse({ ok: true });
-    });
+    const payForOp = vi.fn(async () => payResultFixture());
+    const vana = makeController(
+      approvedStatus(),
+      async () => {
+        call += 1;
+        if (call === 1) {
+          return jsonResponse(
+            { grantId: GRANT_ID, asset: NATIVE_ASSET_ADDRESS, amount: "1000" },
+            { status: 402 },
+          );
+        }
+        return jsonResponse({ ok: true });
+      },
+      mockEscrowConfig(payForOp),
+    );
 
     const result = await vana.readApprovedData({ requestId: "dcr_1" });
 
     expect(call).toBe(2);
+    expect(payForOp).toHaveBeenCalledTimes(1);
     expect(result.data).toEqual({ ok: true });
-    // First attempt has no X-PAYMENT; retry carries the signed voucher.
-    expect(headersByCall[0]["X-PAYMENT"]).toBeUndefined();
-    expect(headersByCall[1]["X-PAYMENT"]).toBeTruthy();
-  });
-
-  it("throws PaymentRequiredError when no paymentSigner can satisfy 402", async () => {
-    const accessRequestClient: AccessRequestClient = {
-      createAccessRequest: vi.fn(),
-      getAccessRequestStatus: vi.fn(async () => approvedStatus()),
-    };
-    // Inject a payment signer that refuses to satisfy the challenge.
-    const refusingSigner = {
-      signPaymentChallenge: async (_c: PaymentChallenge): Promise<string> => {
-        throw new PaymentRequiredError("cannot pay");
+    expect(result.payment).toMatchObject({
+      opType: "grant",
+      opId: GRANT_ID,
+      amount: "1000000000000000000",
+      breakdown: {
+        registrationFee: "100000000000000000",
+        dataAccessFee: "900000000000000000",
+        registrationPaid: true,
       },
-    };
-    const vana = createDirectDataController({
-      appPrivateKey: APP_KEY,
-      app: APP,
-      source: "icloud_notes",
-      scopes: ["icloud_notes.notes"],
-      accessRequestClient,
-      paymentSigner: refusingSigner,
-      personalServerFetch: async () =>
-        jsonResponse({ accepts: [] }, { status: 402, ok: false }),
     });
-
-    await expect(vana.readApprovedData({ requestId: "dcr_1" })).rejects.toThrow(
-      PaymentRequiredError,
-    );
   });
 
-  it("throws PaymentRequiredError when the server still demands payment after retry", async () => {
+  it("throws structured PaymentRequiredError when escrow is not configured", async () => {
     const vana = makeController(approvedStatus(), async () =>
       jsonResponse(
-        {
-          accepts: [
-            {
-              scheme: "exact",
-              network: "vana",
-              maxAmountRequired: "1000",
-              payTo: "0xpayto",
-              asset: "0xasset",
-            },
-          ],
-        },
-        { status: 402, ok: false },
+        { grantId: "0xgrant", asset: "0xtoken", amount: "777" },
+        { status: 402 },
       ),
+    );
+
+    let thrown: unknown;
+    try {
+      await vana.readApprovedData({ requestId: "dcr_1" });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(PaymentRequiredError);
+    expect((thrown as PaymentRequiredError).details).toMatchObject({
+      asset: "0xtoken",
+      amount: "777",
+    });
+  });
+
+  it("throws PaymentRequiredError when the server still demands payment after settlement", async () => {
+    const vana = makeController(
+      approvedStatus(),
+      async () => jsonResponse({ amount: "1000" }, { status: 402 }),
+      mockEscrowConfig(),
     );
 
     await expect(vana.readApprovedData({ requestId: "dcr_1" })).rejects.toThrow(

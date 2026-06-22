@@ -27,6 +27,7 @@ export {
   createDirectDataController,
   type DirectDataController,
   type DirectDataControllerConfig,
+  type DirectEscrowConfig,
 } from "./direct/controller";
 
 // Lower-level building blocks (advanced use / custom transports).
@@ -36,16 +37,27 @@ export {
   type DefaultAccessRequestClientOptions,
   type FetchLike,
 } from "./direct/access-request-client";
-export { createDefaultPaymentSigner } from "./direct/payment-signer";
 export {
   buildPersonalServerDataReadRequest,
   readPersonalServerData,
-  parsePaymentChallenge,
+  parsePersonalServerPaymentRequired,
   dataPathForScope,
   type PersonalServerDataReadRequest,
+  type PersonalServerReadResult,
   type PersonalServerFetch,
   type FetchResponseLike,
 } from "./direct/personal-server-read";
+// Escrow-backed payment (built on protocol/escrow).
+export {
+  authorizeGrantPayment,
+  toDirectPaymentReceipt,
+  toDirectFeeBreakdown,
+  createDefaultNonceSource,
+  GRANT_OP_TYPE,
+  type EscrowPaymentConfig,
+  type SignTypedDataFn,
+  type PaymentNonceSource,
+} from "./direct/escrow-payment";
 export {
   getDirectEndpoints,
   PRODUCTION_ENDPOINTS,
@@ -64,13 +76,18 @@ export {
 export type {
   DirectEnv,
   DirectAppConfig,
+  AppIdentity,
   DirectServiceEndpoints,
   AccessRequest,
   AccessRequestStatus,
   AccessRequestStatusValue,
   ApprovedDataResult,
   AccessRequestClient,
-  PaymentSigner,
-  PaymentChallenge,
-  PaymentRequirement,
+  DirectOpTypeValue,
+  PersonalServerPaymentRequired,
+  DirectPaymentReceipt,
+  DirectFeeBreakdown,
 } from "./direct/types";
+
+// Op-type vocabulary constant.
+export { DirectOpType } from "./direct/types";

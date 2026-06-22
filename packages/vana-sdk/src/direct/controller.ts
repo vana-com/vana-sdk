@@ -11,16 +11,18 @@
  * - {@link DirectDataController.readApprovedData} — read from the Personal Server,
  *   handling 402 Payment Required.
  *
- * **Two parts of this flow do not yet have a finalized in-SDK protocol** and are
+ * Payment uses the real DPv2 escrow surface (`protocol/escrow`): when a read
+ * returns `402`, the controller signs a `GenericPayment` with the app key and
+ * settles it through the escrow gateway, then retries.
+ *
+ * **One part of this flow does not yet have a finalized in-SDK protocol** and is
  * therefore injectable so the controller shape stays copy-paste stable:
  *
  * - `accessRequestClient` — the app-dev service that issues `dcr_*` ids. The
  *   default implementation is **PROVISIONAL** (see {@link createDefaultAccessRequestClient}).
- * - `paymentSigner` — the x402 settlement scheme. The default is derived from
- *   `appPrivateKey` and is also **PROVISIONAL** (see {@link createDefaultPaymentSigner}).
  *
- * The Personal Server read and the Web3Signed auth are real and built on the
- * SDK's existing primitives.
+ * The Personal Server read, Web3Signed auth, and escrow settlement are all real
+ * and built on the SDK's existing primitives.
  *
  * @category Direct
  * @module direct/controller
@@ -36,7 +38,10 @@ import {
 } from "./access-request-client";
 import { getDirectEndpoints } from "./endpoints";
 import { AccessNotApprovedError, DirectConfigError } from "./errors";
-import { createDefaultPaymentSigner } from "./payment-signer";
+import {
+  type EscrowPaymentConfig,
+  type SignTypedDataFn,
+} from "./escrow-payment";
 import {
   readPersonalServerData,
   type PersonalServerFetch,
@@ -50,7 +55,6 @@ import type {
   DirectAppConfig,
   DirectEnv,
   DirectServiceEndpoints,
-  PaymentSigner,
 } from "./types";
 
 /** Configuration for {@link createDirectDataController}. */
@@ -85,14 +89,35 @@ export interface DirectDataControllerConfig {
    */
   accessRequestClient?: AccessRequestClient;
   /**
-   * Injected payment signer for 402 challenges. Defaults to a provisional signer
-   * derived from `appPrivateKey`.
+   * Escrow settlement config used when a Personal Server read returns `402`.
+   *
+   * @remarks
+   * Wires the DPv2 escrow gateway (`protocol/escrow`). The controller supplies
+   * the EIP-712 `signTypedData` from the app key automatically, so you provide
+   * the gateway `client`, the `escrowContract` address, and (optionally) the
+   * `chainId` and a durable `nonceSource`. If omitted, a `402` from the Personal
+   * Server throws {@link PaymentRequiredError} carrying the amount/asset owed.
    */
-  paymentSigner?: PaymentSigner;
+  escrow?: DirectEscrowConfig;
   /** `fetch` used by the default access-request client. Defaults to `globalThis.fetch`. */
   fetchFn?: FetchLike;
   /** `fetch` used for the Personal Server read. Defaults to `globalThis.fetch`. */
   personalServerFetch?: PersonalServerFetch;
+}
+
+/**
+ * Controller-level escrow config — the {@link EscrowPaymentConfig} minus the
+ * `signTypedData` and `chainId` the controller injects itself.
+ */
+export interface DirectEscrowConfig extends Omit<
+  EscrowPaymentConfig,
+  "signTypedData" | "chainId"
+> {
+  /**
+   * Chain id for the EIP-712 domain. Defaults to the controller's environment
+   * (1480 for production, 14800 for dev).
+   */
+  chainId?: number;
 }
 
 /**
@@ -141,13 +166,18 @@ export interface DirectDataController {
    * Read the approved data from the user's Personal Server.
    *
    * @remarks
-   * Resolves the request to its grant + Personal Server, performs a Web3Signed
-   * read, and transparently handles `402 Payment Required` via the configured
-   * payment signer.
+   * Resolves the request to its grant + Personal Server and performs a Web3Signed
+   * read. Hides the `402 Payment Required` flow by default: if a read needs
+   * payment and `escrow` is configured, it settles the grant via the escrow
+   * gateway and retries, attaching a {@link DirectPaymentReceipt} under
+   * `payment` so callers can inspect amount/asset/fee breakdown. If `escrow` is
+   * not configured, it throws {@link PaymentRequiredError} carrying the
+   * amount/asset owed.
    *
    * @param input - The `dcr_*` request id to read.
-   * @returns `{ scope, data }`.
+   * @returns `{ scope, data, payment? }`.
    * @throws {@link AccessNotApprovedError} if the request is not approved.
+   * @throws {@link PaymentRequiredError} if payment is required but unsettled.
    */
   readApprovedData<T = unknown>(input: {
     requestId: string;
@@ -193,6 +223,10 @@ export function createDirectDataController(
   const account = privateKeyToAccount(privateKey as Hex);
   const signMessage: Web3SignedSignFn = (message: string) =>
     account.signMessage({ message });
+  // viem's account.signTypedData satisfies the structural SignTypedDataFn used
+  // by the escrow GenericPayment signer.
+  const signTypedData = account.signTypedData as unknown as SignTypedDataFn;
+  const chainId = endpoints.chainId;
 
   const accessRequestClient: AccessRequestClient =
     config.accessRequestClient ??
@@ -202,8 +236,15 @@ export function createDirectDataController(
       fetchFn: config.fetchFn,
     });
 
-  const paymentSigner: PaymentSigner =
-    config.paymentSigner ?? createDefaultPaymentSigner(signMessage);
+  const escrow: EscrowPaymentConfig | undefined = config.escrow
+    ? {
+        client: config.escrow.client,
+        escrowContract: config.escrow.escrowContract,
+        chainId: config.escrow.chainId ?? chainId,
+        nonceSource: config.escrow.nonceSource,
+        signTypedData,
+      }
+    : undefined;
 
   return {
     appAddress: account.address,
@@ -261,16 +302,21 @@ export function createDirectDataController(
         );
       }
 
-      const data = await readPersonalServerData({
+      const result = await readPersonalServerData({
         personalServerUrl: status.personalServerUrl,
         scope: status.scope,
         grantId: status.grantId,
+        payerAddress: account.address,
         signMessage,
-        paymentSigner,
+        escrow,
         fetchFn: config.personalServerFetch,
       });
 
-      return { scope: status.scope, data: data as T };
+      return {
+        scope: status.scope,
+        data: result.data as T,
+        payment: result.payment,
+      };
     },
   };
 }

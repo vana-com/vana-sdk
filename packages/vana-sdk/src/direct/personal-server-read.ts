@@ -1,17 +1,15 @@
 /**
- * Personal Server data-read request builder and 402/X-PAYMENT read loop.
+ * Personal Server data-read request builder and the 402 -> escrow-pay -> retry loop.
  *
  * @remarks
- * The builder guide references a `buildPersonalServerDataReadRequest` helper and
- * an X-PAYMENT retry. Neither existed in the SDK, so they are implemented here on
- * top of the existing {@link buildWeb3SignedHeader} primitive. The read targets
- * the Personal Server data path (`/v1/data/{scope}`) used elsewhere in the SDK,
- * authenticates with a Web3Signed header, and — on `402 Payment Required` —
- * signs the parsed challenge via the supplied {@link PaymentSigner} and retries
- * once with the `X-PAYMENT` header.
+ * The read targets the Personal Server data path (`/v1/data/{scope}`),
+ * authenticates with a Web3Signed header (built on {@link buildWeb3SignedHeader}),
+ * and — on `402 Payment Required` — settles the grant's data-access fee through
+ * the DPv2 escrow gateway and retries once.
  *
- * The 402 challenge parsing follows the x402 `accepts` convention; the exact
- * wire shape is **PROVISIONAL**.
+ * The 402 body is parsed into a {@link PersonalServerPaymentRequired}. That body
+ * contract (how the PS expresses *what* is owed) is **PROVISIONAL**; the escrow
+ * settlement it drives is the real `protocol/escrow` surface.
  *
  * @category Direct
  * @module direct/personal-server-read
@@ -19,11 +17,15 @@
 
 import { buildWeb3SignedHeader } from "../auth/web3-signed-builder";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
+import { NATIVE_ASSET_ADDRESS } from "../protocol/escrow";
+import {
+  authorizeGrantPayment,
+  type EscrowPaymentConfig,
+} from "./escrow-payment";
 import { PaymentRequiredError, PersonalServerReadError } from "./errors";
 import type {
-  PaymentChallenge,
-  PaymentRequirement,
-  PaymentSigner,
+  DirectPaymentReceipt,
+  PersonalServerPaymentRequired,
 } from "./types";
 
 /** Minimal `Response`-like shape so the read loop is testable without a DOM. */
@@ -57,6 +59,14 @@ export interface PersonalServerDataReadRequest {
   headers: Record<string, string>;
 }
 
+/** Outcome of {@link readPersonalServerData}: the payload plus optional receipt. */
+export interface PersonalServerReadResult {
+  /** The decoded JSON payload returned by the Personal Server. */
+  data: unknown;
+  /** Present only when this read required (and settled) a payment. */
+  payment?: DirectPaymentReceipt;
+}
+
 function stripTrailingSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
@@ -81,8 +91,6 @@ export async function buildPersonalServerDataReadRequest(params: {
   grantId: string;
   /** EIP-191 signer for the Web3Signed header (the app key). */
   signMessage: Web3SignedSignFn;
-  /** Optional `X-PAYMENT` header value (set on a payment retry). */
-  paymentHeader?: string;
 }): Promise<PersonalServerDataReadRequest> {
   const base = stripTrailingSlash(params.personalServerUrl);
   const path = dataPathForScope(params.scope);
@@ -97,54 +105,78 @@ export async function buildPersonalServerDataReadRequest(params: {
     Authorization: authorization,
     Accept: "application/json",
   };
-  if (params.paymentHeader) {
-    headers["X-PAYMENT"] = params.paymentHeader;
-  }
   return { url: `${base}${path}`, method: "GET", path, headers };
 }
 
-/** Parse a `402 Payment Required` response body into a {@link PaymentChallenge}. */
-export async function parsePaymentChallenge(
+/**
+ * Parse a `402 Payment Required` body into a {@link PersonalServerPaymentRequired}.
+ *
+ * @remarks
+ * Accepts a few likely field spellings and falls back to the read's own grantId
+ * and the native asset. The on-wire contract is **PROVISIONAL**.
+ *
+ * @param res - The 402 response.
+ * @param grantId - The grant id of the read (default `opId`).
+ * @returns The parsed payment requirement.
+ */
+export async function parsePersonalServerPaymentRequired(
   res: FetchResponseLike,
-  resource: string,
-): Promise<PaymentChallenge> {
+  grantId: string,
+): Promise<PersonalServerPaymentRequired> {
   let raw: unknown = undefined;
   try {
     raw = await res.json();
   } catch {
     raw = undefined;
   }
-  const body = (raw ?? {}) as { accepts?: unknown; resource?: unknown };
-  const accepts: PaymentRequirement[] = Array.isArray(body.accepts)
-    ? (body.accepts as PaymentRequirement[])
-    : [];
+  const body = (raw ?? {}) as {
+    grantId?: unknown;
+    opId?: unknown;
+    asset?: unknown;
+    amount?: unknown;
+    maxAmountRequired?: unknown;
+  };
+  const resolvedGrantId =
+    typeof body.grantId === "string"
+      ? body.grantId
+      : typeof body.opId === "string"
+        ? body.opId
+        : grantId;
+  const amountValue =
+    typeof body.amount === "string"
+      ? body.amount
+      : typeof body.maxAmountRequired === "string"
+        ? body.maxAmountRequired
+        : "0";
   return {
-    resource: typeof body.resource === "string" ? body.resource : resource,
-    accepts,
+    grantId: resolvedGrantId,
+    asset: typeof body.asset === "string" ? body.asset : NATIVE_ASSET_ADDRESS,
+    amount: amountValue,
     raw,
   };
 }
 
 /**
- * Read approved data from a Personal Server, handling 402 Payment Required.
+ * Read approved data from a Personal Server, settling a 402 via escrow.
  *
  * @remarks
- * Sends a Web3Signed-authenticated `GET /v1/data/{scope}`. On `402`, parses the
- * challenge, signs it via `paymentSigner`, and retries once with `X-PAYMENT`. If
- * the server still responds 402 (or there is no signer), throws
- * {@link PaymentRequiredError}.
+ * Sends a Web3Signed-authenticated `GET /v1/data/{scope}`. On `402`, parses what
+ * is owed, authorizes an escrow payment for the grant via `escrow`, and retries
+ * once. If escrow is not configured, throws {@link PaymentRequiredError} carrying
+ * the parsed requirement so callers can debug amount/asset.
  *
- * @param params - Connection details, signer, and optional payment signer/fetch.
- * @returns The decoded JSON payload returned by the Personal Server.
+ * @param params - Connection details, app signer, optional escrow config and fetch.
+ * @returns `{ data, payment? }`.
  */
 export async function readPersonalServerData(params: {
   personalServerUrl: string;
   scope: string;
   grantId: string;
+  payerAddress: `0x${string}`;
   signMessage: Web3SignedSignFn;
-  paymentSigner?: PaymentSigner;
+  escrow?: EscrowPaymentConfig;
   fetchFn?: PersonalServerFetch;
-}): Promise<unknown> {
+}): Promise<PersonalServerReadResult> {
   const fetchFn =
     params.fetchFn ?? (globalThis.fetch as unknown as PersonalServerFetch);
   if (!fetchFn) {
@@ -165,25 +197,37 @@ export async function readPersonalServerData(params: {
     headers: initial.headers,
   });
 
+  let payment: DirectPaymentReceipt | undefined;
+
   if (res.status === 402) {
-    if (!params.paymentSigner) {
+    const required = await parsePersonalServerPaymentRequired(
+      res,
+      params.grantId,
+    );
+    if (!params.escrow) {
       throw new PaymentRequiredError(
-        "Personal Server requires payment but no paymentSigner is configured",
-        { scope: params.scope },
+        "Personal Server requires payment but no escrow config is set",
+        {
+          scope: params.scope,
+          grantId: required.grantId,
+          asset: required.asset,
+          amount: required.amount,
+        },
       );
     }
-    const challenge = await parsePaymentChallenge(res, initial.url);
-    const paymentHeader =
-      await params.paymentSigner.signPaymentChallenge(challenge);
 
-    // Re-sign the request — the X-PAYMENT header rides alongside a fresh
-    // Web3Signed Authorization so the read is replay-safe on retry.
+    payment = await authorizeGrantPayment({
+      payerAddress: params.payerAddress,
+      required,
+      config: params.escrow,
+    });
+
+    // Re-sign and retry — the settled payment unlocks the read.
     const retry = await buildPersonalServerDataReadRequest({
       personalServerUrl: params.personalServerUrl,
       scope: params.scope,
       grantId: params.grantId,
       signMessage: params.signMessage,
-      paymentHeader,
     });
     res = await fetchFn(retry.url, {
       method: retry.method,
@@ -192,8 +236,14 @@ export async function readPersonalServerData(params: {
 
     if (res.status === 402) {
       throw new PaymentRequiredError(
-        "Personal Server still requires payment after X-PAYMENT retry",
-        { scope: params.scope },
+        "Personal Server still requires payment after escrow settlement",
+        {
+          scope: params.scope,
+          grantId: required.grantId,
+          asset: required.asset,
+          amount: required.amount,
+          payment,
+        },
       );
     }
   }
@@ -207,5 +257,5 @@ export async function readPersonalServerData(params: {
     );
   }
 
-  return res.json();
+  return { data: await res.json(), payment };
 }

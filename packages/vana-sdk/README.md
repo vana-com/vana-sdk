@@ -112,19 +112,19 @@ scopes. Your **backend** owns the controller (`@opendatalabs/vana-sdk/server`);
 your **frontend** drives a two-tab approval flow with a React hook
 (`@opendatalabs/vana-sdk/react`).
 
-> **Status — provisional transports.** The app-dev access-request service (that
-> issues `dcr_*` ids and approval URLs) and the x402 `X-PAYMENT` settlement
-> scheme do not yet have a finalized in-SDK protocol. The controller ships
-> working defaults against the documented Vana endpoints, but their wire
-> contracts may change. To pin a stable contract today, inject your own
-> `accessRequestClient` and/or `paymentSigner` — the controller shape stays the
-> same.
+> **Status.** Payment uses the **stable** DPv2 escrow surface (`protocol/escrow`):
+> on a `402`, the controller signs a `GenericPayment` with the app key and settles
+> the grant through the escrow gateway. The **access-request service** that issues
+> `dcr_*` ids is the one part still being finalized — advanced callers can inject
+> `accessRequestClient` to pin a transport while it settles.
 
 ### Backend controller
 
 ```typescript
 // lib/vana.ts
 import { createDirectDataController } from "@opendatalabs/vana-sdk/server";
+
+import { createEscrowGatewayClient } from "@opendatalabs/vana-sdk/node";
 
 export const vana = createDirectDataController({
   env: process.env.VANA_ENV === "dev" ? "dev" : "production",
@@ -136,6 +136,12 @@ export const vana = createDirectDataController({
   },
   source: "icloud_notes",
   scopes: ["icloud_notes.notes"],
+  // Settle paid reads through the DPv2 escrow gateway. The controller signs the
+  // GenericPayment with your app key; you supply the gateway client + contract.
+  escrow: {
+    client: createEscrowGatewayClient(process.env.VANA_DP_RPC_URL!),
+    escrowContract: process.env.VANA_ESCROW_CONTRACT! as `0x${string}`,
+  },
 });
 
 // The app's on-chain address — fund and inspect this in the Builder activity
@@ -158,9 +164,23 @@ const status = await vana.getAccessRequestStatus(requestId);
 // -> { status: "approved", personalServerUrl, grantId, scope }
 
 // GET /api/vana/data?requestId=...
-const data = await vana.readApprovedData({ requestId });
-// -> { scope: "icloud_notes.notes", data: [...] }
+const result = await vana.readApprovedData({ requestId });
+// -> {
+//   scope: "icloud_notes.notes",
+//   data: ...,
+//   payment?: {            // present only when this read settled a payment
+//     amount, asset, paymentNonce, paidAt,
+//     breakdown: { registrationFee, dataAccessFee, registrationPaid },
+//   },
+// }
 ```
+
+`readApprovedData` hides the payment flow for normal builders. If the Personal
+Server returns `402 Payment Required`, the controller settles the grant through
+the escrow gateway and retries, attaching a `payment` receipt so you can inspect
+the amount, asset, and fee breakdown. If `escrow` is not configured (or the read
+still requires payment afterward), it throws `PaymentRequiredError` carrying the
+amount and asset owed.
 
 ### Frontend hook
 

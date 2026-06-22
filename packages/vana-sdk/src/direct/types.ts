@@ -51,6 +51,8 @@ export interface AppIdentity extends DirectAppConfig {
  * at a non-standard deployment.
  */
 export interface DirectServiceEndpoints {
+  /** Vana chain id for this environment (1480 mainnet, 14800 moksha). */
+  chainId: number;
   /** Base URL of the access-request (app-dev) service that issues `dcr_*` ids. */
   accessRequestBaseUrl: string;
   /** Base URL users are sent to for approval (the Vana app). */
@@ -96,6 +98,13 @@ export interface ApprovedDataResult<T = unknown> {
   scope: string;
   /** The decoded payload returned by the Personal Server. */
   data: T;
+  /**
+   * Payment receipt — present only when this read required (and settled) a
+   * payment. Lets builders inspect the amount, asset, and fee breakdown without
+   * digging into the underlying 402/escrow exchange. Reads served from a paid-up
+   * grant omit this field.
+   */
+  payment?: DirectPaymentReceipt;
 }
 
 /**
@@ -134,54 +143,89 @@ export interface AccessRequestClient {
 }
 
 /**
- * Injectable signer for x402-style payment challenges.
+ * Op-type vocabulary used by the DPv2 escrow payment surface.
  *
  * @remarks
- * **PROVISIONAL.** When a Personal Server responds `402 Payment Required`, the
- * controller hands the parsed challenge to this signer and retries the read with
- * the returned value as the `X-PAYMENT` header. The default signer is derived
- * from `appPrivateKey`; the exact challenge/voucher format is not yet fixed
- * by an in-repo protocol and may change.
+ * These are the operations the gateway prices and settles via
+ * `POST /v1/escrow/pay` (`opType` field of the `GenericPayment` message). A
+ * direct data read settles the {@link DirectOpType.DataAccess} op for the
+ * approved grant; the other op types are listed here for completeness and to
+ * give builders a typed vocabulary when inspecting fee breakdowns.
+ *
+ * Note: the escrow `GenericPayment` `opType` is currently `"grant"` on the wire
+ * for grant lifecycle payments; this enum names the higher-level fee categories
+ * the gateway reports in a {@link PaymentBreakdown}.
  */
-export interface PaymentSigner {
-  /**
-   * Produce an `X-PAYMENT` header value for a 402 challenge.
-   *
-   * @param challenge - The parsed 402 payment-required challenge.
-   * @returns The `X-PAYMENT` header value to retry the request with.
-   */
-  signPaymentChallenge(challenge: PaymentChallenge): Promise<string>;
-}
+export const DirectOpType = {
+  GrantRegistration: "grant_registration",
+  DataAccess: "data_access",
+  DataRegistration: "data_registration",
+  ServerRegistration: "server_registration",
+  BuilderRegistration: "builder_registration",
+} as const;
+
+/** A direct-flow op type (see {@link DirectOpType}). */
+export type DirectOpTypeValue =
+  (typeof DirectOpType)[keyof typeof DirectOpType];
 
 /**
- * Parsed `402 Payment Required` challenge.
+ * What a Personal Server `402 Payment Required` tells the controller is owed for
+ * a data read.
  *
  * @remarks
- * Modeled on the x402 `accepts` shape. The controller passes the parsed body
- * through verbatim under {@link PaymentChallenge.raw} so a custom
- * {@link PaymentSigner} can read fields the SDK does not yet model.
+ * The PS read 402 body identifies the grant to settle and the amount/asset. The
+ * controller settles it via the DPv2 escrow gateway (`/v1/escrow/pay`). The full
+ * unmodified body is preserved under {@link PersonalServerPaymentRequired.raw}.
  */
-export interface PaymentChallenge {
-  /** Resource being paid for (typically the request URL). */
-  resource: string;
-  /** Candidate payment requirements offered by the server (x402 `accepts`). */
-  accepts: PaymentRequirement[];
+export interface PersonalServerPaymentRequired {
+  /** Grant id to settle (the escrow `opId`). Defaults to the read's grantId. */
+  grantId: string;
+  /** Asset address owed (zero address = native VANA). */
+  asset: string;
+  /** Amount owed, as a decimal base-unit string (preserves uint256 precision). */
+  amount: string;
   /** The full, unmodified 402 response body. */
   raw: unknown;
 }
 
-/** A single x402-style payment requirement option. */
-export interface PaymentRequirement {
-  /** Payment scheme identifier (e.g. `"exact"`). */
-  scheme: string;
-  /** Network/chain the payment settles on. */
-  network: string;
-  /** Amount required, in the smallest unit (string to preserve precision). */
-  maxAmountRequired: string;
-  /** Address that receives the payment. */
-  payTo: string;
-  /** Asset/token contract address. */
+/**
+ * Structured payment metadata attached to a successful paid read.
+ *
+ * @remarks
+ * Derived from the gateway's {@link EscrowPayResult}. Lets builders debug the
+ * amount, asset, and per-op fee breakdown without re-deriving anything from the
+ * raw 402/payment exchange.
+ */
+export interface DirectPaymentReceipt {
+  /** Op type settled (the gateway `opType`, e.g. `"grant"`). */
+  opType: string;
+  /** Op id settled (the grant id). */
+  opId: string;
+  /** Asset paid in (zero address = native VANA). */
   asset: string;
-  /** Opaque, scheme-specific extra fields. */
-  extra?: Record<string, unknown>;
+  /** Total amount paid, as a decimal base-unit string. */
+  amount: string;
+  /** Payment nonce used for this settlement. */
+  paymentNonce: string;
+  /** Fee breakdown reported by the gateway (registration vs data-access fee). */
+  breakdown: DirectFeeBreakdown;
+  /** ISO timestamp the gateway recorded the payment. */
+  paidAt: string;
+}
+
+/**
+ * Per-op fee breakdown reported by the gateway.
+ *
+ * @remarks
+ * Mirrors the escrow {@link PaymentBreakdown}: a one-time registration fee plus
+ * the per-read data-access fee, and whether this settlement covered the
+ * registration fee.
+ */
+export interface DirectFeeBreakdown {
+  /** One-time registration fee for the op, as a decimal base-unit string. */
+  registrationFee: string;
+  /** Per-read data-access fee, as a decimal base-unit string. */
+  dataAccessFee: string;
+  /** True when this settlement paid the registration fee. */
+  registrationPaid: boolean;
 }

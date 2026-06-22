@@ -53,14 +53,10 @@ export interface AppIdentity extends DirectAppConfig {
 export interface DirectServiceEndpoints {
   /** Vana chain id for this environment (1480 mainnet, 14800 moksha). */
   chainId: number;
-  /** Base URL of the access-request (app-dev) service that issues `dcr_*` ids. */
+  /** Base URL of the Vana Account access-request API that issues `dcr_*` ids. */
   accessRequestBaseUrl: string;
   /** Base URL users are sent to for approval (the Vana app). */
   approvalAppBaseUrl: string;
-  /** Base URL of the Data Portability gateway used for grant/server lookups. */
-  gatewayBaseUrl: string;
-  /** Builder activity report base URL (informational; not called at runtime). */
-  builderReportBaseUrl: string;
 }
 
 /** Result of {@link DirectDataController.createAccessRequest}. */
@@ -108,15 +104,13 @@ export interface ApprovedDataResult<T = unknown> {
 }
 
 /**
- * Injectable transport for the access-request (app-dev) service.
+ * Client for the Vana Account access-request API — the service that turns a
+ * registered app + scopes into a `dcr_*` id and approval URL.
  *
  * @remarks
- * **TEMPORARY SEAM.** The app-dev access-request service that turns a registered
- * builder into a `dcr_*` id + approval URL does not yet have a stable, in-SDK
- * protocol implementation. Until it does, the controller accepts an injected
- * client so apps can wire their own transport (or a test double) without losing
- * the copy-paste controller shape. The default implementation targets the
- * documented Vana URLs but its wire contract is **PROVISIONAL** and may change.
+ * The controller uses a default client against the Vana Account endpoints. You
+ * can inject your own implementation to point at a custom deployment or to
+ * supply a test double.
  */
 export interface AccessRequestClient {
   /**

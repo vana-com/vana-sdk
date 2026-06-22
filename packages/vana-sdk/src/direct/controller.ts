@@ -11,18 +11,11 @@
  * - {@link DirectDataController.readApprovedData} — read from the Personal Server,
  *   handling 402 Payment Required.
  *
- * Payment uses the real DPv2 escrow surface (`protocol/escrow`): when a read
- * returns `402`, the controller signs a `GenericPayment` with the app key and
- * settles it through the escrow gateway, then retries.
- *
- * **One part of this flow does not yet have a finalized in-SDK protocol** and is
- * therefore injectable so the controller shape stays copy-paste stable:
- *
- * - `accessRequestClient` — the app-dev service that issues `dcr_*` ids. The
- *   default implementation is **PROVISIONAL** (see {@link createDefaultAccessRequestClient}).
- *
- * The Personal Server read, Web3Signed auth, and escrow settlement are all real
- * and built on the SDK's existing primitives.
+ * Access requests are created through the Vana Account access-request API; the
+ * Personal Server read uses Web3Signed auth; and payment uses the DPv2 escrow
+ * surface (`protocol/escrow`) — when a read returns `402`, the controller signs
+ * a `GenericPayment` with the app key, settles it through the escrow gateway,
+ * and retries.
  *
  * @category Direct
  * @module direct/controller
@@ -83,9 +76,9 @@ export interface DirectDataControllerConfig {
    */
   endpoints?: Partial<DirectServiceEndpoints>;
   /**
-   * Injected access-request transport. **TEMPORARY** — defaults to a provisional
-   * client against the documented Vana endpoints. Provide your own for a stable
-   * wire contract.
+   * Client for the Vana Account access-request API. Defaults to a client against
+   * the resolved Vana Account endpoints; inject your own to point at a custom
+   * deployment or to supply a test double.
    */
   accessRequestClient?: AccessRequestClient;
   /**

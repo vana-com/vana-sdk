@@ -2,11 +2,8 @@
  * Per-environment service URLs for the Direct Data Controller.
  *
  * @remarks
- * The builder guide says "The SDK should provide production defaults. Use
- * explicit dev/testnet configuration only when testing against Vana's dev
- * stack." This module is that single source of truth. URLs are derived from the
- * documented Vana endpoints; the access-request and gateway base URLs are
- * **PROVISIONAL** until the app-dev service contract is finalized.
+ * The SDK ships production defaults; pass `env: "dev"` only when testing against
+ * Vana's dev stack. This module is the single source of truth for those URLs.
  *
  * @category Direct
  * @module direct/endpoints
@@ -19,17 +16,13 @@ export const PRODUCTION_ENDPOINTS: DirectServiceEndpoints = {
   chainId: 1480,
   accessRequestBaseUrl: "https://app.vana.org",
   approvalAppBaseUrl: "https://app.vana.org",
-  gatewayBaseUrl: "https://gateway.vana.org",
-  builderReportBaseUrl: "https://builders.vana.org",
 } as const;
 
 /** Dev/testnet (moksha) service URLs. */
 export const DEV_ENDPOINTS: DirectServiceEndpoints = {
   chainId: 14800,
-  accessRequestBaseUrl: "https://app.dev.vana.org",
-  approvalAppBaseUrl: "https://app.dev.vana.org",
-  gatewayBaseUrl: "https://gateway.dev.vana.org",
-  builderReportBaseUrl: "https://builders-dev.vana.org",
+  accessRequestBaseUrl: "https://app-dev.vana.org",
+  approvalAppBaseUrl: "https://app-dev.vana.org",
 } as const;
 
 /**

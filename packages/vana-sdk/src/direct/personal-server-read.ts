@@ -7,9 +7,8 @@
  * and — on `402 Payment Required` — settles the grant's data-access fee through
  * the DPv2 escrow gateway and retries once.
  *
- * The 402 body is parsed into a {@link PersonalServerPaymentRequired}. That body
- * contract (how the PS expresses *what* is owed) is **PROVISIONAL**; the escrow
- * settlement it drives is the real `protocol/escrow` surface.
+ * The 402 body is parsed into a {@link PersonalServerPaymentRequired} (grant id,
+ * asset, and amount owed), which drives the escrow settlement.
  *
  * @category Direct
  * @module direct/personal-server-read
@@ -112,8 +111,8 @@ export async function buildPersonalServerDataReadRequest(params: {
  * Parse a `402 Payment Required` body into a {@link PersonalServerPaymentRequired}.
  *
  * @remarks
- * Accepts a few likely field spellings and falls back to the read's own grantId
- * and the native asset. The on-wire contract is **PROVISIONAL**.
+ * Accepts a few field spellings and falls back to the read's own grantId and the
+ * native asset when a field is absent.
  *
  * @param res - The 402 response.
  * @param grantId - The grant id of the read (default `opId`).

@@ -12,10 +12,8 @@
  *  3. Map the gateway's {@link EscrowPayResult} into a typed
  *     {@link DirectPaymentReceipt} for the caller to inspect.
  *
- * This module does not invent a payment scheme — it adapts the real escrow
- * `payForOp` flow to the direct-read use case. The only provisional part is the
- * shape the PS read uses to express *what* is owed in its 402 body (parsed in
- * `personal-server-read`), since that contract is not yet finalized.
+ * This module adapts the escrow `payForOp` flow to the direct-read use case; it
+ * does not define its own payment scheme.
  *
  * @category Direct
  * @module direct/escrow-payment

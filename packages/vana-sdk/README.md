@@ -112,11 +112,12 @@ scopes. Your **backend** owns the controller (`@opendatalabs/vana-sdk/server`);
 your **frontend** drives a two-tab approval flow with a React hook
 (`@opendatalabs/vana-sdk/react`).
 
-> **Status.** Payment uses the **stable** DPv2 escrow surface (`protocol/escrow`):
-> on a `402`, the controller signs a `GenericPayment` with the app key and settles
-> the grant through the escrow gateway. The **access-request service** that issues
-> `dcr_*` ids is the one part still being finalized — advanced callers can inject
-> `accessRequestClient` to pin a transport while it settles.
+> **How it fits together.** Access requests are created through the Vana Account
+> access-request API; the Personal Server read uses Web3Signed auth; and payment
+> settles on a `402` through the DPv2 escrow surface (`protocol/escrow`), where the
+> controller signs a `GenericPayment` with your app key. You can inject your own
+> `accessRequestClient` to target a custom deployment, and `escrow` config to wire
+> the escrow gateway.
 
 ### Backend controller
 

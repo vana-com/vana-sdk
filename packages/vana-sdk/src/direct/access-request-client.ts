@@ -1,14 +1,11 @@
 /**
- * Default (provisional) transport for the app-dev access-request service.
+ * Default client for the Vana Account access-request API.
  *
  * @remarks
- * **TEMPORARY.** There is no finalized in-SDK protocol for the app-dev service
- * that issues `dcr_*` ids and approval URLs. This default client targets the
- * documented Vana endpoints with a best-effort wire contract so the controller
- * works end-to-end against the dev/prod stacks, but its request/response shape
- * is **PROVISIONAL** and may change without a major version bump. Apps that need
- * a stable contract today should inject their own {@link AccessRequestClient}
- * (see `accessRequestClient` on {@link DirectDataControllerConfig}).
+ * Calls the Vana Account endpoints that issue `dcr_*` ids and approval URLs and
+ * report request status. Inject a custom {@link AccessRequestClient} on the
+ * controller to point at a different deployment; pass `fetchFn` to supply a test
+ * double for the HTTP layer.
  *
  * @category Direct
  * @module direct/access-request-client
@@ -39,7 +36,7 @@ export type FetchLike = (
 
 /** Options for {@link createDefaultAccessRequestClient}. */
 export interface DefaultAccessRequestClientOptions {
-  /** Base URL of the access-request service. */
+  /** Base URL of the Vana Account access-request API. */
   baseUrl: string;
   /** Base URL the user is sent to for approval. */
   approvalBaseUrl: string;
@@ -82,7 +79,8 @@ export function buildApprovalUrl(
 }
 
 /**
- * Create the default, provisional {@link AccessRequestClient}.
+ * Create the default {@link AccessRequestClient} for the Vana Account
+ * access-request API.
  *
  * @param options - Base URLs and an optional `fetch` implementation.
  * @returns An {@link AccessRequestClient} backed by HTTP calls.

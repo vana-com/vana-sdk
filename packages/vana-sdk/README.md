@@ -104,6 +104,97 @@ const result = await storage.upload(myBlob, "report.json");
 console.log(result.url);
 ```
 
+## Build a direct Vana app
+
+Request user-approved data, read it from the user's Personal Server, and pay
+for the read — without the browser ever seeing your app private key or choosing
+scopes. Your **backend** owns the controller (`@opendatalabs/vana-sdk/server`);
+your **frontend** drives a two-tab approval flow with a React hook
+(`@opendatalabs/vana-sdk/react`).
+
+> **Status — provisional transports.** The app-dev access-request service (that
+> issues `dcr_*` ids and approval URLs) and the x402 `X-PAYMENT` settlement
+> scheme do not yet have a finalized in-SDK protocol. The controller ships
+> working defaults against the documented Vana endpoints, but their wire
+> contracts may change. To pin a stable contract today, inject your own
+> `accessRequestClient` and/or `paymentSigner` — the controller shape stays the
+> same.
+
+### Backend controller
+
+```typescript
+// lib/vana.ts
+import { createDirectDataController } from "@opendatalabs/vana-sdk/server";
+
+export const vana = createDirectDataController({
+  env: process.env.VANA_ENV === "dev" ? "dev" : "production",
+  builderPrivateKey: process.env.VANA_BUILDER_PRIVATE_KEY!,
+  app: {
+    id: "notes-lens",
+    name: "Notes Lens",
+    homepageUrl: process.env.VANA_APP_URL!,
+  },
+  source: "icloud_notes",
+  scopes: ["icloud_notes.notes"],
+});
+```
+
+Wire it to three routes — your backend chooses the source and scopes, owns the
+private key, and handles `402 Payment Required`:
+
+```typescript
+// POST /api/vana/request
+const request = await vana.createAccessRequest({
+  returnUrl: `${process.env.VANA_APP_URL}/connect/return`,
+});
+// -> { requestId: "dcr_...", approvalUrl: "https://app.vana.org/...", appAddress: "0x..." }
+
+// GET /api/vana/status?requestId=...
+const status = await vana.getAccessRequestStatus(requestId);
+// -> { status: "approved", personalServerUrl, grantId, scope }
+
+// GET /api/vana/data?requestId=...
+const data = await vana.readApprovedData({ requestId });
+// -> { scope: "icloud_notes.notes", data: [...] }
+```
+
+### Frontend hook
+
+```tsx
+"use client";
+import { useDirectVanaConnect } from "@opendatalabs/vana-sdk/react";
+
+export function ConnectNotesButton() {
+  const connect = useDirectVanaConnect({
+    createRequest: () =>
+      fetch("/api/vana/request", { method: "POST" }).then((r) => r.json()),
+    getStatus: (requestId) =>
+      fetch(`/api/vana/status?requestId=${encodeURIComponent(requestId)}`).then(
+        (r) => r.json(),
+      ),
+    readResult: (requestId) =>
+      fetch(`/api/vana/data?requestId=${encodeURIComponent(requestId)}`).then(
+        (r) => r.json(),
+      ),
+  });
+
+  return (
+    <button
+      disabled={connect.state.type !== "idle"}
+      onClick={connect.start}
+      type="button"
+    >
+      {connect.state.type === "idle" ? "Connect Apple Notes" : "Connecting..."}
+    </button>
+  );
+}
+```
+
+The hook calls `createRequest`, opens the Vana approval URL, polls `getStatus`
+until the request is approved, then calls `readResult`. `react` is an optional
+peer dependency. The underlying `createDirectConnectFlow` store is also exported
+for non-React frontends.
+
 ## Networks
 
 | Network        | Chain ID | RPC URL                     |

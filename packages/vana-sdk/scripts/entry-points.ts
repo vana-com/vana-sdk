@@ -8,6 +8,8 @@ export const NODE_ENTRY_POINTS = [
   "src/node.ts",
   "src/chains.node.ts",
   "src/platform.node.ts",
+  // Direct Data Controller (server-side; owns the app private key).
+  "src/server.ts",
 ];
 
 export const BROWSER_ENTRY_POINTS = [
@@ -15,6 +17,8 @@ export const BROWSER_ENTRY_POINTS = [
   "src/browser.ts",
   "src/chains.browser.ts",
   "src/platform.browser.ts",
+  // Direct Vana connect React hook (browser-safe).
+  "src/react.ts",
 ];
 
 // Environment-agnostic entry points (resolve conditionally based on platform)

@@ -225,6 +225,16 @@ export {
   type VerifyGrantRegistrationResult,
 } from "./protocol/grants";
 export {
+  FEE_REGISTRY_ABI,
+  REGISTRATION_KIND_FOR_OP,
+  getFee,
+  getOpFee,
+  type FeeKind,
+  type FeeEntry,
+  type OpFee,
+  type FeeRegistryOptions,
+} from "./protocol/fee-registry";
+export {
   ScopeSchema,
   parseScope,
   scopeToPathSegments,

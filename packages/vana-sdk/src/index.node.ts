@@ -283,6 +283,8 @@ export {
   type Builder,
   type Schema,
   type ServerInfo,
+  type GatewayGrantFee,
+  type GatewayGrantStatus,
   type GatewayGrantResponse,
   type GrantListItem,
   type DataPointRecord,

@@ -93,6 +93,9 @@ describe("Account Personal Server registration integration", () => {
             PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
           dataPortabilityGrantees:
             PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
+          dataPortabilityEscrow:
+            PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
+          feeRegistry: PERSONAL_SERVER_REGISTRATION_DEFAULT_VERIFYING_CONTRACT,
         },
       },
     });

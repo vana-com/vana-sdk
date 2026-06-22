@@ -104,6 +104,122 @@ const result = await storage.upload(myBlob, "report.json");
 console.log(result.url);
 ```
 
+## Build a direct Vana app
+
+Request user-approved data, read it from the user's Personal Server, and pay
+for the read — without the browser ever seeing your app private key or choosing
+scopes. Your **backend** owns the controller (`@opendatalabs/vana-sdk/server`);
+your **frontend** drives a two-tab approval flow with a React hook
+(`@opendatalabs/vana-sdk/react`).
+
+> **How it fits together.** Access requests are created through the Vana Account
+> access-request API; the Personal Server read uses Web3Signed auth; and payment
+> settles on a `402` through the DPv2 escrow surface (`protocol/escrow`), where the
+> controller signs a `GenericPayment` with your app key. You can inject your own
+> `accessRequestClient` to target a custom deployment, and `escrow` config to wire
+> the escrow gateway.
+
+### Backend controller
+
+```typescript
+// lib/vana.ts
+import { createDirectDataController } from "@opendatalabs/vana-sdk/server";
+
+import { createEscrowGatewayClient } from "@opendatalabs/vana-sdk/node";
+
+export const vana = createDirectDataController({
+  env: process.env.VANA_ENV === "dev" ? "dev" : "production",
+  appPrivateKey: process.env.VANA_APP_PRIVATE_KEY!,
+  app: {
+    id: "notes-lens",
+    name: "Notes Lens",
+    homepageUrl: process.env.VANA_APP_URL!,
+  },
+  source: "icloud_notes",
+  scopes: ["icloud_notes.notes"],
+  // Settle paid reads through the DPv2 escrow gateway. The controller signs the
+  // GenericPayment with your app key; you supply the gateway client + contract.
+  escrow: {
+    client: createEscrowGatewayClient(process.env.VANA_DP_RPC_URL!),
+    escrowContract: process.env.VANA_ESCROW_CONTRACT! as `0x${string}`,
+  },
+});
+
+// The app's on-chain address — fund and inspect this in the Builder activity
+// report. (`vana.getAppIdentity()` also returns the configured id/name/homepage.)
+console.log(vana.getAppAddress()); // 0x...
+```
+
+Wire it to three routes — your backend chooses the source and scopes, owns the
+private key, and handles `402 Payment Required`:
+
+```typescript
+// POST /api/vana/request
+const request = await vana.createAccessRequest({
+  returnUrl: `${process.env.VANA_APP_URL}/connect/return`,
+});
+// -> { requestId: "dcr_...", approvalUrl: "https://app.vana.org/...", appAddress: "0x..." }
+
+// GET /api/vana/status?requestId=...
+const status = await vana.getAccessRequestStatus(requestId);
+// -> { status: "approved", personalServerUrl, grantId, scope }
+
+// GET /api/vana/data?requestId=...
+const result = await vana.readApprovedData({ requestId });
+// -> {
+//   scope: "icloud_notes.notes",
+//   data: ...,
+//   payment?: {            // present only when this read settled a payment
+//     amount, asset, paymentNonce, paidAt,
+//     breakdown: { registrationFee, dataAccessFee, registrationPaid },
+//   },
+// }
+```
+
+`readApprovedData` hides the payment flow for normal builders. If the Personal
+Server returns `402 Payment Required`, the controller settles the grant through
+the escrow gateway and retries, attaching a `payment` receipt so you can inspect
+the amount, asset, and fee breakdown. If `escrow` is not configured (or the read
+still requires payment afterward), it throws `PaymentRequiredError` carrying the
+amount and asset owed.
+
+### Frontend hook
+
+```tsx
+"use client";
+import { useDirectVanaConnect } from "@opendatalabs/vana-sdk/react";
+
+export function ConnectNotesButton() {
+  const connect = useDirectVanaConnect({
+    createRequest: () =>
+      fetch("/api/vana/request", { method: "POST" }).then((r) => r.json()),
+    getStatus: (requestId) =>
+      fetch(`/api/vana/status?requestId=${encodeURIComponent(requestId)}`).then(
+        (r) => r.json(),
+      ),
+    readResult: (requestId) =>
+      fetch(`/api/vana/data?requestId=${encodeURIComponent(requestId)}`).then(
+        (r) => r.json(),
+      ),
+  });
+
+  return (
+    <button
+      disabled={connect.state.type !== "idle"}
+      onClick={connect.start}
+      type="button"
+    >
+      {connect.state.type === "idle" ? "Connect Apple Notes" : "Connecting..."}
+    </button>
+  );
+}
+```
+
+The hook calls `createRequest`, opens the Vana approval URL, polls `getStatus`
+until the request is approved, then calls `readResult`. `react` is an optional
+peer dependency. The underlying `createDirectConnectFlow` store is also exported
+for non-React frontends.
+
 ## Networks
 
 | Network        | Chain ID | RPC URL                     |

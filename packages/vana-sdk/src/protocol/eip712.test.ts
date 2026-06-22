@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADD_DATA_TYPES,
   BUILDER_REGISTRATION_TYPES,
-  FILE_DELETION_TYPES,
-  FILE_REGISTRATION_TYPES,
+  GENERIC_PAYMENT_TYPES,
   GRANT_REGISTRATION_TYPES,
   GRANT_REVOCATION_TYPES,
+  NATIVE_VANA_ASSET,
+  RECORD_DATA_ACCESS_TYPES,
   SERVER_REGISTRATION_TYPES,
   builderRegistrationDomain,
-  fileDeletionDomain,
-  fileRegistrationDomain,
+  dataRegistryDomain,
+  escrowPaymentDomain,
   grantRegistrationDomain,
   grantRevocationDomain,
   serverRegistrationDomain,
@@ -22,12 +24,14 @@ const CONFIG: DataPortabilityGatewayConfig = {
     dataPortabilityPermissions: "0x2222222222222222222222222222222222222222",
     dataPortabilityServer: "0x3333333333333333333333333333333333333333",
     dataPortabilityGrantees: "0x4444444444444444444444444444444444444444",
+    dataPortabilityEscrow: "0x5555555555555555555555555555555555555555",
+    feeRegistry: "0x6666666666666666666666666666666666666666",
   },
 };
 
 describe("Data Portability EIP-712 helpers", () => {
   it("builds domains for each protocol contract", () => {
-    expect(fileRegistrationDomain(CONFIG)).toMatchObject({
+    expect(dataRegistryDomain(CONFIG)).toMatchObject({
       name: "Vana Data Portability",
       version: "1",
       chainId: 14800,
@@ -39,37 +43,35 @@ describe("Data Portability EIP-712 helpers", () => {
     expect(grantRevocationDomain(CONFIG)).toMatchObject({
       verifyingContract: CONFIG.contracts.dataPortabilityPermissions,
     });
-    // File deletion uses the same DataRegistry domain as file registration.
-    expect(fileDeletionDomain(CONFIG)).toMatchObject({
-      verifyingContract: CONFIG.contracts.dataRegistry,
-    });
     expect(serverRegistrationDomain(CONFIG)).toMatchObject({
       verifyingContract: CONFIG.contracts.dataPortabilityServer,
     });
     expect(builderRegistrationDomain(CONFIG)).toMatchObject({
       verifyingContract: CONFIG.contracts.dataPortabilityGrantees,
     });
+    expect(escrowPaymentDomain(CONFIG)).toMatchObject({
+      verifyingContract: CONFIG.contracts.dataPortabilityEscrow,
+    });
+  });
+
+  it("exposes the native VANA asset sentinel", () => {
+    expect(NATIVE_VANA_ASSET).toBe(
+      "0x0000000000000000000000000000000000000000",
+    );
   });
 
   it("exports stable typed-data shapes", () => {
-    expect(FILE_REGISTRATION_TYPES.FileRegistration).toEqual([
-      { name: "ownerAddress", type: "address" },
-      { name: "url", type: "string" },
-      { name: "schemaId", type: "bytes32" },
-    ]);
     expect(GRANT_REGISTRATION_TYPES.GrantRegistration).toEqual([
       { name: "grantorAddress", type: "address" },
       { name: "granteeId", type: "bytes32" },
-      { name: "grant", type: "string" },
-      { name: "fileIds", type: "uint256[]" },
+      { name: "scopes", type: "string[]" },
+      { name: "grantVersion", type: "uint256" },
+      { name: "expiresAt", type: "uint256" },
     ]);
     expect(GRANT_REVOCATION_TYPES.GrantRevocation).toEqual([
       { name: "grantorAddress", type: "address" },
       { name: "grantId", type: "bytes32" },
-    ]);
-    expect(FILE_DELETION_TYPES.FileDeletion).toEqual([
-      { name: "ownerAddress", type: "address" },
-      { name: "fileId", type: "bytes32" },
+      { name: "grantVersion", type: "uint256" },
     ]);
     expect(SERVER_REGISTRATION_TYPES.ServerRegistration).toEqual([
       { name: "ownerAddress", type: "address" },
@@ -82,6 +84,28 @@ describe("Data Portability EIP-712 helpers", () => {
       { name: "granteeAddress", type: "address" },
       { name: "publicKey", type: "string" },
       { name: "appUrl", type: "string" },
+    ]);
+    expect(GENERIC_PAYMENT_TYPES.GenericPayment).toEqual([
+      { name: "payerAddress", type: "address" },
+      { name: "opType", type: "string" },
+      { name: "opId", type: "bytes32" },
+      { name: "asset", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "paymentNonce", type: "uint256" },
+    ]);
+    expect(ADD_DATA_TYPES.AddData).toEqual([
+      { name: "ownerAddress", type: "address" },
+      { name: "scope", type: "string" },
+      { name: "dataHash", type: "bytes32" },
+      { name: "metadataHash", type: "bytes32" },
+      { name: "expectedVersion", type: "uint256" },
+    ]);
+    expect(RECORD_DATA_ACCESS_TYPES.RecordDataAccess).toEqual([
+      { name: "ownerAddress", type: "address" },
+      { name: "scope", type: "string" },
+      { name: "version", type: "uint256" },
+      { name: "accessor", type: "address" },
+      { name: "recordId", type: "bytes32" },
     ]);
   });
 });

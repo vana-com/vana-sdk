@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildApprovalUrl,
+  buildDirectAccessRequestAuthMessage,
   createDefaultAccessRequestClient,
   type FetchLike,
 } from "./access-request-client";
@@ -22,7 +23,7 @@ describe("buildApprovalUrl", () => {
 function fakeFetch(
   handler: (
     url: string,
-    init?: { method?: string; body?: string },
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
   ) => { status: number; body: unknown },
 ): FetchLike {
   return async (url, init) => {
@@ -99,6 +100,88 @@ describe("createDefaultAccessRequestClient", () => {
       grantId: "0xgrant",
       scope: "icloud_notes.notes",
     });
+  });
+
+  it("signs create and status requests when app auth is configured", async () => {
+    const requests: Array<{
+      init?: {
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string;
+      };
+      url: string;
+    }> = [];
+    const signedMessages: string[] = [];
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      appAddress: "0xabc",
+      now: () => 123,
+      signMessage: async (message) => {
+        signedMessages.push(message);
+        return `0xsig${signedMessages.length}` as `0x${string}`;
+      },
+      fetchFn: fakeFetch((url, init) => {
+        requests.push({ url, init });
+        return {
+          status: 200,
+          body: url.endsWith("/dcr_9")
+            ? { status: "pending" }
+            : { requestId: "dcr_9" },
+        };
+      }),
+    });
+
+    await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+    });
+    await client.getAccessRequestStatus("dcr_9");
+
+    const createBody = requests[0]?.init?.body ?? "";
+    expect(requests[0]).toMatchObject({
+      url: "https://app.vana.org/api/data-connection-requests",
+      init: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Vana-App-Address": "0xabc",
+          "X-Vana-App-Signature": "0xsig1",
+          "X-Vana-App-Timestamp": "123",
+        },
+      },
+    });
+    expect(signedMessages[0]).toBe(
+      buildDirectAccessRequestAuthMessage({
+        body: createBody,
+        method: "POST",
+        path: "/api/data-connection-requests",
+        timestamp: "123",
+      }),
+    );
+
+    expect(requests[1]).toMatchObject({
+      url: "https://app.vana.org/api/data-connection-requests/dcr_9",
+      init: {
+        method: "GET",
+        headers: {
+          "X-Vana-App-Address": "0xabc",
+          "X-Vana-App-Signature": "0xsig2",
+          "X-Vana-App-Timestamp": "123",
+        },
+      },
+    });
+    expect(signedMessages[1]).toBe(
+      buildDirectAccessRequestAuthMessage({
+        body: "",
+        method: "GET",
+        path: "/api/data-connection-requests/dcr_9",
+        timestamp: "123",
+      }),
+    );
   });
 
   it("throws on a non-ok create response", async () => {

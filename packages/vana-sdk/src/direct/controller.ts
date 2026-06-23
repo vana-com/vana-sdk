@@ -227,6 +227,8 @@ export function createDirectDataController(
       baseUrl: endpoints.accessRequestBaseUrl,
       approvalBaseUrl: endpoints.approvalAppBaseUrl,
       fetchFn: config.fetchFn,
+      appAddress: account.address,
+      signMessage,
     });
 
   const escrow: EscrowPaymentConfig | undefined = config.escrow

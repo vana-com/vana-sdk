@@ -17,6 +17,7 @@ import type {
   AccessRequestStatus,
   AccessRequestStatusValue,
 } from "./types";
+import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 
 /** Minimal `fetch` signature so the client is testable without a global fetch. */
 export type FetchLike = (
@@ -42,6 +43,12 @@ export interface DefaultAccessRequestClientOptions {
   approvalBaseUrl: string;
   /** `fetch` implementation. Defaults to the global `fetch`. */
   fetchFn?: FetchLike;
+  /** App identity address used for direct access-request authentication. */
+  appAddress?: string;
+  /** EIP-191 signer for direct access-request authentication. */
+  signMessage?: Web3SignedSignFn;
+  /** Clock source used for signed request timestamps. */
+  now?: () => number;
 }
 
 const VALID_STATUSES: readonly AccessRequestStatusValue[] = [
@@ -59,6 +66,52 @@ function normalizeStatus(value: unknown): AccessRequestStatusValue {
 
 function stripTrailingSlash(url: string): string {
   return url.replace(/\/+$/, "");
+}
+
+const DIRECT_ACCESS_REQUEST_MESSAGE_PREFIX = "Vana Direct Access Request v1";
+
+interface DirectAccessRequestAuthInput {
+  body: string;
+  method: string;
+  path: string;
+  timestamp: string;
+}
+
+export function buildDirectAccessRequestAuthMessage(
+  input: DirectAccessRequestAuthInput,
+): string {
+  return [
+    DIRECT_ACCESS_REQUEST_MESSAGE_PREFIX,
+    `method:${input.method.toUpperCase()}`,
+    `path:${input.path}`,
+    `timestamp:${input.timestamp}`,
+    `body:${input.body}`,
+  ].join("\n");
+}
+
+async function buildDirectAccessRequestHeaders(
+  options: DefaultAccessRequestClientOptions,
+  input: Omit<DirectAccessRequestAuthInput, "timestamp">,
+): Promise<Record<string, string>> {
+  if (!options.appAddress && !options.signMessage) {
+    return {};
+  }
+  if (!options.appAddress || !options.signMessage) {
+    throw new Error(
+      "Direct access-request authentication requires both `appAddress` and `signMessage`.",
+    );
+  }
+
+  const timestamp = String(options.now?.() ?? Date.now());
+  const signature = await options.signMessage(
+    buildDirectAccessRequestAuthMessage({ ...input, timestamp }),
+  );
+
+  return {
+    "X-Vana-App-Address": options.appAddress,
+    "X-Vana-App-Signature": signature,
+    "X-Vana-App-Timestamp": timestamp,
+  };
 }
 
 /**
@@ -98,48 +151,62 @@ export function createDefaultAccessRequestClient(
 
   return {
     async createAccessRequest(input): Promise<AccessRequest> {
-      const res = await fetchFn(`${base}/api/v1/data-connection-requests`, {
+      const path = "/api/data-connection-requests";
+      const body = JSON.stringify({
+        appAddress: input.appAddress,
+        app: input.app,
+        source: input.source,
+        scopes: input.scopes,
+        returnUrl: input.returnUrl,
+      });
+      const res = await fetchFn(`${base}${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          appAddress: input.appAddress,
-          app: input.app,
-          source: input.source,
-          scopes: input.scopes,
-          returnUrl: input.returnUrl,
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(await buildDirectAccessRequestHeaders(options, {
+            body,
+            method: "POST",
+            path,
+          })),
+        },
+        body,
       });
       if (!res.ok) {
         throw new Error(
           `Access request service error: ${res.status} ${res.statusText}`,
         );
       }
-      const body = (await res.json()) as {
+      const responseBody = (await res.json()) as {
         requestId?: string;
         id?: string;
         approvalUrl?: string;
         appAddress?: string;
       };
-      const requestId = body.requestId ?? body.id;
+      const requestId = responseBody.requestId ?? responseBody.id;
       if (!requestId) {
         throw new Error("Access request service returned no requestId");
       }
       return {
         requestId,
         approvalUrl:
-          body.approvalUrl ??
+          responseBody.approvalUrl ??
           buildApprovalUrl(options.approvalBaseUrl, requestId),
-        appAddress: body.appAddress ?? input.appAddress,
+        appAddress: responseBody.appAddress ?? input.appAddress,
       };
     },
 
     async getAccessRequestStatus(
       requestId: string,
     ): Promise<AccessRequestStatus> {
-      const res = await fetchFn(
-        `${base}/api/v1/data-connection-requests/${encodeURIComponent(requestId)}`,
-        { method: "GET" },
-      );
+      const path = `/api/data-connection-requests/${encodeURIComponent(requestId)}`;
+      const res = await fetchFn(`${base}${path}`, {
+        method: "GET",
+        headers: await buildDirectAccessRequestHeaders(options, {
+          body: "",
+          method: "GET",
+          path,
+        }),
+      });
       if (!res.ok) {
         throw new Error(
           `Access request service error: ${res.status} ${res.statusText}`,

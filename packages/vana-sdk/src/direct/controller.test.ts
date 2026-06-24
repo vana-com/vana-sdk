@@ -175,6 +175,32 @@ describe("createDirectDataController — createAccessRequest", () => {
       returnUrl: "https://notes-lens.example/connect/return",
     });
   });
+
+  it("uses production access-request URLs when the network is Moksha", async () => {
+    const seenRequests: string[] = [];
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      network: "moksha",
+      fetchFn: async (input) => {
+        seenRequests.push(input);
+        return jsonResponse({ requestId: "dcr_moksha" });
+      },
+    });
+
+    const result = await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/connect/return",
+    });
+
+    expect(seenRequests).toEqual([
+      "https://app.vana.org/api/data-connection-requests",
+    ]);
+    expect(result.approvalUrl).toBe(
+      "https://app.vana.org/data-connection-requests/dcr_moksha?mode=page",
+    );
+  });
 });
 
 function payResultFixture(): EscrowPayResult {

@@ -75,6 +75,7 @@ export {
 // Shared types
 export type {
   DirectEnv,
+  DirectNetwork,
   DirectAppConfig,
   AppIdentity,
   DirectServiceEndpoints,

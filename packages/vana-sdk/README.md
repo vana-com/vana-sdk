@@ -119,6 +119,10 @@ your **frontend** drives a two-tab approval flow with a React hook
 > `accessRequestClient` to target a custom deployment, and `escrow` config to wire
 > the escrow gateway.
 
+Use `network: "moksha"` to keep production app/API URLs while running escrow and
+chain-aware defaults against Moksha. `env: "dev"` remains for Vana's internal dev
+deployment and switches deployment URLs.
+
 ### Backend controller
 
 ```typescript
@@ -129,6 +133,7 @@ import { createEscrowGatewayClient } from "@opendatalabs/vana-sdk/node";
 
 export const vana = createDirectDataController({
   env: process.env.VANA_ENV === "dev" ? "dev" : "production",
+  network: process.env.VANA_NETWORK === "moksha" ? "moksha" : "mainnet",
   appPrivateKey: process.env.VANA_APP_PRIVATE_KEY!,
   app: {
     id: "notes-lens",

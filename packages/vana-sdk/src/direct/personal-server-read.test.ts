@@ -27,14 +27,17 @@ const RECORD_ID =
 
 function jsonRes(
   body: unknown,
-  init: { status?: number } = {},
+  init: { status?: number; headers?: Record<string, string> } = {},
 ): FetchResponseLike {
   const status = init.status ?? 200;
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: `HTTP ${status}`,
-    headers: { get: () => null },
+    headers: {
+      get: (name) =>
+        init.headers?.[name] ?? init.headers?.[name.toLowerCase()] ?? null,
+    },
     json: async () => body,
     text: async () => JSON.stringify(body),
   };
@@ -231,9 +234,10 @@ describe("readPersonalServerData", () => {
     expect(result.payment).toBeUndefined();
   });
 
-  it("settles a 402 via escrow and retries, attaching a payment receipt", async () => {
+  it("retries a 402 with x402 payment proof and attaches a payment receipt", async () => {
     let call = 0;
     const payForOp = vi.fn(async () => payResultFixture(GRANT_ID));
+    let retryPaymentHeader: string | undefined;
     const result = await readPersonalServerData({
       personalServerUrl: "https://ps.example.com",
       scope: "icloud_notes.notes",
@@ -241,7 +245,7 @@ describe("readPersonalServerData", () => {
       payerAddress: PAYER,
       signMessage,
       escrow: mockEscrow(payForOp),
-      fetchFn: async () => {
+      fetchFn: async (_input, init) => {
         call += 1;
         if (call === 1) {
           return jsonRes(
@@ -249,12 +253,39 @@ describe("readPersonalServerData", () => {
             { status: 402 },
           );
         }
-        return jsonRes({ ok: true });
+        retryPaymentHeader = init.headers["X-PAYMENT"];
+        return jsonRes(
+          { ok: true },
+          {
+            headers: {
+              "X-PAYMENT-RESPONSE": btoa(
+                JSON.stringify(payResultFixture(GRANT_ID)),
+              ),
+            },
+          },
+        );
       },
     });
 
     expect(call).toBe(2);
-    expect(payForOp).toHaveBeenCalledTimes(1);
+    expect(payForOp).not.toHaveBeenCalled();
+    expect(retryPaymentHeader).toBeDefined();
+    expect(JSON.parse(atob(retryPaymentHeader!))).toMatchObject({
+      x402Version: 1,
+      scheme: "vana-escrow-grant",
+      network: "vana:14800",
+      payload: {
+        message: {
+          payerAddress: PAYER,
+          opType: "grant",
+          opId: GRANT_ID,
+          asset: NATIVE_ASSET_ADDRESS,
+          amount: "1000",
+          paymentNonce: "1",
+        },
+        signature: "0xsignature",
+      },
+    });
     expect(result.data).toEqual({ ok: true });
     expect(result.payment).toMatchObject({
       opType: "grant",

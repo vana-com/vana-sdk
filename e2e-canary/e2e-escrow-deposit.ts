@@ -76,6 +76,7 @@ import {
   grantRegistrationDomain,
   serverRegistrationDomain,
   type DataPortabilityGatewayConfig,
+  type SettleOpType,
 } from "@opendatalabs/vana-sdk";
 
 // ─── .env.local loader ──────────────────────────────────────────────────
@@ -823,15 +824,57 @@ async function main(): Promise<void> {
   );
 
   // ─── 15. Drain via SDK gateway.settle ───────────────────────────────
-  step("Draining pending ops via gateway.settle");
-  const settleResult = await gateway.settle();
-  console.log(`    scanned:    ${settleResult.scanned}`);
-  console.log(`    confirmed:  ${settleResult.confirmed}`);
-  console.log(`    submitted:  ${settleResult.submitted}`);
-  console.log(`    skipped:    ${settleResult.skipped}`);
-  console.log(`    failed:     ${settleResult.failed}`);
+  // Repeats /v1/settle until every op we created shows up at least once.
+  // Access records can't drain in the same pass as their data point —
+  // drainAccessRecords' EXISTS predicate requires the data point version
+  // to already be IN ('confirmed', 'finalized'), but step 15 is the first
+  // call that submits the data point at all. With paced mode on, one
+  // /v1/settle invocation runs enough iterations to clear the dependency;
+  // when it's off (or budget is tight, as on the dp-rpc-dev deployment),
+  // we need multiple SDK calls.
+  step("Draining pending ops via gateway.settle (until all ops scanned)");
+  const expectedOps: Array<{ opType: SettleOpType; opId: Hex }> = [
+    { opType: "grant", opId: grantId },
+    { opType: "server", opId: serverId },
+    { opType: "data", opId: dataPointId },
+    ...accessRecordIds.map((opId) => ({ opType: "access" as const, opId })),
+  ];
+  type SettleAccumulatorResult = Awaited<ReturnType<typeof gateway.settle>>;
+  type AccumulatedItem = SettleAccumulatorResult["items"][number];
+  let settleResult: SettleAccumulatorResult | null = null;
+  const accumulated = new Map<string, AccumulatedItem>();
+  const settleStart = Date.now();
+  while (Date.now() - settleStart < FINALIZE_TIMEOUT_MS) {
+    settleResult = await gateway.settle();
+    console.log(
+      `    [${Math.round((Date.now() - settleStart) / 1000)}s] scanned=${settleResult.scanned} submitted=${settleResult.submitted} confirmed=${settleResult.confirmed} skipped=${settleResult.skipped} failed=${settleResult.failed}`,
+    );
+    for (const item of settleResult.items) {
+      accumulated.set(`${item.opType}:${item.opId.toLowerCase()}`, item);
+    }
+    const missing = expectedOps.filter(
+      (e) => !accumulated.has(`${e.opType}:${e.opId.toLowerCase()}`),
+    );
+    if (missing.length === 0) break;
+    await new Promise((r) => setTimeout(r, FINALIZE_POLL_MS));
+  }
+  if (!settleResult) {
+    throw new Error("settle never returned a response");
+  }
+  const stillMissing = expectedOps.filter(
+    (e) => !accumulated.has(`${e.opType}:${e.opId.toLowerCase()}`),
+  );
+  if (stillMissing.length > 0) {
+    throw new Error(
+      `settle did not include after ${FINALIZE_TIMEOUT_MS / 1000}s: ${stillMissing.map((m) => `${m.opType} ${m.opId}`).join(", ")}`,
+    );
+  }
+  // Use the final settleResult for assertions below; accumulated.values()
+  // for the items collected across passes (some statuses may have
+  // promoted from 'submitting' to 'confirmed' between passes).
+  const settledItems = Array.from(accumulated.values());
 
-  const ourGrant = settleResult.items.find(
+  const ourGrant = settledItems.find(
     (i) =>
       i.opType === "grant" && i.opId.toLowerCase() === grantId.toLowerCase(),
   );
@@ -851,7 +894,7 @@ async function main(): Promise<void> {
   // grant — 'confirmed' (receipt waited for inline) or 'submitting' (tx
   // broadcast, receipt arrives later; the reconcile loop in step 18 picks
   // it up). Anything else is a real failure.
-  type SettleItemType = (typeof settleResult.items)[number];
+  type SettleItemType = (typeof settledItems)[number];
   function requireSettleProgress(
     item: SettleItemType | undefined,
     label: string,
@@ -865,7 +908,7 @@ async function main(): Promise<void> {
   }
 
   requireSettleProgress(
-    settleResult.items.find(
+    settledItems.find(
       (i) =>
         i.opType === "server" &&
         i.opId.toLowerCase() === serverId.toLowerCase(),
@@ -874,7 +917,7 @@ async function main(): Promise<void> {
     serverId,
   );
   requireSettleProgress(
-    settleResult.items.find(
+    settledItems.find(
       (i) =>
         i.opType === "data" &&
         i.opId.toLowerCase() === dataPointId.toLowerCase(),
@@ -884,7 +927,7 @@ async function main(): Promise<void> {
   );
   for (const rid of accessRecordIds) {
     requireSettleProgress(
-      settleResult.items.find(
+      settledItems.find(
         (i) =>
           i.opType === "access" && i.opId.toLowerCase() === rid.toLowerCase(),
       ),

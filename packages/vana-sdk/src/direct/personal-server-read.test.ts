@@ -16,6 +16,14 @@ const KEY =
 const account = privateKeyToAccount(KEY);
 const signMessage = (message: string) => account.signMessage({ message });
 const PAYER = account.address;
+const GRANT_ID =
+  "0x1111111111111111111111111111111111111111111111111111111111111111";
+const OTHER_GRANT_ID =
+  "0x2222222222222222222222222222222222222222222222222222222222222222";
+const DATA_POINT_ID =
+  "0x3333333333333333333333333333333333333333333333333333333333333333";
+const RECORD_ID =
+  "0x4444444444444444444444444444444444444444444444444444444444444444";
 
 function jsonRes(
   body: unknown,
@@ -77,7 +85,7 @@ describe("buildPersonalServerDataReadRequest", () => {
     const req = await buildPersonalServerDataReadRequest({
       personalServerUrl: "https://ps.example.com/",
       scope: "icloud_notes.notes",
-      grantId: "0xgrant",
+      grantId: GRANT_ID,
       signMessage,
     });
 
@@ -93,15 +101,15 @@ describe("parsePersonalServerPaymentRequired", () => {
     const required = await parsePersonalServerPaymentRequired(
       jsonRes(
         {
-          grantId: "0xgrantFromBody",
+          grantId: GRANT_ID,
           asset: "0xtoken",
           amount: "12345",
         },
         { status: 402 },
       ),
-      "0xfallbackGrant",
+      GRANT_ID,
     );
-    expect(required.grantId).toBe("0xgrantFromBody");
+    expect(required.grantId).toBe(GRANT_ID);
     expect(required.asset).toBe("0xtoken");
     expect(required.amount).toBe("12345");
   });
@@ -109,11 +117,103 @@ describe("parsePersonalServerPaymentRequired", () => {
   it("falls back to the read grantId, native asset, and 0 amount", async () => {
     const required = await parsePersonalServerPaymentRequired(
       jsonRes(null, { status: 402 }),
-      "0xfallbackGrant",
+      GRANT_ID,
     );
-    expect(required.grantId).toBe("0xfallbackGrant");
+    expect(required.grantId).toBe(GRANT_ID);
     expect(required.asset).toBe(NATIVE_ASSET_ADDRESS);
     expect(required.amount).toBe("0");
+  });
+
+  it("parses canonical payment fields from an x402 challenge", async () => {
+    const required = await parsePersonalServerPaymentRequired(
+      jsonRes(
+        {
+          amount: "0",
+          accepts: [
+            {
+              message: {
+                opType: "grant",
+                opId: GRANT_ID,
+                asset: NATIVE_ASSET_ADDRESS,
+                amount: "12345",
+                paymentNonce: "9",
+              },
+              accessRecord: {
+                dataPointId: DATA_POINT_ID,
+                version: "1",
+                accessor: PAYER,
+                recordId: RECORD_ID,
+                signature: "0xsig",
+              },
+            },
+          ],
+        },
+        { status: 402 },
+      ),
+      GRANT_ID,
+    );
+
+    expect(required).toMatchObject({
+      grantId: GRANT_ID,
+      asset: NATIVE_ASSET_ADDRESS,
+      amount: "12345",
+      paymentNonce: "9",
+      accessRecord: {
+        dataPointId: DATA_POINT_ID,
+        version: "1",
+        accessor: PAYER,
+        recordId: RECORD_ID,
+        signature: "0xsig",
+      },
+    });
+  });
+
+  it("rejects x402 challenges for a different grant", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          {
+            accepts: [
+              {
+                message: {
+                  opType: "grant",
+                  opId: OTHER_GRANT_ID,
+                  asset: NATIVE_ASSET_ADDRESS,
+                  amount: "12345",
+                  paymentNonce: "9",
+                },
+              },
+            ],
+          },
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/requested grant/);
+  });
+
+  it("rejects unsupported x402 escrow op types", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          {
+            accepts: [
+              {
+                message: {
+                  opType: "data_access",
+                  opId: GRANT_ID,
+                  asset: NATIVE_ASSET_ADDRESS,
+                  amount: "12345",
+                  paymentNonce: "9",
+                },
+              },
+            ],
+          },
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/unsupported escrow op type/);
   });
 });
 
@@ -122,7 +222,7 @@ describe("readPersonalServerData", () => {
     const result = await readPersonalServerData({
       personalServerUrl: "https://ps.example.com",
       scope: "icloud_notes.notes",
-      grantId: "0xgrant",
+      grantId: GRANT_ID,
       payerAddress: PAYER,
       signMessage,
       fetchFn: async () => jsonRes({ items: [1, 2, 3] }),
@@ -133,11 +233,11 @@ describe("readPersonalServerData", () => {
 
   it("settles a 402 via escrow and retries, attaching a payment receipt", async () => {
     let call = 0;
-    const payForOp = vi.fn(async () => payResultFixture("0xgrant"));
+    const payForOp = vi.fn(async () => payResultFixture(GRANT_ID));
     const result = await readPersonalServerData({
       personalServerUrl: "https://ps.example.com",
       scope: "icloud_notes.notes",
-      grantId: "0xgrant",
+      grantId: GRANT_ID,
       payerAddress: PAYER,
       signMessage,
       escrow: mockEscrow(payForOp),
@@ -145,7 +245,7 @@ describe("readPersonalServerData", () => {
         call += 1;
         if (call === 1) {
           return jsonRes(
-            { grantId: "0xgrant", asset: NATIVE_ASSET_ADDRESS, amount: "1000" },
+            { grantId: GRANT_ID, asset: NATIVE_ASSET_ADDRESS, amount: "1000" },
             { status: 402 },
           );
         }
@@ -158,7 +258,7 @@ describe("readPersonalServerData", () => {
     expect(result.data).toEqual({ ok: true });
     expect(result.payment).toMatchObject({
       opType: "grant",
-      opId: "0xgrant",
+      opId: GRANT_ID,
       amount: "1000000000000000000",
       breakdown: {
         registrationFee: "100000000000000000",
@@ -168,18 +268,38 @@ describe("readPersonalServerData", () => {
     });
   });
 
+  it("does not sign a placeholder zero-amount 402 challenge", async () => {
+    const payForOp = vi.fn(async () => payResultFixture(GRANT_ID));
+    const result = readPersonalServerData({
+      personalServerUrl: "https://ps.example.com",
+      scope: "icloud_notes.notes",
+      grantId: GRANT_ID,
+      payerAddress: PAYER,
+      signMessage,
+      escrow: mockEscrow(payForOp),
+      fetchFn: async () =>
+        jsonRes(
+          { grantId: GRANT_ID, asset: NATIVE_ASSET_ADDRESS, amount: "0" },
+          { status: 402 },
+        ),
+    });
+
+    await expect(result).rejects.toThrow(PaymentRequiredError);
+    expect(payForOp).not.toHaveBeenCalled();
+  });
+
   it("throws PaymentRequiredError with amount/asset when escrow is not configured", async () => {
     let thrown: unknown;
     try {
       await readPersonalServerData({
         personalServerUrl: "https://ps.example.com",
         scope: "icloud_notes.notes",
-        grantId: "0xgrant",
+        grantId: GRANT_ID,
         payerAddress: PAYER,
         signMessage,
         fetchFn: async () =>
           jsonRes(
-            { grantId: "0xgrant", asset: "0xtoken", amount: "777" },
+            { grantId: GRANT_ID, asset: "0xtoken", amount: "777" },
             { status: 402 },
           ),
       });
@@ -195,10 +315,10 @@ describe("readPersonalServerData", () => {
     const result = readPersonalServerData({
       personalServerUrl: "https://ps.example.com",
       scope: "icloud_notes.notes",
-      grantId: "0xgrant",
+      grantId: GRANT_ID,
       payerAddress: PAYER,
       signMessage,
-      escrow: mockEscrow(vi.fn(async () => payResultFixture("0xgrant"))),
+      escrow: mockEscrow(vi.fn(async () => payResultFixture(GRANT_ID))),
       fetchFn: async () => jsonRes({ amount: "1000" }, { status: 402 }), // always 402
     });
     await expect(result).rejects.toThrow(PaymentRequiredError);

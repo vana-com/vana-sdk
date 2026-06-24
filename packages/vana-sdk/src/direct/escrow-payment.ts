@@ -131,7 +131,9 @@ export async function authorizeGrantPayment(params: {
 }): Promise<DirectPaymentReceipt> {
   const { payerAddress, required, config } = params;
   const nonceSource = config.nonceSource ?? createDefaultNonceSource();
-  const paymentNonce = BigInt(await nonceSource(payerAddress));
+  const paymentNonce = BigInt(
+    required.paymentNonce ?? (await nonceSource(payerAddress)),
+  );
   const asset = (required.asset || NATIVE_ASSET_ADDRESS) as `0x${string}`;
   const opId = required.grantId as `0x${string}`;
   const amount = BigInt(required.amount);
@@ -158,6 +160,7 @@ export async function authorizeGrantPayment(params: {
     amount: amount.toString(),
     paymentNonce: paymentNonce.toString(),
     signature,
+    accessRecord: required.accessRecord,
   });
 
   return toDirectPaymentReceipt(result);

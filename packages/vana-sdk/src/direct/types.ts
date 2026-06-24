@@ -1,3 +1,5 @@
+import type { EscrowAccessRecord } from "../protocol/escrow";
+
 /**
  * Shared types for the Direct Data Controller and the browser connect helper.
  *
@@ -174,6 +176,10 @@ export type DirectOpTypeValue =
 export interface PersonalServerPaymentRequired {
   /** Grant id to settle (the escrow `opId`). Defaults to the read's grantId. */
   grantId: string;
+  /** Payment nonce requested by the 402 challenge. */
+  paymentNonce?: string;
+  /** Server-signed data access receipt requested by the 402 challenge. */
+  accessRecord?: EscrowAccessRecord;
   /** Asset address owed (zero address = native VANA). */
   asset: string;
   /** Amount owed, as a decimal base-unit string (preserves uint256 precision). */

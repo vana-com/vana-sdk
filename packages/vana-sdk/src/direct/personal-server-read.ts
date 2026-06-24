@@ -21,8 +21,9 @@ import {
   type EscrowAccessRecord,
 } from "../protocol/escrow";
 import {
-  authorizeGrantPayment,
+  buildGrantPaymentHeader,
   GRANT_OP_TYPE,
+  paymentReceiptFromHeader,
   type EscrowPaymentConfig,
 } from "./escrow-payment";
 import { PaymentRequiredError, PersonalServerReadError } from "./errors";
@@ -233,6 +234,7 @@ export async function parsePersonalServerPaymentRequired(
     "0";
   return {
     grantId,
+    network: stringField(accept, "network") ?? stringField(body, "network"),
     paymentNonce:
       stringField(message, "paymentNonce") ?? stringField(body, "paymentNonce"),
     accessRecord: parseAccessRecord(accept?.accessRecord ?? body.accessRecord),
@@ -322,13 +324,13 @@ export async function readPersonalServerData(params: {
       );
     }
 
-    payment = await authorizeGrantPayment({
+    const paymentHeader = await buildGrantPaymentHeader({
       payerAddress: params.payerAddress,
       required,
       config: params.escrow,
     });
 
-    // Re-sign and retry after the escrow gateway accepts the payment.
+    // Re-sign and retry with x402 payment proof for the Personal Server to validate.
     const retry = await buildPersonalServerDataReadRequest({
       personalServerUrl: params.personalServerUrl,
       scope: params.scope,
@@ -337,7 +339,7 @@ export async function readPersonalServerData(params: {
     });
     res = await fetchFn(retry.url, {
       method: retry.method,
-      headers: retry.headers,
+      headers: { ...retry.headers, "X-PAYMENT": paymentHeader },
     });
 
     if (res.status === 402) {
@@ -363,5 +365,6 @@ export async function readPersonalServerData(params: {
     );
   }
 
+  payment = paymentReceiptFromHeader(res.headers.get("X-PAYMENT-RESPONSE"));
   return { data: await res.json(), payment };
 }

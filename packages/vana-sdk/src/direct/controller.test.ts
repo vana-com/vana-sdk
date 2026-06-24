@@ -36,14 +36,21 @@ function approvedStatus(): AccessRequestStatus {
 
 function jsonResponse(
   body: unknown,
-  init: { status?: number; ok?: boolean } = {},
+  init: {
+    status?: number;
+    ok?: boolean;
+    headers?: Record<string, string>;
+  } = {},
 ): FetchResponseLike {
   const status = init.status ?? 200;
   return {
     ok: init.ok ?? (status >= 200 && status < 300),
     status,
     statusText: `HTTP ${status}`,
-    headers: { get: () => null },
+    headers: {
+      get: (name) =>
+        init.headers?.[name] ?? init.headers?.[name.toLowerCase()] ?? null,
+    },
     json: async () => body,
     text: async () => JSON.stringify(body),
   };
@@ -266,9 +273,10 @@ describe("createDirectDataController — readApprovedData", () => {
   it("settles a 402 via escrow and returns a structured payment receipt", async () => {
     let call = 0;
     const payForOp = vi.fn(async () => payResultFixture());
+    let retryPaymentHeader: string | undefined;
     const vana = makeController(
       approvedStatus(),
-      async () => {
+      async (_url, init) => {
         call += 1;
         if (call === 1) {
           return jsonResponse(
@@ -276,7 +284,15 @@ describe("createDirectDataController — readApprovedData", () => {
             { status: 402 },
           );
         }
-        return jsonResponse({ ok: true });
+        retryPaymentHeader = init.headers["X-PAYMENT"];
+        return jsonResponse(
+          { ok: true },
+          {
+            headers: {
+              "X-PAYMENT-RESPONSE": btoa(JSON.stringify(payResultFixture())),
+            },
+          },
+        );
       },
       mockEscrowConfig(payForOp),
     );
@@ -284,7 +300,23 @@ describe("createDirectDataController — readApprovedData", () => {
     const result = await vana.readApprovedData({ requestId: "dcr_1" });
 
     expect(call).toBe(2);
-    expect(payForOp).toHaveBeenCalledTimes(1);
+    expect(payForOp).not.toHaveBeenCalled();
+    expect(retryPaymentHeader).toBeDefined();
+    expect(JSON.parse(atob(retryPaymentHeader!))).toMatchObject({
+      x402Version: 1,
+      scheme: "vana-escrow-grant",
+      network: "vana:1480",
+      payload: {
+        message: {
+          payerAddress: APP_ADDRESS,
+          opType: "grant",
+          opId: GRANT_ID,
+          asset: NATIVE_ASSET_ADDRESS,
+          amount: "1000",
+          paymentNonce: "1",
+        },
+      },
+    });
     expect(result.data).toEqual({ ok: true });
     expect(result.payment).toMatchObject({
       opType: "grant",

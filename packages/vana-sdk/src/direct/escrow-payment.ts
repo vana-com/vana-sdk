@@ -23,6 +23,7 @@ import {
   GENERIC_PAYMENT_TYPES,
   NATIVE_ASSET_ADDRESS,
   genericPaymentDomain,
+  type EscrowAccessRecord,
   type EscrowGatewayClient,
   type EscrowPayResult,
   type PaymentBreakdown,
@@ -61,6 +62,28 @@ export type SignTypedDataFn = (args: {
 export type PaymentNonceSource = (
   payerAddress: string,
 ) => Promise<bigint> | bigint;
+
+interface GrantPaymentMessage {
+  payerAddress: `0x${string}`;
+  opType: typeof GRANT_OP_TYPE;
+  opId: `0x${string}`;
+  asset: `0x${string}`;
+  amount: string;
+  paymentNonce: string;
+}
+
+interface SignedGrantPayment {
+  message: GrantPaymentMessage;
+  signature: `0x${string}`;
+  accessRecord?: EscrowAccessRecord;
+}
+
+interface X402PaymentHeader {
+  x402Version: 1;
+  scheme: "vana-escrow-grant";
+  network: string;
+  payload: SignedGrantPayment;
+}
 
 /** Escrow settlement configuration for the controller. */
 export interface EscrowPaymentConfig {
@@ -117,6 +140,86 @@ export function createDefaultNonceSource(): PaymentNonceSource {
   };
 }
 
+function base64EncodeJson(value: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function base64DecodeJson(value: string): unknown {
+  const binary = atob(value);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+async function signGrantPayment(params: {
+  payerAddress: `0x${string}`;
+  required: PersonalServerPaymentRequired;
+  config: EscrowPaymentConfig;
+}): Promise<SignedGrantPayment> {
+  const { payerAddress, required, config } = params;
+  const nonceSource = config.nonceSource ?? createDefaultNonceSource();
+  const paymentNonce = BigInt(
+    required.paymentNonce ?? (await nonceSource(payerAddress)),
+  );
+  const asset = (required.asset || NATIVE_ASSET_ADDRESS) as `0x${string}`;
+  const opId = required.grantId as `0x${string}`;
+  const amount = BigInt(required.amount);
+
+  const message = {
+    payerAddress,
+    opType: GRANT_OP_TYPE,
+    opId,
+    asset,
+    amount,
+    paymentNonce,
+  };
+
+  const signature = await config.signTypedData({
+    domain: genericPaymentDomain(config.chainId, config.escrowContract),
+    types: GENERIC_PAYMENT_TYPES,
+    primaryType: "GenericPayment",
+    message,
+  });
+
+  return {
+    message: {
+      ...message,
+      amount: amount.toString(),
+      paymentNonce: paymentNonce.toString(),
+    },
+    signature,
+    ...(required.accessRecord ? { accessRecord: required.accessRecord } : {}),
+  };
+}
+
+export async function buildGrantPaymentHeader(params: {
+  payerAddress: `0x${string}`;
+  required: PersonalServerPaymentRequired;
+  config: EscrowPaymentConfig;
+}): Promise<string> {
+  const signed = await signGrantPayment(params);
+  const payment: X402PaymentHeader = {
+    x402Version: 1,
+    scheme: "vana-escrow-grant",
+    network: params.required.network ?? `vana:${params.config.chainId}`,
+    payload: signed,
+  };
+  return base64EncodeJson(payment);
+}
+
+export function paymentReceiptFromHeader(
+  header: string | null | undefined,
+): DirectPaymentReceipt | undefined {
+  if (!header) return undefined;
+  try {
+    return toDirectPaymentReceipt(base64DecodeJson(header) as EscrowPayResult);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Authorize an escrow payment for a grant data-access fee.
  *
@@ -130,36 +233,16 @@ export async function authorizeGrantPayment(params: {
   config: EscrowPaymentConfig;
 }): Promise<DirectPaymentReceipt> {
   const { payerAddress, required, config } = params;
-  const nonceSource = config.nonceSource ?? createDefaultNonceSource();
-  const paymentNonce = BigInt(
-    required.paymentNonce ?? (await nonceSource(payerAddress)),
-  );
-  const asset = (required.asset || NATIVE_ASSET_ADDRESS) as `0x${string}`;
-  const opId = required.grantId as `0x${string}`;
-  const amount = BigInt(required.amount);
-
-  const signature = await config.signTypedData({
-    domain: genericPaymentDomain(config.chainId, config.escrowContract),
-    types: GENERIC_PAYMENT_TYPES,
-    primaryType: "GenericPayment",
-    message: {
-      payerAddress,
-      opType: GRANT_OP_TYPE,
-      opId,
-      asset,
-      amount,
-      paymentNonce,
-    },
-  });
+  const signed = await signGrantPayment(params);
 
   const result = await config.client.payForOp({
     payerAddress,
     opType: GRANT_OP_TYPE,
-    opId,
-    asset,
-    amount: amount.toString(),
-    paymentNonce: paymentNonce.toString(),
-    signature,
+    opId: signed.message.opId,
+    asset: signed.message.asset,
+    amount: signed.message.amount,
+    paymentNonce: signed.message.paymentNonce,
+    signature: signed.signature,
     accessRecord: required.accessRecord,
   });
 

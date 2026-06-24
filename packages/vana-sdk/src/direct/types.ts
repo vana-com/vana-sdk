@@ -176,6 +176,8 @@ export type DirectOpTypeValue =
 export interface PersonalServerPaymentRequired {
   /** Grant id to settle (the escrow `opId`). Defaults to the read's grantId. */
   grantId: string;
+  /** X402 network advertised by the Personal Server challenge. */
+  network?: string;
   /** Payment nonce requested by the 402 challenge. */
   paymentNonce?: string;
   /** Server-signed data access receipt requested by the 402 challenge. */

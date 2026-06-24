@@ -16,12 +16,18 @@ const account = privateKeyToAccount(
 );
 const PAYER = account.address;
 const ESCROW = "0x000000000000000000000000000000000000dEaD" as `0x${string}`;
+const GRANT_ID =
+  "0x1111111111111111111111111111111111111111111111111111111111111111";
+const DATA_POINT_ID =
+  "0x3333333333333333333333333333333333333333333333333333333333333333";
+const RECORD_ID =
+  "0x4444444444444444444444444444444444444444444444444444444444444444";
 
 function payResult(): EscrowPayResult {
   return {
     success: true,
     opType: "grant",
-    opId: "0xgrant",
+    opId: GRANT_ID,
     payerAddress: PAYER,
     asset: NATIVE_ASSET_ADDRESS,
     amount: "1000000000000000000",
@@ -47,7 +53,7 @@ describe("fee/payment mappers", () => {
   it("toDirectPaymentReceipt maps the full EscrowPayResult", () => {
     expect(toDirectPaymentReceipt(payResult())).toEqual({
       opType: "grant",
-      opId: "0xgrant",
+      opId: GRANT_ID,
       asset: NATIVE_ASSET_ADDRESS,
       amount: "1000000000000000000",
       paymentNonce: "1",
@@ -98,7 +104,7 @@ describe("authorizeGrantPayment", () => {
     const receipt = await authorizeGrantPayment({
       payerAddress: PAYER,
       required: {
-        grantId: "0xgrant",
+        grantId: GRANT_ID,
         asset: NATIVE_ASSET_ADDRESS,
         amount: "1000000000000000000",
         raw: {},
@@ -113,7 +119,7 @@ describe("authorizeGrantPayment", () => {
     expect(signArg.message).toMatchObject({
       payerAddress: PAYER,
       opType: GRANT_OP_TYPE,
-      opId: "0xgrant",
+      opId: GRANT_ID,
       asset: NATIVE_ASSET_ADDRESS,
       amount: 1000000000000000000n,
       paymentNonce: 1n,
@@ -128,7 +134,7 @@ describe("authorizeGrantPayment", () => {
       expect.objectContaining({
         payerAddress: PAYER,
         opType: GRANT_OP_TYPE,
-        opId: "0xgrant",
+        opId: GRANT_ID,
         amount: "1000000000000000000",
         paymentNonce: "1",
         signature: "0xsig",
@@ -138,11 +144,59 @@ describe("authorizeGrantPayment", () => {
     expect(receipt.breakdown.dataAccessFee).toBe("900000000000000000");
   });
 
+  it("uses challenge nonce and access record while keeping the grant op", async () => {
+    const payForOp = vi.fn(async () => ({
+      ...payResult(),
+      opType: GRANT_OP_TYPE,
+      opId: GRANT_ID,
+      amount: "123",
+    }));
+    const { cfg, signTypedData } = config(payForOp);
+
+    await authorizeGrantPayment({
+      payerAddress: PAYER,
+      required: {
+        grantId: GRANT_ID,
+        paymentNonce: "9",
+        accessRecord: {
+          dataPointId: DATA_POINT_ID,
+          version: "1",
+          accessor: PAYER,
+          recordId: RECORD_ID,
+          signature: "0xsig",
+        },
+        asset: NATIVE_ASSET_ADDRESS,
+        amount: "123",
+        raw: {},
+      },
+      config: cfg,
+    });
+
+    expect(signTypedData.mock.calls[0][0].message).toMatchObject({
+      opType: GRANT_OP_TYPE,
+      opId: GRANT_ID,
+      amount: 123n,
+      paymentNonce: 9n,
+    });
+    expect(payForOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        opType: GRANT_OP_TYPE,
+        opId: GRANT_ID,
+        amount: "123",
+        paymentNonce: "9",
+        accessRecord: expect.objectContaining({
+          dataPointId: DATA_POINT_ID,
+          recordId: RECORD_ID,
+        }),
+      }),
+    );
+  });
+
   it("defaults a missing asset to native VANA", async () => {
     const { cfg, signTypedData } = config();
     await authorizeGrantPayment({
       payerAddress: PAYER,
-      required: { grantId: "0xgrant", asset: "", amount: "1", raw: {} },
+      required: { grantId: GRANT_ID, asset: "", amount: "1", raw: {} },
       config: cfg,
     });
     expect(signTypedData.mock.calls[0][0].message.asset).toBe(

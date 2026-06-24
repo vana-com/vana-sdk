@@ -301,7 +301,7 @@ describe("createDirectDataController — readApprovedData", () => {
   it("throws structured PaymentRequiredError when escrow is not configured", async () => {
     const vana = makeController(approvedStatus(), async () =>
       jsonResponse(
-        { grantId: "0xgrant", asset: "0xtoken", amount: "777" },
+        { grantId: GRANT_ID, asset: "0xtoken", amount: "777" },
         { status: 402 },
       ),
     );

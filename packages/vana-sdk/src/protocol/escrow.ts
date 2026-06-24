@@ -191,7 +191,12 @@ export interface EscrowBalanceResult {
  */
 export interface EscrowBalanceSyncResult extends EscrowBalanceResult {
   sync:
-    | { scanned: number; finalized: number; stillPending: number; failed: number }
+    | {
+        scanned: number;
+        finalized: number;
+        stillPending: number;
+        failed: number;
+      }
     | { skipped: true };
 }
 
@@ -258,6 +263,16 @@ export interface PayForOpParams {
   /** Decimal string representation of the uint256 nonce. */
   paymentNonce: string;
   /** 0x-prefixed 65-byte EIP-712 signature hex string. */
+  signature: `0x${string}`;
+  /** Optional server-signed data access receipt carried by x402 challenges. */
+  accessRecord?: EscrowAccessRecord;
+}
+
+export interface EscrowAccessRecord {
+  dataPointId: `0x${string}`;
+  version: string;
+  accessor: `0x${string}`;
+  recordId: `0x${string}`;
   signature: `0x${string}`;
 }
 
@@ -416,6 +431,7 @@ export function createEscrowGatewayClient(
       amount,
       paymentNonce,
       signature,
+      accessRecord,
     }) {
       const res = await fetch(`${base}/v1/escrow/pay`, {
         method: "POST",
@@ -430,6 +446,7 @@ export function createEscrowGatewayClient(
           asset,
           amount,
           paymentNonce,
+          ...(accessRecord ? { accessRecord } : {}),
         }),
       });
       await throwOnError(res, "POST /v1/escrow/pay");

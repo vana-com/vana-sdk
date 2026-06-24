@@ -16,9 +16,13 @@
 
 import { buildWeb3SignedHeader } from "../auth/web3-signed-builder";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
-import { NATIVE_ASSET_ADDRESS } from "../protocol/escrow";
+import {
+  NATIVE_ASSET_ADDRESS,
+  type EscrowAccessRecord,
+} from "../protocol/escrow";
 import {
   authorizeGrantPayment,
+  GRANT_OP_TYPE,
   type EscrowPaymentConfig,
 } from "./escrow-payment";
 import { PaymentRequiredError, PersonalServerReadError } from "./errors";
@@ -75,6 +79,81 @@ export function dataPathForScope(scope: string): string {
   return `/v1/data/${encodeURIComponent(scope)}`;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringField(
+  record: Record<string, unknown> | undefined,
+  field: string,
+): string | undefined {
+  const value = record?.[field];
+  return typeof value === "string" ? value : undefined;
+}
+
+function parseAccessRecord(value: unknown): EscrowAccessRecord | undefined {
+  const record = asRecord(value);
+  const dataPointId = stringField(record, "dataPointId");
+  const version = stringField(record, "version");
+  const accessor = stringField(record, "accessor");
+  const recordId = stringField(record, "recordId");
+  const signature = stringField(record, "signature");
+
+  if (!dataPointId || !version || !accessor || !recordId || !signature) {
+    return undefined;
+  }
+
+  return {
+    dataPointId: dataPointId as `0x${string}`,
+    version,
+    accessor: accessor as `0x${string}`,
+    recordId: recordId as `0x${string}`,
+    signature: signature as `0x${string}`,
+  };
+}
+
+function isBytes32Hex(value: string): boolean {
+  return /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+function assertChallengeMatchesGrant(params: {
+  challengeGrantId?: string;
+  challengeOpId?: string;
+  challengeOpType?: string;
+  grantId: string;
+}): void {
+  const { challengeGrantId, challengeOpId, challengeOpType, grantId } = params;
+
+  if (challengeOpType && challengeOpType !== GRANT_OP_TYPE) {
+    throw new PersonalServerReadError(
+      "Personal Server payment challenge used an unsupported escrow op type",
+      402,
+      { opType: challengeOpType },
+    );
+  }
+
+  const challengedGrantId = challengeOpId ?? challengeGrantId;
+  if (!challengedGrantId) return;
+
+  if (!isBytes32Hex(challengedGrantId)) {
+    throw new PersonalServerReadError(
+      "Personal Server payment challenge used an invalid escrow op id",
+      402,
+      { opId: challengedGrantId },
+    );
+  }
+
+  if (challengedGrantId.toLowerCase() !== grantId.toLowerCase()) {
+    throw new PersonalServerReadError(
+      "Personal Server payment challenge did not match the requested grant",
+      402,
+      { opId: challengedGrantId, grantId },
+    );
+  }
+}
+
 /**
  * Build a Web3Signed-authenticated Personal Server data read request.
  *
@@ -128,31 +207,47 @@ export async function parsePersonalServerPaymentRequired(
   } catch {
     raw = undefined;
   }
-  const body = (raw ?? {}) as {
-    grantId?: unknown;
-    opId?: unknown;
-    asset?: unknown;
-    amount?: unknown;
-    maxAmountRequired?: unknown;
-  };
-  const resolvedGrantId =
-    typeof body.grantId === "string"
-      ? body.grantId
-      : typeof body.opId === "string"
-        ? body.opId
-        : grantId;
+  const body = asRecord(raw) ?? {};
+  const accept =
+    Array.isArray(body.accepts) && body.accepts.length > 0
+      ? asRecord(body.accepts[0])
+      : undefined;
+  const message = asRecord(accept?.message);
+  const challengeGrantId = stringField(body, "grantId");
+  const challengeOpId =
+    stringField(message, "opId") ?? stringField(body, "opId");
+  const challengeOpType =
+    stringField(message, "opType") ?? stringField(body, "opType");
+
+  assertChallengeMatchesGrant({
+    challengeGrantId,
+    challengeOpId,
+    challengeOpType,
+    grantId,
+  });
+
   const amountValue =
-    typeof body.amount === "string"
-      ? body.amount
-      : typeof body.maxAmountRequired === "string"
-        ? body.maxAmountRequired
-        : "0";
+    stringField(message, "amount") ??
+    stringField(body, "amount") ??
+    stringField(body, "maxAmountRequired") ??
+    "0";
   return {
-    grantId: resolvedGrantId,
-    asset: typeof body.asset === "string" ? body.asset : NATIVE_ASSET_ADDRESS,
+    grantId,
+    paymentNonce:
+      stringField(message, "paymentNonce") ?? stringField(body, "paymentNonce"),
+    accessRecord: parseAccessRecord(accept?.accessRecord ?? body.accessRecord),
+    asset:
+      stringField(message, "asset") ??
+      stringField(body, "asset") ??
+      NATIVE_ASSET_ADDRESS,
     amount: amountValue,
     raw,
   };
+}
+
+function hasPositiveAmount(amount: string): boolean {
+  if (!/^\d+$/.test(amount)) return false;
+  return BigInt(amount) > 0n;
 }
 
 /**
@@ -215,13 +310,25 @@ export async function readPersonalServerData(params: {
       );
     }
 
+    if (!hasPositiveAmount(required.amount)) {
+      throw new PaymentRequiredError(
+        "Personal Server payment challenge did not include a positive amount",
+        {
+          scope: params.scope,
+          grantId: required.grantId,
+          asset: required.asset,
+          amount: required.amount,
+        },
+      );
+    }
+
     payment = await authorizeGrantPayment({
       payerAddress: params.payerAddress,
       required,
       config: params.escrow,
     });
 
-    // Re-sign and retry — the settled payment unlocks the read.
+    // Re-sign and retry after the escrow gateway accepts the payment.
     const retry = await buildPersonalServerDataReadRequest({
       personalServerUrl: params.personalServerUrl,
       scope: params.scope,

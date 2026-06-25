@@ -25,6 +25,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { Hex } from "viem";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 import { parseScope } from "../protocol/scopes";
+import { createEscrowGatewayClient } from "../protocol/escrow";
+import { CONTRACTS } from "../generated/addresses";
 import {
   createDefaultAccessRequestClient,
   type FetchLike,
@@ -98,12 +100,17 @@ export interface DirectDataControllerConfig {
    *
    * @remarks
    * Wires the DPv2 escrow gateway (`protocol/escrow`). The controller supplies
-   * the EIP-712 `signTypedData` from the app key automatically, so you provide
-   * the gateway `client`, the `escrowContract` address, and (optionally) the
-   * `chainId` and a durable `nonceSource`. If omitted, a `402` from the Personal
-   * Server throws {@link PaymentRequiredError} carrying the amount/asset owed.
+   * the EIP-712 `signTypedData` from the app key automatically.
+   *
+   * When omitted (or partially omitted), the SDK derives defaults from the
+   * per-network endpoints table and the contract registry:
+   * - `client` defaults to a gateway client at `endpoints.escrowGatewayUrl`
+   * - `escrowContract` defaults to `CONTRACTS.DataPortabilityEscrow.addresses[chainId]`
+   * - `chainId` defaults to the controller's resolved chain id
+   *
+   * Provide this field only to override a specific default.
    */
-  escrow?: DirectEscrowConfig;
+  escrow?: Partial<DirectEscrowConfig>;
   /** `fetch` used by the default access-request client. Defaults to `globalThis.fetch`. */
   fetchFn?: FetchLike;
   /** `fetch` used for the Personal Server read. Defaults to `globalThis.fetch`. */
@@ -173,11 +180,9 @@ export interface DirectDataController {
    * @remarks
    * Resolves the request to its grant + Personal Server and performs a Web3Signed
    * read. Hides the `402 Payment Required` flow by default: if a read needs
-   * payment and `escrow` is configured, it settles the grant via the escrow
-   * gateway and retries, attaching a {@link DirectPaymentReceipt} under
-   * `payment` so callers can inspect amount/asset/fee breakdown. If `escrow` is
-   * not configured, it throws {@link PaymentRequiredError} carrying the
-   * amount/asset owed.
+   * payment, it signs the Personal Server's payment challenge, retries with
+   * `X-PAYMENT`, and attaches a {@link DirectPaymentReceipt} under `payment`
+   * when the Personal Server returns one.
    *
    * @param input - The `dcr_*` request id to read.
    * @returns `{ scope, data, payment? }`.
@@ -245,15 +250,29 @@ export function createDirectDataController(
       signMessage,
     });
 
-  const escrow: EscrowPaymentConfig | undefined = config.escrow
-    ? {
-        client: config.escrow.client,
-        escrowContract: config.escrow.escrowContract,
-        chainId: config.escrow.chainId ?? chainId,
-        nonceSource: config.escrow.nonceSource,
-        signTypedData,
-      }
-    : undefined;
+  // Build the escrow payment config, defaulting from the per-network endpoints
+  // table and the contract registry when `config.escrow` is omitted or partial.
+  const escrowChainId = config.escrow?.chainId ?? chainId;
+  const defaultEscrowContract =
+    CONTRACTS.DataPortabilityEscrow.addresses[
+      escrowChainId as keyof typeof CONTRACTS.DataPortabilityEscrow.addresses
+    ] ?? undefined;
+  if (!config.escrow?.escrowContract && !defaultEscrowContract) {
+    throw new DirectConfigError(
+      `No DataPortabilityEscrow address found in the registry for chainId ${escrowChainId}. ` +
+        `Provide an explicit escrow.escrowContract in the controller config.`,
+    );
+  }
+  const escrow: EscrowPaymentConfig = {
+    client:
+      config.escrow?.client ??
+      createEscrowGatewayClient(endpoints.escrowGatewayUrl),
+    escrowContract:
+      config.escrow?.escrowContract ?? (defaultEscrowContract as `0x${string}`),
+    chainId: escrowChainId,
+    nonceSource: config.escrow?.nonceSource,
+    signTypedData,
+  };
 
   return {
     appAddress: account.address,

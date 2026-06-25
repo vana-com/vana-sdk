@@ -2,14 +2,15 @@
  * Per-environment service URLs for the Direct Data Controller.
  *
  * @remarks
- * The SDK ships production defaults; pass `env: "dev"` only when testing against
- * Vana's dev stack. This module is the single source of truth for those URLs.
+ * The SDK ships production defaults; pass `env: "dev"` only when testing
+ * against Vana's internal dev stack. Use the controller `network` option for
+ * chain selection without changing deployment URLs.
  *
  * @category Direct
  * @module direct/endpoints
  */
 
-import type { DirectEnv, DirectServiceEndpoints } from "./types";
+import type { DirectEnv, DirectNetwork, DirectServiceEndpoints } from "./types";
 
 /** Production (mainnet) service URLs. */
 export const PRODUCTION_ENDPOINTS: DirectServiceEndpoints = {
@@ -18,7 +19,7 @@ export const PRODUCTION_ENDPOINTS: DirectServiceEndpoints = {
   approvalAppBaseUrl: "https://app.vana.org",
 } as const;
 
-/** Dev/testnet (moksha) service URLs. */
+/** Internal dev stack service URLs. */
 export const DEV_ENDPOINTS: DirectServiceEndpoints = {
   chainId: 14800,
   accessRequestBaseUrl: "https://app-dev.vana.org",
@@ -32,5 +33,29 @@ export const DEV_ENDPOINTS: DirectServiceEndpoints = {
  * @returns The default endpoints for that environment.
  */
 export function getDirectEndpoints(env: DirectEnv): DirectServiceEndpoints {
-  return env === "dev" ? DEV_ENDPOINTS : PRODUCTION_ENDPOINTS;
+  if (env === "dev") {
+    return DEV_ENDPOINTS;
+  }
+
+  return PRODUCTION_ENDPOINTS;
+}
+
+/**
+ * Resolve the default network for a deployment environment.
+ *
+ * @param env - Target deployment environment.
+ * @returns The network historically paired with that deployment.
+ */
+export function getDirectDefaultNetwork(env: DirectEnv): DirectNetwork {
+  return env === "dev" ? "moksha" : "mainnet";
+}
+
+/**
+ * Resolve the Vana chain id for a network.
+ *
+ * @param network - Target Vana network.
+ * @returns The network chain id.
+ */
+export function getDirectNetworkChainId(network: DirectNetwork): number {
+  return network === "moksha" ? 14800 : 1480;
 }

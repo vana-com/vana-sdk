@@ -29,7 +29,11 @@ import {
   createDefaultAccessRequestClient,
   type FetchLike,
 } from "./access-request-client";
-import { getDirectEndpoints } from "./endpoints";
+import {
+  getDirectDefaultNetwork,
+  getDirectEndpoints,
+  getDirectNetworkChainId,
+} from "./endpoints";
 import { AccessNotApprovedError, DirectConfigError } from "./errors";
 import {
   type EscrowPaymentConfig,
@@ -47,6 +51,7 @@ import type {
   AppIdentity,
   DirectAppConfig,
   DirectEnv,
+  DirectNetwork,
   DirectServiceEndpoints,
 } from "./types";
 
@@ -54,6 +59,13 @@ import type {
 export interface DirectDataControllerConfig {
   /** Target environment. Defaults to `"production"`. */
   env?: DirectEnv;
+  /**
+   * Target Vana network for chain-aware defaults. Defaults to the selected
+   * environment's historical network (`mainnet` for production, `moksha` for
+   * dev). Use `network: "moksha"` with the default production env for
+   * production app/API URLs on testnet.
+   */
+  network?: DirectNetwork;
   /**
    * The app private key (`0x`-prefixed, 32 bytes). Server-side only — this key
    * is the app's on-chain identity and is never exposed to the browser.
@@ -108,7 +120,7 @@ export interface DirectEscrowConfig extends Omit<
 > {
   /**
    * Chain id for the EIP-712 domain. Defaults to the controller's environment
-   * (1480 for production, 14800 for dev).
+   * (1480 for mainnet, 14800 for moksha).
    */
   chainId?: number;
 }
@@ -208,9 +220,13 @@ export function createDirectDataController(
   }
 
   const env: DirectEnv = config.env ?? "production";
+  const network: DirectNetwork = config.network ?? getDirectDefaultNetwork(env);
+  const defaultEndpoints = getDirectEndpoints(env);
+  const chainId = config.endpoints?.chainId ?? getDirectNetworkChainId(network);
   const endpoints: DirectServiceEndpoints = {
-    ...getDirectEndpoints(env),
+    ...defaultEndpoints,
     ...config.endpoints,
+    chainId,
   };
 
   const account = privateKeyToAccount(privateKey as Hex);
@@ -219,8 +235,6 @@ export function createDirectDataController(
   // viem's account.signTypedData satisfies the structural SignTypedDataFn used
   // by the escrow GenericPayment signer.
   const signTypedData = account.signTypedData as unknown as SignTypedDataFn;
-  const chainId = endpoints.chainId;
-
   const accessRequestClient: AccessRequestClient =
     config.accessRequestClient ??
     createDefaultAccessRequestClient({

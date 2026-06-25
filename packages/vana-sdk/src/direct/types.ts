@@ -17,10 +17,18 @@ import type { EscrowAccessRecord } from "../protocol/escrow";
  * Target environment for a {@link DirectDataController}.
  *
  * - `"production"` — Vana mainnet stack (default service URLs).
- * - `"dev"` — Vana internal dev/testnet stack. Use only when testing against
+ * - `"dev"` — Vana internal dev stack. Use only when testing against
  *   Vana's dev infrastructure.
  */
 export type DirectEnv = "dev" | "production";
+
+/**
+ * Vana network used for chain-aware Direct defaults.
+ *
+ * - `"mainnet"` — Vana mainnet (`chainId` 1480).
+ * - `"moksha"` — Moksha testnet (`chainId` 14800).
+ */
+export type DirectNetwork = "mainnet" | "moksha";
 
 /**
  * App identity advertised to users during approval and attributed in Builder
@@ -45,7 +53,7 @@ export interface AppIdentity extends DirectAppConfig {
 }
 
 /**
- * Resolved service URLs for a given {@link DirectEnv}.
+ * Resolved service URLs and chain id for a given {@link DirectEnv}.
  *
  * @remarks
  * Centralizes the per-environment base URLs the controller talks to. Each can

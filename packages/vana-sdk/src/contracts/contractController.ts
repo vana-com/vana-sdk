@@ -19,9 +19,15 @@ import {
 } from "viem";
 import { type ContractAbis, getAbi, type VanaContract } from "../generated/abi";
 import type { VanaChainId, ContractInfo } from "../types/index";
-import { getContractAddress, CONTRACT_ADDRESSES } from "../generated/addresses";
+import {
+  getContractAddress,
+  CONTRACT_ADDRESSES,
+  type VanaContractAddress,
+} from "../generated/addresses";
 import { createClient } from "../core/client";
 import { vanaMainnet } from "../config/chains";
+
+type AddressedVanaContract = Extract<VanaContract, VanaContractAddress>;
 
 // Cache for contract instances - keyed by contract name and chain ID
 const contractCache = new Map<string, GetContractReturnType<Abi>>();
@@ -42,7 +48,10 @@ export const contractCacheForTesting = contractCache;
  *
  * @internal
  */
-function createCacheKey(contract: VanaContract, chainId: number): string {
+function createCacheKey(
+  contract: AddressedVanaContract,
+  chainId: number,
+): string {
   return `${contract}:${chainId}`;
 }
 
@@ -76,7 +85,7 @@ function createCacheKey(contract: VanaContract, chainId: number): string {
  *
  * @category Contracts
  */
-export function getContractController<T extends VanaContract>(
+export function getContractController<T extends AddressedVanaContract>(
   contract: T,
   client:
     | PublicClient
@@ -130,7 +139,7 @@ export function getContractController<T extends VanaContract>(
  *
  * @category Contracts
  */
-export function getContractInfo<T extends VanaContract>(
+export function getContractInfo<T extends AddressedVanaContract>(
   contract: T,
   chainId: VanaChainId = vanaMainnet.id as VanaChainId,
 ): ContractInfo<ContractAbis[T]> {
@@ -185,7 +194,7 @@ export class ContractFactory {
    * @param contract - Contract name (use const assertion for full typing)
    * @returns Fully typed contract instance
    */
-  create<T extends VanaContract>(
+  create<T extends AddressedVanaContract>(
     contract: T,
   ): GetContractReturnType<ContractAbis[T]> {
     return getContractController(contract, this.client);
@@ -197,7 +206,9 @@ export class ContractFactory {
    * @param contract - Contract name
    * @returns Contract information with typed ABI
    */
-  getInfo<T extends VanaContract>(contract: T): ContractInfo<ContractAbis[T]> {
+  getInfo<T extends AddressedVanaContract>(
+    contract: T,
+  ): ContractInfo<ContractAbis[T]> {
     return getContractInfo(contract, this.chainId as VanaChainId);
   }
 
@@ -206,12 +217,21 @@ export class ContractFactory {
    *
    * @returns Array of contract names available on this chain
    */
-  getAvailableContracts(): VanaContract[] {
-    // Return all contract names that have addresses on this chain
+  getAvailableContracts(): AddressedVanaContract[] {
+    // Return contract names that have both an address and an ABI on this chain.
     const chainAddresses = CONTRACT_ADDRESSES[this.chainId];
     if (!chainAddresses) return [];
 
-    return Object.keys(chainAddresses) as VanaContract[];
+    return Object.keys(chainAddresses).filter(
+      (contract): contract is AddressedVanaContract => {
+        try {
+          getAbi(contract as VanaContract);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    );
   }
 }
 
@@ -222,7 +242,7 @@ export class ContractFactory {
  * @param chainId - Optional specific chain to clear, or clear all if not provided
  */
 export function clearContractCache(
-  contract?: VanaContract,
+  contract?: AddressedVanaContract,
   chainId?: number,
 ): void {
   if (contract && chainId) {

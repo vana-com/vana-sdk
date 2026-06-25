@@ -251,8 +251,6 @@ function generateAddressesFile(
  * @category Configuration
  */
 
-import type { VanaContract } from "./abi";
-
 `;
 
   // Build CONTRACTS object
@@ -293,12 +291,13 @@ import type { VanaContract } from "./abi";
  * Union of contract names accepted by \`getContractAddress\`.
  *
  * @remarks
- * This includes ABI-backed \`VanaContract\` names plus address-only registry names
- * such as \`DataPortabilityEscrow\` and \`FeeRegistry\`.
+ * This is derived from the address registry rather than the ABI registry, so
+ * address-only contracts such as \`DataPortabilityEscrow\` and \`FeeRegistry\`
+ * are included.
  *
  * @category Contracts
  */
-export type VanaContractAddress = VanaContract | keyof typeof CONTRACTS;
+export type VanaContractAddress = keyof typeof CONTRACTS;
 
 `;
 

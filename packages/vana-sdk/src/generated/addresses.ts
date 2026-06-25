@@ -15,8 +15,6 @@
  * @category Configuration
  */
 
-import type { VanaContract } from "./abi";
-
 export const CONTRACTS = {
   // ========================================
   // ENTRY POINTS (from contracts.config.ts)
@@ -249,12 +247,13 @@ export const CONTRACTS = {
  * Union of contract names accepted by `getContractAddress`.
  *
  * @remarks
- * This includes ABI-backed `VanaContract` names plus address-only registry names
- * such as `DataPortabilityEscrow` and `FeeRegistry`.
+ * This is derived from the address registry rather than the ABI registry, so
+ * address-only contracts such as `DataPortabilityEscrow` and `FeeRegistry`
+ * are included.
  *
  * @category Contracts
  */
-export type VanaContractAddress = VanaContract | keyof typeof CONTRACTS;
+export type VanaContractAddress = keyof typeof CONTRACTS;
 
 // Transform for backwards compatibility
 export const CONTRACT_ADDRESSES: Record<number, Record<string, string>> = {

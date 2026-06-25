@@ -59,6 +59,15 @@ describe("addresses", () => {
         "FeeRegistry",
       ]);
     });
+
+    it("does not type allow ABI-only contracts without addresses", () => {
+      expect(() => {
+        // @ts-expect-error - ABI-only contract name is intentionally not addressable
+        getContractAddress(1480, "DLPRegistryTreasuryImplementation");
+      }).toThrow(
+        "Contract address not found for DLPRegistryTreasuryImplementation on chain 1480",
+      );
+    });
   });
 
   describe("getUtilityAddress", () => {

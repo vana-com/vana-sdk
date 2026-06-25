@@ -140,6 +140,8 @@ export function createDefaultNonceSource(): PaymentNonceSource {
   };
 }
 
+const processLocalNonceSource = createDefaultNonceSource();
+
 function base64EncodeJson(value: unknown): string {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
   let binary = "";
@@ -159,7 +161,7 @@ async function signGrantPayment(params: {
   config: EscrowPaymentConfig;
 }): Promise<SignedGrantPayment> {
   const { payerAddress, required, config } = params;
-  const nonceSource = config.nonceSource ?? createDefaultNonceSource();
+  const nonceSource = config.nonceSource ?? processLocalNonceSource;
   const paymentNonce = BigInt(
     required.paymentNonce ?? (await nonceSource(payerAddress)),
   );

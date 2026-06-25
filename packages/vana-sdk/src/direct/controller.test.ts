@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { verifyTypedData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createDirectDataController } from "./controller";
 import {
@@ -9,7 +10,12 @@ import {
 import type { AccessRequestClient, AccessRequestStatus } from "./types";
 import type { FetchResponseLike } from "./personal-server-read";
 import type { DirectEscrowConfig } from "./controller";
-import { NATIVE_ASSET_ADDRESS, type EscrowPayResult } from "../protocol/escrow";
+import {
+  GENERIC_PAYMENT_TYPES,
+  NATIVE_ASSET_ADDRESS,
+  genericPaymentDomain,
+  type EscrowPayResult,
+} from "../protocol/escrow";
 import { CONTRACTS } from "../generated/addresses";
 
 // Escrow contract address from the registry (resolved by chainId)
@@ -28,6 +34,21 @@ const APP = {
   id: "notes-lens",
   name: "Notes Lens",
   homepageUrl: "https://notes-lens.example",
+};
+
+type DecodedPaymentHeader = {
+  network: string;
+  payload: {
+    message: {
+      amount: string;
+      asset: `0x${string}`;
+      opId: `0x${string}`;
+      opType: string;
+      payerAddress: `0x${string}`;
+      paymentNonce: string;
+    };
+    signature: `0x${string}`;
+  };
 };
 
 function approvedStatus(): AccessRequestStatus {
@@ -247,6 +268,31 @@ function mockEscrowConfig(
   };
 }
 
+async function expectPaymentHeaderDomain(
+  xPaymentHeader: string | undefined,
+  input: { chainId: number; escrowContract: `0x${string}`; network: string },
+) {
+  expect(xPaymentHeader).toBeDefined();
+  const parsed = JSON.parse(atob(xPaymentHeader!)) as DecodedPaymentHeader;
+  expect(parsed.network).toBe(input.network);
+  expect(parsed.payload.message.payerAddress).toBe(APP_ADDRESS);
+
+  await expect(
+    verifyTypedData({
+      address: APP_ADDRESS,
+      domain: genericPaymentDomain(input.chainId, input.escrowContract),
+      types: GENERIC_PAYMENT_TYPES,
+      primaryType: "GenericPayment",
+      message: {
+        ...parsed.payload.message,
+        amount: BigInt(parsed.payload.message.amount),
+        paymentNonce: BigInt(parsed.payload.message.paymentNonce),
+      },
+      signature: parsed.payload.signature,
+    }),
+  ).resolves.toBe(true);
+}
+
 describe("createDirectDataController — readApprovedData", () => {
   function makeController(
     status: AccessRequestStatus,
@@ -400,7 +446,7 @@ function makeControllerWithPaymentCapture(
   ): Promise<FetchResponseLike> {
     call++;
     capturedHeaders.push({ ...init.headers });
-    if (call === 1) {
+    if (call % 2 === 1) {
       return jsonResponse(
         { grantId: GRANT_ID, asset: NATIVE_ASSET_ADDRESS, amount: "1000" },
         { status: 402 },
@@ -449,16 +495,11 @@ describe("createDirectDataController — BUI-581 default escrow", () => {
     await controller.readApprovedData({ requestId: "dcr_1" });
 
     // The retry request (index 1) carries the X-PAYMENT header
-    const xPaymentHeader = capturedHeaders[1]?.["X-PAYMENT"];
-    expect(xPaymentHeader).toBeDefined();
-    const parsed = JSON.parse(atob(xPaymentHeader!)) as {
-      network: string;
-      payload: { message: { payerAddress: string } };
-    };
-    // Network reflects dev chain
-    expect(parsed.network).toBe("vana:14800");
-    // Payer matches the app key
-    expect(parsed.payload.message.payerAddress).toBe(APP_ADDRESS);
+    await expectPaymentHeaderDomain(capturedHeaders[1]?.["X-PAYMENT"], {
+      chainId: 14800,
+      escrowContract: ESCROW_CONTRACT_MOKSHA,
+      network: "vana:14800",
+    });
   });
 
   it("production env (chainId 1480): escrowContract defaults to registry address", async () => {
@@ -469,14 +510,11 @@ describe("createDirectDataController — BUI-581 default escrow", () => {
 
     await controller.readApprovedData({ requestId: "dcr_1" });
 
-    const xPaymentHeader = capturedHeaders[1]?.["X-PAYMENT"];
-    expect(xPaymentHeader).toBeDefined();
-    const parsed = JSON.parse(atob(xPaymentHeader!)) as {
-      network: string;
-      payload: { message: { payerAddress: string } };
-    };
-    expect(parsed.network).toBe("vana:1480");
-    expect(parsed.payload.message.payerAddress).toBe(APP_ADDRESS);
+    await expectPaymentHeaderDomain(capturedHeaders[1]?.["X-PAYMENT"], {
+      chainId: 1480,
+      escrowContract: ESCROW_CONTRACT_MAINNET,
+      network: "vana:1480",
+    });
   });
 
   it("caller-provided escrowContract wins over registry default", async () => {
@@ -490,15 +528,35 @@ describe("createDirectDataController — BUI-581 default escrow", () => {
 
     await controller.readApprovedData({ requestId: "dcr_1" });
 
-    // Payment header must have been built (no throw = custom contract was accepted)
-    const xPaymentHeader = capturedHeaders[1]?.["X-PAYMENT"];
-    expect(xPaymentHeader).toBeDefined();
-    const parsed = JSON.parse(atob(xPaymentHeader!)) as {
-      network: string;
-      payload: { message: { payerAddress: string } };
-    };
-    // Still production chain
-    expect(parsed.network).toBe("vana:1480");
+    await expectPaymentHeaderDomain(capturedHeaders[1]?.["X-PAYMENT"], {
+      chainId: 1480,
+      escrowContract: CUSTOM_CONTRACT,
+      network: "vana:1480",
+    });
+  });
+
+  it("chainId override requires a matching escrowContract when not in the registry", () => {
+    expect(() =>
+      makeControllerWithPaymentCapture("production", { chainId: 31337 }),
+    ).toThrow(/chainId 31337/);
+  });
+
+  it("default escrow config uses a process-local nonce source across reads", async () => {
+    const { controller, capturedHeaders } =
+      makeControllerWithPaymentCapture("production");
+
+    await controller.readApprovedData({ requestId: "dcr_1" });
+    await controller.readApprovedData({ requestId: "dcr_2" });
+
+    const paymentNonces = [capturedHeaders[1], capturedHeaders[3]].map(
+      (headers) =>
+        BigInt(
+          (JSON.parse(atob(headers["X-PAYMENT"])) as DecodedPaymentHeader)
+            .payload.message.paymentNonce,
+        ),
+    );
+
+    expect(paymentNonces[1]).toBe(paymentNonces[0] + 1n);
   });
 
   it("resolved escrowContract comes from registry-by-chainId, not a hardcoded literal", () => {

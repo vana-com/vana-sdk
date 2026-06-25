@@ -4,7 +4,6 @@ import {
   clearContractCache,
   contractCacheForTesting,
 } from "../contractController";
-import type { VanaContract } from "../../generated/abi";
 import { createClient } from "../../core/client";
 import { vanaMainnet, mokshaTestnet } from "../../config/chains";
 import type { PublicClient } from "viem";
@@ -198,12 +197,12 @@ describe("contractController", () => {
     });
 
     it("should work with all contract types", async () => {
-      const contractTypes: VanaContract[] = [
+      const contractTypes = [
         "DataRegistry",
         "TeePoolPhala",
         "DataPortabilityPermissions",
         "DLPRegistry",
-      ];
+      ] as const;
 
       const { getContract } = await import("viem");
       const controllers = [];

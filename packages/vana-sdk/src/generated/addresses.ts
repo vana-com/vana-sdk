@@ -15,8 +15,6 @@
  * @category Configuration
  */
 
-import type { VanaContract } from "./abi";
-
 export const CONTRACTS = {
   // ========================================
   // ENTRY POINTS (from contracts.config.ts)
@@ -245,6 +243,18 @@ export const CONTRACTS = {
   },
 } as const;
 
+/**
+ * Union of contract names accepted by `getContractAddress`.
+ *
+ * @remarks
+ * This is derived from the address registry rather than the ABI registry, so
+ * address-only contracts such as `DataPortabilityEscrow` and `FeeRegistry`
+ * are included.
+ *
+ * @category Contracts
+ */
+export type VanaContractAddress = keyof typeof CONTRACTS;
+
 // Transform for backwards compatibility
 export const CONTRACT_ADDRESSES: Record<number, Record<string, string>> = {
   14800: Object.fromEntries(
@@ -275,7 +285,7 @@ export const UTILITY_ADDRESSES = {
  */
 export const getContractAddress = (
   chainId: keyof typeof CONTRACT_ADDRESSES,
-  contract: VanaContract,
+  contract: VanaContractAddress,
 ) => {
   const contractAddress = CONTRACT_ADDRESSES[chainId]?.[contract] as
     | `0x${string}`

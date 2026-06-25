@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getContractAddress,
   getUtilityAddress,
+  type VanaContractAddress,
 } from "../../generated/addresses";
 
 describe("addresses", () => {
@@ -25,6 +26,47 @@ describe("addresses", () => {
       expect(() => {
         getContractAddress(99999, "DataRegistry");
       }).toThrow();
+    });
+
+    it("should accept DataPortabilityEscrow (address-only contract added in #164)", () => {
+      // This was the unaddressed Low finding from #164: addresses were present in
+      // CONTRACTS but the public VanaContract type (derived from contractAbis) excluded
+      // them because they have no ABI. VanaContractAddress now includes registry
+      // keys, so these two names type-check correctly.
+      const address = getContractAddress(14800, "DataPortabilityEscrow");
+      expect(address).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      const mainnetAddress = getContractAddress(1480, "DataPortabilityEscrow");
+      expect(mainnetAddress).toMatch(/^0x[a-fA-F0-9]{40}$/);
+    });
+
+    it("should accept FeeRegistry (address-only contract added in #164)", () => {
+      const address = getContractAddress(14800, "FeeRegistry");
+      expect(address).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      const mainnetAddress = getContractAddress(1480, "FeeRegistry");
+      expect(mainnetAddress).toMatch(/^0x[a-fA-F0-9]{40}$/);
+    });
+
+    it("VanaContractAddress includes DataPortabilityEscrow and FeeRegistry", () => {
+      // Type-level assertion: these strings must be assignable to VanaContractAddress.
+      // The assignment below is a compile-time check — if either name is missing from
+      // VanaContractAddress, TypeScript will error here.
+      const addressOnlyContracts: VanaContractAddress[] = [
+        "DataPortabilityEscrow",
+        "FeeRegistry",
+      ];
+      expect(addressOnlyContracts).toEqual([
+        "DataPortabilityEscrow",
+        "FeeRegistry",
+      ]);
+    });
+
+    it("does not type allow ABI-only contracts without addresses", () => {
+      expect(() => {
+        // @ts-expect-error - ABI-only contract name is intentionally not addressable
+        getContractAddress(1480, "DLPRegistryTreasuryImplementation");
+      }).toThrow(
+        "Contract address not found for DLPRegistryTreasuryImplementation on chain 1480",
+      );
     });
   });
 

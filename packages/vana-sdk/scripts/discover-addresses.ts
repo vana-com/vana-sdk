@@ -251,8 +251,6 @@ function generateAddressesFile(
  * @category Configuration
  */
 
-import type { VanaContract } from "./abi";
-
 `;
 
   // Build CONTRACTS object
@@ -289,6 +287,20 @@ import type { VanaContract } from "./abi";
 
   content += `} as const;\n\n`;
 
+  content += `/**
+ * Union of contract names accepted by \`getContractAddress\`.
+ *
+ * @remarks
+ * This is derived from the address registry rather than the ABI registry, so
+ * address-only contracts such as \`DataPortabilityEscrow\` and \`FeeRegistry\`
+ * are included.
+ *
+ * @category Contracts
+ */
+export type VanaContractAddress = keyof typeof CONTRACTS;
+
+`;
+
   // Add backwards compatibility exports
   content += `// Transform for backwards compatibility\n`;
   content += `export const CONTRACT_ADDRESSES: Record<number, Record<string, string>> = {\n`;
@@ -321,7 +333,7 @@ import type { VanaContract } from "./abi";
  */
 export const getContractAddress = (
   chainId: keyof typeof CONTRACT_ADDRESSES,
-  contract: VanaContract,
+  contract: VanaContractAddress,
 ) => {
   const contractAddress = CONTRACT_ADDRESSES[chainId]?.[contract] as
     | \`0x\${string}\`

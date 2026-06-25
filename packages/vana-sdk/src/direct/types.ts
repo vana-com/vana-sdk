@@ -67,6 +67,8 @@ export interface DirectServiceEndpoints {
   accessRequestBaseUrl: string;
   /** Base URL users are sent to for approval (the Vana app). */
   approvalAppBaseUrl: string;
+  /** Base URL of the DP RPC escrow gateway used to settle `402 Payment Required`. */
+  escrowGatewayUrl: string;
 }
 
 /** Result of {@link DirectDataController.createAccessRequest}. */

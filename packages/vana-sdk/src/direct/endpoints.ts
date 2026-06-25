@@ -17,6 +17,7 @@ export const PRODUCTION_ENDPOINTS: DirectServiceEndpoints = {
   chainId: 1480,
   accessRequestBaseUrl: "https://app.vana.org",
   approvalAppBaseUrl: "https://app.vana.org",
+  escrowGatewayUrl: "https://dp-rpc.vana.org",
 } as const;
 
 /** Internal dev stack service URLs. */
@@ -24,6 +25,7 @@ export const DEV_ENDPOINTS: DirectServiceEndpoints = {
   chainId: 14800,
   accessRequestBaseUrl: "https://app-dev.vana.org",
   approvalAppBaseUrl: "https://app-dev.vana.org",
+  escrowGatewayUrl: "https://dp-rpc-dev.vana.org",
 } as const;
 
 /**

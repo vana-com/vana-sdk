@@ -42,6 +42,18 @@ export const CONTRACTS: Record<string, ContractConfig> = {
   // ========================================
   // DATA PORTABILITY CONTRACTS
   // ========================================
+  DataPortabilityEscrow: {
+    addresses: {
+      14800: "0x07d7769081adc3a3DBe91f5E4B98E9A5a6B292e3",
+      1480: "0x07d7769081adc3a3DBe91f5E4B98E9A5a6B292e3",
+    },
+  },
+  FeeRegistry: {
+    addresses: {
+      14800: "0xb4FA18443E0FA6cdC0280D20b8cCDB2377D13Bf2",
+      1480: "0xb4FA18443E0FA6cdC0280D20b8cCDB2377D13Bf2",
+    },
+  },
   DataPortabilityPermissions: {
     addresses: {
       14800: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",

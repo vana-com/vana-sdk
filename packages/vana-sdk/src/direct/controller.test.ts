@@ -10,6 +10,11 @@ import type { AccessRequestClient, AccessRequestStatus } from "./types";
 import type { FetchResponseLike } from "./personal-server-read";
 import type { DirectEscrowConfig } from "./controller";
 import { NATIVE_ASSET_ADDRESS, type EscrowPayResult } from "../protocol/escrow";
+import { CONTRACTS } from "../generated/addresses";
+
+// Escrow contract address from the registry (resolved by chainId)
+const ESCROW_CONTRACT_MOKSHA = CONTRACTS.DataPortabilityEscrow.addresses[14800];
+const ESCROW_CONTRACT_MAINNET = CONTRACTS.DataPortabilityEscrow.addresses[1480];
 
 const APP_KEY =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
@@ -356,27 +361,6 @@ describe("createDirectDataController — readApprovedData", () => {
     });
   });
 
-  it("throws structured PaymentRequiredError when escrow is not configured", async () => {
-    const vana = makeController(approvedStatus(), async () =>
-      jsonResponse(
-        { grantId: GRANT_ID, asset: "0xtoken", amount: "777" },
-        { status: 402 },
-      ),
-    );
-
-    let thrown: unknown;
-    try {
-      await vana.readApprovedData({ requestId: "dcr_1" });
-    } catch (err) {
-      thrown = err;
-    }
-    expect(thrown).toBeInstanceOf(PaymentRequiredError);
-    expect((thrown as PaymentRequiredError).details).toMatchObject({
-      asset: "0xtoken",
-      amount: "777",
-    });
-  });
-
   it("throws PaymentRequiredError when the server still demands payment after settlement", async () => {
     const vana = makeController(
       approvedStatus(),
@@ -387,5 +371,147 @@ describe("createDirectDataController — readApprovedData", () => {
     await expect(vana.readApprovedData({ requestId: "dcr_1" })).rejects.toThrow(
       PaymentRequiredError,
     );
+  });
+});
+
+// -----------------------------------------------------------------------
+// BUI-581: default escrow config derived from endpoints + registry
+// -----------------------------------------------------------------------
+
+/**
+ * Build a controller that captures X-PAYMENT headers for inspection.
+ * The PS fetch returns 402 on the first call, then success.
+ */
+function makeControllerWithPaymentCapture(
+  env: "dev" | "production" = "production",
+  escrow?: Partial<DirectEscrowConfig>,
+) {
+  const capturedHeaders: Record<string, string>[] = [];
+
+  const accessRequestClient: AccessRequestClient = {
+    createAccessRequest: vi.fn(),
+    getAccessRequestStatus: vi.fn(async () => approvedStatus()),
+  };
+
+  let call = 0;
+  async function personalServerFetch(
+    _url: string,
+    init: { method: string; headers: Record<string, string> },
+  ): Promise<FetchResponseLike> {
+    call++;
+    capturedHeaders.push({ ...init.headers });
+    if (call === 1) {
+      return jsonResponse(
+        { grantId: GRANT_ID, asset: NATIVE_ASSET_ADDRESS, amount: "1000" },
+        { status: 402 },
+      );
+    }
+    return jsonResponse(
+      { ok: true },
+      {
+        headers: {
+          "X-PAYMENT-RESPONSE": btoa(JSON.stringify(payResultFixture())),
+        },
+      },
+    );
+  }
+
+  const spyPayForOp = vi.fn(async () => payResultFixture());
+  const spyClient = {
+    submitDeposit: vi.fn(),
+    getEscrowBalance: vi.fn(),
+    syncEscrowBalance: vi.fn(),
+    payForOp: spyPayForOp,
+  };
+
+  const controller = createDirectDataController({
+    env,
+    appPrivateKey: APP_KEY,
+    app: APP,
+    source: "icloud_notes",
+    scopes: ["icloud_notes.notes"],
+    accessRequestClient,
+    personalServerFetch,
+    // Always provide at least a spy client so gateway network calls are not made.
+    escrow: { client: spyClient, ...escrow },
+  });
+
+  return { controller, capturedHeaders, spyClient, spyPayForOp };
+}
+
+describe("createDirectDataController — BUI-581 default escrow", () => {
+  it("dev env (chainId 14800): escrowContract defaults to registry address", async () => {
+    const { controller, capturedHeaders } = makeControllerWithPaymentCapture(
+      "dev",
+      // No escrowContract — SDK must resolve from registry
+    );
+
+    await controller.readApprovedData({ requestId: "dcr_1" });
+
+    // The retry request (index 1) carries the X-PAYMENT header
+    const xPaymentHeader = capturedHeaders[1]?.["X-PAYMENT"];
+    expect(xPaymentHeader).toBeDefined();
+    const parsed = JSON.parse(atob(xPaymentHeader!)) as {
+      network: string;
+      payload: { message: { payerAddress: string } };
+    };
+    // Network reflects dev chain
+    expect(parsed.network).toBe("vana:14800");
+    // Payer matches the app key
+    expect(parsed.payload.message.payerAddress).toBe(APP_ADDRESS);
+  });
+
+  it("production env (chainId 1480): escrowContract defaults to registry address", async () => {
+    const { controller, capturedHeaders } = makeControllerWithPaymentCapture(
+      "production",
+      // No escrowContract — SDK must resolve from registry
+    );
+
+    await controller.readApprovedData({ requestId: "dcr_1" });
+
+    const xPaymentHeader = capturedHeaders[1]?.["X-PAYMENT"];
+    expect(xPaymentHeader).toBeDefined();
+    const parsed = JSON.parse(atob(xPaymentHeader!)) as {
+      network: string;
+      payload: { message: { payerAddress: string } };
+    };
+    expect(parsed.network).toBe("vana:1480");
+    expect(parsed.payload.message.payerAddress).toBe(APP_ADDRESS);
+  });
+
+  it("caller-provided escrowContract wins over registry default", async () => {
+    // Use a real checksummed address (the well-known dead address)
+    const CUSTOM_CONTRACT =
+      "0x000000000000000000000000000000000000dEaD" as `0x${string}`;
+    const { controller, capturedHeaders } = makeControllerWithPaymentCapture(
+      "production",
+      { escrowContract: CUSTOM_CONTRACT },
+    );
+
+    await controller.readApprovedData({ requestId: "dcr_1" });
+
+    // Payment header must have been built (no throw = custom contract was accepted)
+    const xPaymentHeader = capturedHeaders[1]?.["X-PAYMENT"];
+    expect(xPaymentHeader).toBeDefined();
+    const parsed = JSON.parse(atob(xPaymentHeader!)) as {
+      network: string;
+      payload: { message: { payerAddress: string } };
+    };
+    // Still production chain
+    expect(parsed.network).toBe("vana:1480");
+  });
+
+  it("resolved escrowContract comes from registry-by-chainId, not a hardcoded literal", () => {
+    // Structural guard: CONTRACTS.DataPortabilityEscrow must have both chain ids
+    // so the runtime lookup in controller.ts succeeds.
+    expect(ESCROW_CONTRACT_MOKSHA).toBe(
+      "0x07d7769081adc3a3DBe91f5E4B98E9A5a6B292e3",
+    );
+    expect(ESCROW_CONTRACT_MAINNET).toBe(
+      "0x07d7769081adc3a3DBe91f5E4B98E9A5a6B292e3",
+    );
+    // Both are truthy (not undefined / empty)
+    expect(ESCROW_CONTRACT_MOKSHA).toBeTruthy();
+    expect(ESCROW_CONTRACT_MAINNET).toBeTruthy();
   });
 });

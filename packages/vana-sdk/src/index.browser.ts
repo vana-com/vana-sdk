@@ -26,6 +26,7 @@ export type {
 
 // Addresses
 export { getContractAddress, CONTRACTS } from "./generated/addresses";
+export type { VanaContractAddress } from "./generated/addresses";
 
 // Chain configurations
 export {

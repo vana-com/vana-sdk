@@ -19,7 +19,11 @@ import {
 } from "viem";
 import { type ContractAbis, getAbi, type VanaContract } from "../generated/abi";
 import type { VanaChainId, ContractInfo } from "../types/index";
-import { getContractAddress, CONTRACT_ADDRESSES } from "../generated/addresses";
+import {
+  getContractAddress,
+  CONTRACT_ADDRESSES,
+  type VanaContractAddress,
+} from "../generated/addresses";
 import { createClient } from "../core/client";
 import { vanaMainnet } from "../config/chains";
 
@@ -90,7 +94,7 @@ export function getContractController<T extends VanaContract>(
 
   if (!controller) {
     controller = getContract({
-      address: getContractAddress(chainId, contract),
+      address: getContractAddress(chainId, contract as VanaContractAddress),
       abi: getAbi(contract),
       client,
     }) as GetContractReturnType<ContractAbis[T]>;
@@ -135,7 +139,7 @@ export function getContractInfo<T extends VanaContract>(
   chainId: VanaChainId = vanaMainnet.id as VanaChainId,
 ): ContractInfo<ContractAbis[T]> {
   return {
-    address: getContractAddress(chainId, contract),
+    address: getContractAddress(chainId, contract as VanaContractAddress),
     abi: getAbi(contract),
   };
 }

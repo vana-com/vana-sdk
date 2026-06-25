@@ -289,6 +289,19 @@ import type { VanaContract } from "./abi";
 
   content += `} as const;\n\n`;
 
+  content += `/**
+ * Union of contract names accepted by \`getContractAddress\`.
+ *
+ * @remarks
+ * This includes ABI-backed \`VanaContract\` names plus address-only registry names
+ * such as \`DataPortabilityEscrow\` and \`FeeRegistry\`.
+ *
+ * @category Contracts
+ */
+export type VanaContractAddress = VanaContract | keyof typeof CONTRACTS;
+
+`;
+
   // Add backwards compatibility exports
   content += `// Transform for backwards compatibility\n`;
   content += `export const CONTRACT_ADDRESSES: Record<number, Record<string, string>> = {\n`;
@@ -321,7 +334,7 @@ import type { VanaContract } from "./abi";
  */
 export const getContractAddress = (
   chainId: keyof typeof CONTRACT_ADDRESSES,
-  contract: VanaContract,
+  contract: VanaContractAddress,
 ) => {
   const contractAddress = CONTRACT_ADDRESSES[chainId]?.[contract] as
     | \`0x\${string}\`

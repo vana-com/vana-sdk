@@ -16,6 +16,7 @@
 import type {
   AccessRequest,
   AccessRequestStatus,
+  AccessRequestStatusValue,
   ApprovedDataResult,
 } from "./types";
 
@@ -80,6 +81,10 @@ const DEFAULT_TIMEOUT_MS = 300_000;
 
 function toError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
+}
+
+function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
+  return status === "approved" || status === "ready_for_read";
 }
 
 /**
@@ -182,7 +187,7 @@ export function createDirectConnectFlow<T = unknown>(
     }
     if (!running) return;
 
-    if (status.status === "approved") {
+    if (isReadReadyStatus(status.status)) {
       clearPoll();
       await readAndFinish(request);
       return;

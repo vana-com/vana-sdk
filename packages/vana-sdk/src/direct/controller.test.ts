@@ -60,6 +60,13 @@ function approvedStatus(): AccessRequestStatus {
   };
 }
 
+function readyForReadStatus(): AccessRequestStatus {
+  return {
+    ...approvedStatus(),
+    status: "ready_for_read",
+  };
+}
+
 function jsonResponse(
   body: unknown,
   init: {
@@ -402,6 +409,64 @@ describe("createDirectDataController — readApprovedData", () => {
       "https://ps.example.com/v1/data/icloud_notes.notes",
     );
     expect(seen[0].headers.Authorization).toMatch(/^Web3Signed /);
+  });
+
+  it("acknowledges the access request after a successful read", async () => {
+    const acknowledgeRead = vi.fn(async () => undefined);
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(),
+      getAccessRequestStatus: vi.fn(async () => approvedStatus()),
+      acknowledgeRead,
+    };
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      accessRequestClient,
+      personalServerFetch: async () => jsonResponse({ ok: true }),
+      escrow: mockEscrowConfig(),
+    });
+
+    const result = await vana.readApprovedData({ requestId: "dcr_1" });
+
+    expect(result.data).toEqual({ ok: true });
+    expect(acknowledgeRead).toHaveBeenCalledOnce();
+    expect(acknowledgeRead).toHaveBeenCalledWith("dcr_1");
+  });
+
+  it("returns the successful read when acknowledgement fails", async () => {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(),
+      getAccessRequestStatus: vi.fn(async () => approvedStatus()),
+      acknowledgeRead: vi.fn(async () => {
+        throw new Error("ack failed");
+      }),
+    };
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      accessRequestClient,
+      personalServerFetch: async () => jsonResponse({ ok: true }),
+      escrow: mockEscrowConfig(),
+    });
+
+    const result = await vana.readApprovedData({ requestId: "dcr_1" });
+
+    expect(result.data).toEqual({ ok: true });
+    expect(accessRequestClient.acknowledgeRead).toHaveBeenCalledOnce();
+  });
+
+  it("reads data when the access request is ready_for_read", async () => {
+    const vana = makeController(readyForReadStatus(), async () =>
+      jsonResponse({ ok: true }),
+    );
+
+    const result = await vana.readApprovedData({ requestId: "dcr_1" });
+
+    expect(result.data).toEqual({ ok: true });
   });
 
   it("settles a 402 via escrow and returns a structured payment receipt", async () => {

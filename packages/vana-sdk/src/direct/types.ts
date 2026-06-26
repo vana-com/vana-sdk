@@ -85,6 +85,7 @@ export interface AccessRequest {
 export type AccessRequestStatusValue =
   | "pending"
   | "approved"
+  | "ready_for_read"
   | "denied"
   | "expired";
 
@@ -92,11 +93,11 @@ export type AccessRequestStatusValue =
 export interface AccessRequestStatus {
   /** Current lifecycle status of the request. */
   status: AccessRequestStatusValue;
-  /** Personal Server base URL — present once `status === "approved"`. */
+  /** Personal Server base URL — present once data is ready to read. */
   personalServerUrl?: string;
-  /** Grant id covering the approved scope — present once approved. */
+  /** Grant id covering the approved scope — present once data is ready to read. */
   grantId?: string;
-  /** The approved scope — present once approved. */
+  /** The approved scope — present once data is ready to read. */
   scope?: string;
 }
 
@@ -148,6 +149,20 @@ export interface AccessRequestClient {
    * @returns The current {@link AccessRequestStatus}.
    */
   getAccessRequestStatus(requestId: string): Promise<AccessRequestStatus>;
+
+  /**
+   * Acknowledge that the app successfully read the approved data.
+   *
+   * @remarks
+   * Direct Vana Web DCRs remain in `ready_for_read` while the browser Personal
+   * Server is serving the app. After a successful Personal Server read, the
+   * controller calls this hook so Vana Web can mark the request completed and
+   * close/redirect the approval tab.
+   *
+   * Optional so injected clients from older SDK integrations keep compiling;
+   * the default HTTP client implements it.
+   */
+  acknowledgeRead?(requestId: string): Promise<void>;
 }
 
 /**

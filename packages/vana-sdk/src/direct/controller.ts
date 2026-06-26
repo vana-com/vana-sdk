@@ -297,6 +297,7 @@ export function createDirectDataController(
         source: config.source,
         scopes: config.scopes,
         returnUrl: input.returnUrl,
+        network,
       });
     },
 

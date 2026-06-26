@@ -210,13 +210,18 @@ describe("createDirectDataController — createAccessRequest", () => {
     });
   });
 
-  function makeNetworkFixture(overrides: Partial<Parameters<typeof createDirectDataController>[0]> = {}) {
+  function makeNetworkFixture(
+    overrides: Partial<Parameters<typeof createDirectDataController>[0]> = {},
+  ) {
     const spy = vi.fn(async () => ({
       requestId: "dcr_x",
       approvalUrl: "https://app.vana.org/data-connection-requests/dcr_x",
       appAddress: APP_ADDRESS,
     }));
-    const accessRequestClient: AccessRequestClient = { createAccessRequest: spy, getAccessRequestStatus: vi.fn() };
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: spy,
+      getAccessRequestStatus: vi.fn(),
+    };
     const vana = createDirectDataController({
       appPrivateKey: APP_KEY,
       app: APP,
@@ -230,20 +235,35 @@ describe("createDirectDataController — createAccessRequest", () => {
 
   it("sends network=mainnet when env=production (default)", async () => {
     const { vana, spy } = makeNetworkFixture({ env: "production" });
-    await vana.createAccessRequest({ returnUrl: "https://notes-lens.example/return" });
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ network: "mainnet" }));
+    await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/return",
+    });
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ network: "mainnet" }),
+    );
   });
 
   it("sends network=moksha when env=production and network=moksha", async () => {
-    const { vana, spy } = makeNetworkFixture({ env: "production", network: "moksha" });
-    await vana.createAccessRequest({ returnUrl: "https://notes-lens.example/return" });
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ network: "moksha" }));
+    const { vana, spy } = makeNetworkFixture({
+      env: "production",
+      network: "moksha",
+    });
+    await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/return",
+    });
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ network: "moksha" }),
+    );
   });
 
   it("sends network=moksha when env=dev (default)", async () => {
     const { vana, spy } = makeNetworkFixture({ env: "dev" });
-    await vana.createAccessRequest({ returnUrl: "https://notes-lens.example/return" });
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ network: "moksha" }));
+    await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/return",
+    });
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ network: "moksha" }),
+    );
   });
 
   it("uses production access-request URLs when the network is Moksha", async () => {

@@ -103,7 +103,31 @@ describe("createDefaultAccessRequestClient", () => {
     });
   });
 
-  it("signs create and status requests when app auth is configured", async () => {
+  it("passes through ready_for_read status fields", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          status: "ready_for_read",
+          personalServerUrl: "https://ps.example.com",
+          grantId: "0xgrant",
+          scope: "icloud_notes.notes",
+        },
+      })),
+    });
+
+    const status = await client.getAccessRequestStatus("dcr_9");
+    expect(status).toEqual({
+      status: "ready_for_read",
+      personalServerUrl: "https://ps.example.com",
+      grantId: "0xgrant",
+      scope: "icloud_notes.notes",
+    });
+  });
+
+  it("signs create, status, and acknowledge requests when app auth is configured", async () => {
     const requests: Array<{
       init?: {
         method?: string;
@@ -142,6 +166,7 @@ describe("createDefaultAccessRequestClient", () => {
       network: "mainnet",
     });
     await client.getAccessRequestStatus("dcr_9");
+    await client.acknowledgeRead?.("dcr_9");
 
     const createBody = requests[0]?.init?.body ?? "";
     expect(requests[0]).toMatchObject({
@@ -185,6 +210,26 @@ describe("createDefaultAccessRequestClient", () => {
         timestamp: "123",
       }),
     );
+
+    expect(requests[2]).toMatchObject({
+      url: "https://app.vana.org/api/data-connection-requests/dcr_9/consumer-ack",
+      init: {
+        method: "POST",
+        headers: {
+          "X-Vana-App-Address": "0xabc",
+          "X-Vana-App-Signature": "0xsig3",
+          "X-Vana-App-Timestamp": "123",
+        },
+      },
+    });
+    expect(signedMessages[2]).toBe(
+      buildDirectAccessRequestAuthMessage({
+        body: "",
+        method: "POST",
+        path: "/api/data-connection-requests/dcr_9/consumer-ack",
+        timestamp: "123",
+      }),
+    );
   });
 
   it("throws on a non-ok create response", async () => {
@@ -204,5 +249,17 @@ describe("createDefaultAccessRequestClient", () => {
         network: "mainnet",
       }),
     ).rejects.toThrow(/Access request service error/);
+  });
+
+  it("throws on a non-ok acknowledge response", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({ status: 409, body: {} })),
+    });
+
+    await expect(client.acknowledgeRead?.("dcr_9")).rejects.toThrow(
+      /Access request ack service error/,
+    );
   });
 });

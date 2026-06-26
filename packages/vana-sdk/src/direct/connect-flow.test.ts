@@ -55,6 +55,12 @@ function approvedStatus(): AccessRequestStatus {
     scope: "icloud_notes.notes",
   };
 }
+function readyForReadStatus(): AccessRequestStatus {
+  return {
+    ...approvedStatus(),
+    status: "ready_for_read",
+  };
+}
 
 describe("createDirectConnectFlow", () => {
   it("starts idle", () => {
@@ -132,6 +138,34 @@ describe("createDirectConnectFlow", () => {
     if (state.type === "error") {
       expect(state.error.message).toBe("backend down");
     }
+  });
+
+  it("reads when status is ready_for_read", async () => {
+    const h = makeHarness();
+    const result: ApprovedDataResult = {
+      scope: "icloud_notes.notes",
+      data: [{ note: "hi" }],
+    };
+    const readResult = vi.fn(async () => result);
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => REQUEST,
+        getStatus: async () => readyForReadStatus(),
+        readResult,
+      },
+      {
+        openWindow: vi.fn(),
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    await h.tick();
+
+    expect(readResult).toHaveBeenCalledWith("dcr_1");
+    expect(flow.getState().type).toBe("done");
   });
 
   it("errors when the request is denied", async () => {

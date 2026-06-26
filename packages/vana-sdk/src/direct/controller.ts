@@ -49,6 +49,7 @@ import type {
   AccessRequest,
   AccessRequestClient,
   AccessRequestStatus,
+  AccessRequestStatusValue,
   ApprovedDataResult,
   AppIdentity,
   DirectAppConfig,
@@ -182,7 +183,9 @@ export interface DirectDataController {
    * read. Hides the `402 Payment Required` flow by default: if a read needs
    * payment, it signs the Personal Server's payment challenge, retries with
    * `X-PAYMENT`, and attaches a {@link DirectPaymentReceipt} under `payment`
-   * when the Personal Server returns one.
+   * when the Personal Server returns one. After a successful read, the
+   * controller acknowledges the DCR so Vana Web can close/redirect the approval
+   * tab.
    *
    * @param input - The `dcr_*` request id to read.
    * @returns `{ scope, data, payment? }`.
@@ -196,6 +199,10 @@ export interface DirectDataController {
 
 function isHexPrivateKey(value: string): value is Hex {
   return /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
+  return status === "approved" || status === "ready_for_read";
 }
 
 /**
@@ -314,7 +321,7 @@ export function createDirectDataController(
         input.requestId,
       );
       if (
-        status.status !== "approved" ||
+        !isReadReadyStatus(status.status) ||
         !status.personalServerUrl ||
         !status.grantId ||
         !status.scope
@@ -340,6 +347,11 @@ export function createDirectDataController(
         escrow,
         fetchFn: config.personalServerFetch,
       });
+      try {
+        await accessRequestClient.acknowledgeRead?.(input.requestId);
+      } catch {
+        // The read already succeeded; ack only drives Vana Web completion UX.
+      }
 
       return {
         scope: status.scope,

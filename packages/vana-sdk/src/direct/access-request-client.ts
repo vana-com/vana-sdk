@@ -54,6 +54,7 @@ export interface DefaultAccessRequestClientOptions {
 const VALID_STATUSES: readonly AccessRequestStatusValue[] = [
   "pending",
   "approved",
+  "ready_for_read",
   "denied",
   "expired",
 ];
@@ -225,6 +226,23 @@ export function createDefaultAccessRequestClient(
         grantId: body.grantId,
         scope: body.scope,
       };
+    },
+
+    async acknowledgeRead(requestId: string): Promise<void> {
+      const path = `/api/data-connection-requests/${encodeURIComponent(requestId)}/consumer-ack`;
+      const res = await fetchFn(`${base}${path}`, {
+        method: "POST",
+        headers: await buildDirectAccessRequestHeaders(options, {
+          body: "",
+          method: "POST",
+          path,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(
+          `Access request ack service error: ${res.status} ${res.statusText}`,
+        );
+      }
     },
   };
 }

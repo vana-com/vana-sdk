@@ -128,7 +128,7 @@ export interface AccessRequestClient {
   /**
    * Create an access request for the given app + scopes.
    *
-   * @param input - App identity, source, scopes, and the post-approval return URL.
+   * @param input - App identity, source, scopes, network, and the post-approval return URL.
    * @returns The created {@link AccessRequest}.
    */
   createAccessRequest(input: {
@@ -137,6 +137,8 @@ export interface AccessRequestClient {
     source: string;
     scopes: string[];
     returnUrl: string;
+    /** Vana protocol network for this request (`"mainnet"` or `"moksha"`). */
+    network: DirectNetwork;
   }): Promise<AccessRequest>;
 
   /**

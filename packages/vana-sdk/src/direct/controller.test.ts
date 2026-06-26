@@ -206,7 +206,114 @@ describe("createDirectDataController — createAccessRequest", () => {
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],
       returnUrl: "https://notes-lens.example/connect/return",
+      network: "mainnet",
     });
+  });
+
+  it("sends network=mainnet when env=production (default)", async () => {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(async () => ({
+        requestId: "dcr_prod",
+        approvalUrl: "https://app.vana.org/data-connection-requests/dcr_prod",
+        appAddress: APP_ADDRESS,
+      })),
+      getAccessRequestStatus: vi.fn(),
+    };
+
+    const vana = createDirectDataController({
+      env: "production",
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      accessRequestClient,
+    });
+
+    await vana.createAccessRequest({ returnUrl: "https://notes-lens.example/return" });
+
+    expect(accessRequestClient.createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ network: "mainnet" }),
+    );
+  });
+
+  it("sends network=moksha when env=production and network=moksha", async () => {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(async () => ({
+        requestId: "dcr_moksha_override",
+        approvalUrl: "https://app.vana.org/data-connection-requests/dcr_moksha_override",
+        appAddress: APP_ADDRESS,
+      })),
+      getAccessRequestStatus: vi.fn(),
+    };
+
+    const vana = createDirectDataController({
+      env: "production",
+      network: "moksha",
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      accessRequestClient,
+    });
+
+    await vana.createAccessRequest({ returnUrl: "https://notes-lens.example/return" });
+
+    expect(accessRequestClient.createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ network: "moksha" }),
+    );
+  });
+
+  it("sends network=moksha when env=dev (default)", async () => {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(async () => ({
+        requestId: "dcr_dev",
+        approvalUrl: "https://app-dev.vana.org/data-connection-requests/dcr_dev",
+        appAddress: APP_ADDRESS,
+      })),
+      getAccessRequestStatus: vi.fn(),
+    };
+
+    const vana = createDirectDataController({
+      env: "dev",
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      accessRequestClient,
+    });
+
+    await vana.createAccessRequest({ returnUrl: "https://notes-lens.example/return" });
+
+    expect(accessRequestClient.createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ network: "moksha" }),
+    );
+  });
+
+  it("preserves network when a custom AccessRequestClient is provided", async () => {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(async () => ({
+        requestId: "dcr_custom",
+        approvalUrl: "https://custom.example/dcr_custom",
+        appAddress: APP_ADDRESS,
+      })),
+      getAccessRequestStatus: vi.fn(),
+    };
+
+    const vana = createDirectDataController({
+      env: "production",
+      network: "moksha",
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      accessRequestClient,
+    });
+
+    await vana.createAccessRequest({ returnUrl: "https://notes-lens.example/return" });
+
+    expect(accessRequestClient.createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ network: "moksha" }),
+    );
   });
 
   it("uses production access-request URLs when the network is Moksha", async () => {

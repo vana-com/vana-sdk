@@ -158,6 +158,7 @@ export function createDefaultAccessRequestClient(
         source: input.source,
         scopes: input.scopes,
         returnUrl: input.returnUrl,
+        network: input.network,
       });
       const res = await fetchFn(`${base}${path}`, {
         method: "POST",

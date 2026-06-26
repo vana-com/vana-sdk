@@ -55,6 +55,7 @@ describe("createDefaultAccessRequestClient", () => {
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],
       returnUrl: "https://a.example/return",
+      network: "mainnet",
     });
 
     expect(result.requestId).toBe("dcr_9");
@@ -138,6 +139,7 @@ describe("createDefaultAccessRequestClient", () => {
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],
       returnUrl: "https://a.example/return",
+      network: "mainnet",
     });
     await client.getAccessRequestStatus("dcr_9");
 
@@ -154,6 +156,7 @@ describe("createDefaultAccessRequestClient", () => {
         },
       },
     });
+    expect(JSON.parse(createBody)).toMatchObject({ network: "mainnet" });
     expect(signedMessages[0]).toBe(
       buildDirectAccessRequestAuthMessage({
         body: createBody,
@@ -198,6 +201,7 @@ describe("createDefaultAccessRequestClient", () => {
         source: "icloud_notes",
         scopes: ["icloud_notes.notes"],
         returnUrl: "https://a.example/return",
+        network: "mainnet",
       }),
     ).rejects.toThrow(/Access request service error/);
   });

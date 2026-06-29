@@ -17,10 +17,20 @@
  *     getStatus: (id) => fetch(`/api/vana/status?requestId=${id}`).then((r) => r.json()),
  *     readResult: (id) => fetch(`/api/vana/data?requestId=${id}`).then((r) => r.json()),
  *   });
+ *   const { state, start } = connect;
  *   return (
- *     <button disabled={connect.state.type !== "idle"} onClick={connect.start} type="button">
- *       {connect.state.type === "idle" ? "Connect Apple Notes" : "Connecting..."}
- *     </button>
+ *     <div>
+ *       <button disabled={state.type !== "idle"} onClick={start} type="button">
+ *         {state.type === "idle" ? "Connect Apple Notes" : "Connecting..."}
+ *       </button>
+ *       {state.type === "awaiting_approval" && (
+ *         // Fallback link: if the browser blocked the approval popup, the user
+ *         // can still open it manually instead of the flow silently hanging.
+ *         <a href={state.request.approvalUrl} target="_blank" rel="noreferrer">
+ *           {state.popupBlocked ? "Popup blocked — open approval" : "Open approval"}
+ *         </a>
+ *       )}
+ *     </div>
  *   );
  * }
  * ```
@@ -38,6 +48,7 @@ export {
 // Framework-agnostic store (usable without React).
 export {
   createDirectConnectFlow,
+  type ConnectWindow,
   type DirectConnectFlow,
   type DirectConnectState,
   type DirectConnectOptions,

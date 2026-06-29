@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createDirectConnectFlow } from "./connect-flow";
+import type { DirectConnectOptions } from "./connect-flow";
 import type {
   AccessRequest,
   AccessRequestStatus,
@@ -44,6 +45,13 @@ function makeHarness() {
   };
 }
 
+/** A spyable {@link ConnectWindow} handle for asserting open/navigate/close. */
+function makeWindow() {
+  const navigate = vi.fn();
+  const close = vi.fn();
+  return { handle: { navigate, close }, navigate, close };
+}
+
 function pendingStatus(): AccessRequestStatus {
   return { status: "pending" };
 }
@@ -74,7 +82,8 @@ describe("createDirectConnectFlow", () => {
 
   it("walks create -> awaiting_approval -> reading -> done", async () => {
     const h = makeHarness();
-    const openWindow = vi.fn();
+    const win = makeWindow();
+    const openApprovalWindow = vi.fn(() => win.handle);
     const result: ApprovedDataResult = {
       scope: "icloud_notes.notes",
       data: [{ note: "hi" }],
@@ -92,7 +101,7 @@ describe("createDirectConnectFlow", () => {
         readResult: async () => result,
       },
       {
-        openWindow,
+        openApprovalWindow,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -103,8 +112,15 @@ describe("createDirectConnectFlow", () => {
     flow.subscribe(() => states.push(flow.getState().type));
 
     await flow.start();
-    expect(flow.getState().type).toBe("awaiting_approval");
-    expect(openWindow).toHaveBeenCalledWith(REQUEST.approvalUrl);
+    const awaiting = flow.getState();
+    expect(awaiting.type).toBe("awaiting_approval");
+    if (awaiting.type === "awaiting_approval") {
+      expect(awaiting.popupBlocked).toBe(false);
+    }
+    // The tab is opened with no args (synchronously, under the gesture) and
+    // navigated to the approval URL only once createRequest has resolved.
+    expect(openApprovalWindow).toHaveBeenCalledWith();
+    expect(win.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
 
     // First poll: still pending -> reschedules.
     await h.tick();
@@ -154,7 +170,7 @@ describe("createDirectConnectFlow", () => {
         readResult,
       },
       {
-        openWindow: vi.fn(),
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -177,7 +193,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: vi.fn(),
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -202,7 +218,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: vi.fn(),
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -231,7 +247,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: vi.fn(),
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -255,7 +271,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: vi.fn(),
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -265,5 +281,264 @@ describe("createDirectConnectFlow", () => {
     await flow.start();
     await flow.start();
     expect(createRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the tab synchronously, before createRequest resolves (BUI-622)", async () => {
+    const h = makeHarness();
+    const win = makeWindow();
+    const openApprovalWindow = vi.fn(() => win.handle);
+
+    // createRequest stays pending until we resolve it by hand.
+    let resolveCreate!: (req: AccessRequest) => void;
+    const createRequest = vi.fn(
+      () =>
+        new Promise<AccessRequest>((res) => {
+          resolveCreate = res;
+        }),
+    );
+
+    const flow = createDirectConnectFlow(
+      {
+        createRequest,
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    // Start the flow but do NOT await it: createRequest is still pending.
+    const startPromise = flow.start();
+    // The tab must already be open — synchronously, under the click gesture —
+    // even though createRequest has not resolved. Opening it only after the
+    // await is exactly the popup-blocker bug this regression guards against.
+    expect(openApprovalWindow).toHaveBeenCalledTimes(1);
+    expect(win.navigate).not.toHaveBeenCalled();
+
+    resolveCreate(REQUEST);
+    await startPromise;
+    // Now that the URL is known, the already-open tab is navigated to it.
+    expect(win.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
+  });
+
+  it("surfaces popupBlocked when the popup is blocked, and still resolves via manual open", async () => {
+    const h = makeHarness();
+    const result: ApprovedDataResult = {
+      scope: "icloud_notes.notes",
+      data: [],
+    };
+    const getStatus = vi
+      .fn<(id: string) => Promise<AccessRequestStatus>>()
+      .mockResolvedValueOnce(pendingStatus())
+      .mockResolvedValueOnce(approvedStatus());
+
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => REQUEST,
+        getStatus,
+        readResult: async () => result,
+      },
+      {
+        // Browser blocked the popup.
+        openApprovalWindow: () => null,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    const awaiting = flow.getState();
+    expect(awaiting.type).toBe("awaiting_approval");
+    if (awaiting.type === "awaiting_approval") {
+      expect(awaiting.popupBlocked).toBe(true);
+      // The approval URL is still exposed so the UI can render a manual link.
+      expect(awaiting.request.approvalUrl).toBe(REQUEST.approvalUrl);
+    }
+
+    // Polling keeps running, so a manual open + approval still drives to done
+    // — never a perpetual silent pending poll.
+    await h.tick();
+    await h.tick();
+    expect(flow.getState().type).toBe("done");
+  });
+
+  it("closes the un-navigated tab when createRequest fails", async () => {
+    const win = makeWindow();
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => {
+          throw new Error("backend down");
+        },
+        getStatus: vi.fn(),
+        readResult: vi.fn(),
+      },
+      { openApprovalWindow: () => win.handle },
+    );
+
+    await flow.start();
+    expect(flow.getState().type).toBe("error");
+    expect(win.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not close the approval tab once it has been navigated", async () => {
+    const h = makeHarness();
+    const win = makeWindow();
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => REQUEST,
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow: () => win.handle,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    expect(win.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
+    // Reset after the tab was handed off must not yank the live approval tab.
+    flow.reset();
+    expect(win.close).not.toHaveBeenCalled();
+  });
+
+  it("a superseded run's late createRequest does not clobber the newer run", async () => {
+    const h = makeHarness();
+    const winA = makeWindow();
+    const winB = makeWindow();
+    // Hand out winA to the first run, winB to the second.
+    const openApprovalWindow = vi
+      .fn<() => typeof winA.handle>()
+      .mockReturnValueOnce(winA.handle)
+      .mockReturnValueOnce(winB.handle);
+
+    // Run A's createRequest stays pending until we settle it by hand.
+    let rejectA!: (err: Error) => void;
+    const createRequest = vi
+      .fn<() => Promise<AccessRequest>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<AccessRequest>((_res, rej) => {
+            rejectA = rej;
+          }),
+      )
+      .mockImplementationOnce(async () => REQUEST);
+
+    const flow = createDirectConnectFlow(
+      {
+        createRequest,
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    // Run A: opens winA, then parks on createRequest.
+    const runA = flow.start();
+    expect(openApprovalWindow).toHaveBeenCalledTimes(1);
+
+    // Cancel A and immediately start B (opens winB, parks on its own request).
+    flow.reset();
+    const runB = flow.start();
+    expect(openApprovalWindow).toHaveBeenCalledTimes(2);
+
+    // Now A's request finally rejects — it must NOT close winB or set error.
+    rejectA(new Error("backend down"));
+    await runA;
+    await runB;
+
+    expect(winB.close).not.toHaveBeenCalled();
+    // B is unaffected: it walked to awaiting_approval and navigated winB.
+    const state = flow.getState();
+    expect(state.type).toBe("awaiting_approval");
+    expect(winB.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
+  });
+
+  it("default opener opens blank, severs opener, sets no-referrer, then navigates", async () => {
+    const h = makeHarness();
+    const appended: Array<{ name?: string; content?: string }> = [];
+    const head = { appendChild: (el: { name?: string }) => appended.push(el) };
+    const fakeTab = {
+      location: { href: "" },
+      opener: {} as unknown,
+      close: vi.fn(),
+      document: {
+        head,
+        documentElement: head,
+        createElement: () => ({}) as Record<string, unknown>,
+      },
+    };
+    const open = vi.fn(() => fakeTab);
+    vi.stubGlobal("window", { open });
+
+    try {
+      // No openApprovalWindow injected -> exercises the real default factory.
+      const flow = createDirectConnectFlow(
+        {
+          createRequest: async () => REQUEST,
+          getStatus: async () => pendingStatus(),
+          readResult: vi.fn(),
+        },
+        {
+          now: h.now,
+          setTimeoutFn: h.setTimeoutFn,
+          clearTimeoutFn: h.clearTimeoutFn,
+        },
+      );
+
+      await flow.start();
+
+      // Opened blank with exactly two args — no "noopener"/"noreferrer" feature
+      // string, which would force window.open() to return null and lose the handle.
+      expect(open).toHaveBeenCalledWith("", "_blank");
+      expect(open.mock.calls[0]).toHaveLength(2);
+      // Opener severed so the approval page can't reach back into the app.
+      expect(fakeTab.opener).toBeNull();
+      // A no-referrer meta was injected before navigation (restores the privacy
+      // the old "noreferrer" feature gave).
+      const meta = appended.find((el) => el.name === "referrer");
+      expect(meta?.content).toBe("no-referrer");
+      // And the already-open tab is navigated to the approval URL.
+      expect(fakeTab.location.href).toBe(REQUEST.approvalUrl);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reads a custom opener swapped in after the flow was created", async () => {
+    const h = makeHarness();
+    const winLate = makeWindow();
+    const options: DirectConnectOptions = {
+      now: h.now,
+      setTimeoutFn: h.setTimeoutFn,
+      clearTimeoutFn: h.clearTimeoutFn,
+    };
+
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => REQUEST,
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      options,
+    );
+
+    // Swap the opener in AFTER construction — start() must read the latest.
+    options.openApprovalWindow = () => winLate.handle;
+
+    await flow.start();
+    expect(winLate.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
   });
 });

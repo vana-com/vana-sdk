@@ -76,8 +76,8 @@ export function useDirectVanaConnect<T = unknown>(
           get timeoutMs() {
             return optionsRef.current.timeoutMs;
           },
-          get openWindow() {
-            return optionsRef.current.openWindow;
+          get openApprovalWindow() {
+            return optionsRef.current.openApprovalWindow;
           },
         },
       ),

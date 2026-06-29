@@ -57,9 +57,17 @@ export interface DirectConnectOptions {
   /**
    * Synchronously open a blank tab under the click's transient activation and
    * return a handle to navigate later, or `null` if the browser blocked it.
-   * Defaults to `window.open("", "_blank")`. Injectable for tests.
+   * Defaults to `window.open("", "_blank")` (with `opener` severed). Injectable
+   * for tests.
+   *
+   * @remarks
+   * Renamed from the pre-3.8 `openWindow?: (url) => void`. The old contract was
+   * the BUI-622 bug itself (it was called with the URL *after* an `await`, so
+   * the popup blocker suppressed it); it cannot be preserved while fixing the
+   * bug. Custom openers must now open synchronously and return a navigable
+   * handle.
    */
-  openWindow?: () => ConnectWindow | null;
+  openApprovalWindow?: () => ConnectWindow | null;
   /** `setTimeout`. Injectable for tests. Defaults to `globalThis.setTimeout`. */
   setTimeoutFn?: (cb: () => void, ms: number) => unknown;
   /** `clearTimeout`. Injectable for tests. Defaults to `globalThis.clearTimeout`. */
@@ -128,8 +136,8 @@ export function createDirectConnectFlow<T = unknown>(
 ): DirectConnectFlow<T> {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const openWindow =
-    options.openWindow ??
+  const openApprovalWindow =
+    options.openApprovalWindow ??
     ((): ConnectWindow | null => {
       if (typeof window === "undefined" || !window.open) return null;
       // Open a blank tab now (synchronously, inside the gesture) and navigate
@@ -138,6 +146,14 @@ export function createDirectConnectFlow<T = unknown>(
       // need to set `.location.href` later.
       const opened = window.open("", "_blank");
       if (!opened) return null;
+      // Sever the opener link while the tab is still about:blank, so the
+      // approval page can't reach back into the app (reverse tab-nabbing).
+      // Doing it here keeps the navigable handle that "noopener" would deny.
+      try {
+        opened.opener = null;
+      } catch {
+        // Some environments make `opener` read-only; best-effort only.
+      }
       return {
         navigate(url: string) {
           opened.location.href = url;
@@ -161,6 +177,11 @@ export function createDirectConnectFlow<T = unknown>(
   const listeners = new Set<() => void>();
   let pollHandle: unknown = null;
   let running = false;
+  // Monotonic id for the current start() invocation. reset() (and an
+  // immediately following start()) bumps it, so a previous run whose async
+  // createRequest is still in flight can detect it has been superseded and
+  // avoid touching shared state / the newer run's tab.
+  let activeRunId = 0;
   // Holds the tab we opened only while it is still blank (un-navigated). Once
   // navigated to the approval URL we drop the reference so reset/cleanup never
   // closes the live approval tab the user is interacting with.
@@ -268,6 +289,7 @@ export function createDirectConnectFlow<T = unknown>(
     async start(): Promise<void> {
       if (running || isRunningPhase()) return;
       running = true;
+      const runId = ++activeRunId;
 
       // Open the approval tab *synchronously*, while the click's transient
       // activation is still live. The approval URL isn't known yet (it comes
@@ -275,7 +297,7 @@ export function createDirectConnectFlow<T = unknown>(
       // once the URL arrives. Opening *after* the await — as this flow used to
       // — runs outside the gesture, so the browser suppresses it as an
       // unsolicited popup and the flow stalls forever (BUI-622).
-      const approvalWindow = openWindow();
+      const approvalWindow = openApprovalWindow();
       openedWindow = approvalWindow;
 
       setState({ type: "creating" });
@@ -284,13 +306,20 @@ export function createDirectConnectFlow<T = unknown>(
       try {
         request = await transports.createRequest();
       } catch (err) {
+        // If we were superseded (reset, possibly + a newer start()) while this
+        // request was in flight, only clean up our own tab — never the shared
+        // state or the newer run's window.
+        if (runId !== activeRunId) {
+          approvalWindow?.close();
+          return;
+        }
         running = false;
         closeUnnavigatedWindow();
         setState({ type: "error", error: toError(err) });
         return;
       }
-      if (!running) {
-        closeUnnavigatedWindow();
+      if (runId !== activeRunId) {
+        approvalWindow?.close();
         return;
       }
 
@@ -315,6 +344,9 @@ export function createDirectConnectFlow<T = unknown>(
 
     reset(): void {
       running = false;
+      // Invalidate any in-flight start() so a late createRequest can't clobber
+      // a subsequent run.
+      activeRunId++;
       clearPoll();
       closeUnnavigatedWindow();
       setState({ type: "idle" });

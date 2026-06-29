@@ -82,7 +82,7 @@ describe("createDirectConnectFlow", () => {
   it("walks create -> awaiting_approval -> reading -> done", async () => {
     const h = makeHarness();
     const win = makeWindow();
-    const openWindow = vi.fn(() => win.handle);
+    const openApprovalWindow = vi.fn(() => win.handle);
     const result: ApprovedDataResult = {
       scope: "icloud_notes.notes",
       data: [{ note: "hi" }],
@@ -100,7 +100,7 @@ describe("createDirectConnectFlow", () => {
         readResult: async () => result,
       },
       {
-        openWindow,
+        openApprovalWindow,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -118,7 +118,7 @@ describe("createDirectConnectFlow", () => {
     }
     // The tab is opened with no args (synchronously, under the gesture) and
     // navigated to the approval URL only once createRequest has resolved.
-    expect(openWindow).toHaveBeenCalledWith();
+    expect(openApprovalWindow).toHaveBeenCalledWith();
     expect(win.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
 
     // First poll: still pending -> reschedules.
@@ -169,7 +169,7 @@ describe("createDirectConnectFlow", () => {
         readResult,
       },
       {
-        openWindow: () => makeWindow().handle,
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -192,7 +192,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: () => makeWindow().handle,
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -217,7 +217,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: () => makeWindow().handle,
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -246,7 +246,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: () => makeWindow().handle,
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -270,7 +270,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: () => makeWindow().handle,
+        openApprovalWindow: () => makeWindow().handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -285,7 +285,7 @@ describe("createDirectConnectFlow", () => {
   it("opens the tab synchronously, before createRequest resolves (BUI-622)", async () => {
     const h = makeHarness();
     const win = makeWindow();
-    const openWindow = vi.fn(() => win.handle);
+    const openApprovalWindow = vi.fn(() => win.handle);
 
     // createRequest stays pending until we resolve it by hand.
     let resolveCreate!: (req: AccessRequest) => void;
@@ -303,7 +303,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow,
+        openApprovalWindow,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -315,7 +315,7 @@ describe("createDirectConnectFlow", () => {
     // The tab must already be open — synchronously, under the click gesture —
     // even though createRequest has not resolved. Opening it only after the
     // await is exactly the popup-blocker bug this regression guards against.
-    expect(openWindow).toHaveBeenCalledTimes(1);
+    expect(openApprovalWindow).toHaveBeenCalledTimes(1);
     expect(win.navigate).not.toHaveBeenCalled();
 
     resolveCreate(REQUEST);
@@ -343,7 +343,7 @@ describe("createDirectConnectFlow", () => {
       },
       {
         // Browser blocked the popup.
-        openWindow: () => null,
+        openApprovalWindow: () => null,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -376,7 +376,7 @@ describe("createDirectConnectFlow", () => {
         getStatus: vi.fn(),
         readResult: vi.fn(),
       },
-      { openWindow: () => win.handle },
+      { openApprovalWindow: () => win.handle },
     );
 
     await flow.start();
@@ -394,7 +394,7 @@ describe("createDirectConnectFlow", () => {
         readResult: vi.fn(),
       },
       {
-        openWindow: () => win.handle,
+        openApprovalWindow: () => win.handle,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -406,5 +406,102 @@ describe("createDirectConnectFlow", () => {
     // Reset after the tab was handed off must not yank the live approval tab.
     flow.reset();
     expect(win.close).not.toHaveBeenCalled();
+  });
+
+  it("a superseded run's late createRequest does not clobber the newer run", async () => {
+    const h = makeHarness();
+    const winA = makeWindow();
+    const winB = makeWindow();
+    // Hand out winA to the first run, winB to the second.
+    const openApprovalWindow = vi
+      .fn<() => typeof winA.handle>()
+      .mockReturnValueOnce(winA.handle)
+      .mockReturnValueOnce(winB.handle);
+
+    // Run A's createRequest stays pending until we settle it by hand.
+    let rejectA!: (err: Error) => void;
+    const createRequest = vi
+      .fn<() => Promise<AccessRequest>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<AccessRequest>((_res, rej) => {
+            rejectA = rej;
+          }),
+      )
+      .mockImplementationOnce(async () => REQUEST);
+
+    const flow = createDirectConnectFlow(
+      {
+        createRequest,
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    // Run A: opens winA, then parks on createRequest.
+    const runA = flow.start();
+    expect(openApprovalWindow).toHaveBeenCalledTimes(1);
+
+    // Cancel A and immediately start B (opens winB, parks on its own request).
+    flow.reset();
+    const runB = flow.start();
+    expect(openApprovalWindow).toHaveBeenCalledTimes(2);
+
+    // Now A's request finally rejects — it must NOT close winB or set error.
+    rejectA(new Error("backend down"));
+    await runA;
+    await runB;
+
+    expect(winB.close).not.toHaveBeenCalled();
+    // B is unaffected: it walked to awaiting_approval and navigated winB.
+    const state = flow.getState();
+    expect(state.type).toBe("awaiting_approval");
+    expect(winB.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
+  });
+
+  it("default opener opens blank, severs opener, and navigates (no noopener)", async () => {
+    const h = makeHarness();
+    const fakeTab = {
+      location: { href: "" },
+      opener: {} as unknown,
+      close: vi.fn(),
+    };
+    const open = vi.fn(() => fakeTab);
+    vi.stubGlobal("window", { open });
+
+    try {
+      // No openApprovalWindow injected -> exercises the real default factory.
+      const flow = createDirectConnectFlow(
+        {
+          createRequest: async () => REQUEST,
+          getStatus: async () => pendingStatus(),
+          readResult: vi.fn(),
+        },
+        {
+          now: h.now,
+          setTimeoutFn: h.setTimeoutFn,
+          clearTimeoutFn: h.clearTimeoutFn,
+        },
+      );
+
+      await flow.start();
+
+      // Opened blank with exactly two args — no "noopener" feature string,
+      // which would force window.open() to return null and lose the handle.
+      expect(open).toHaveBeenCalledWith("", "_blank");
+      expect(open.mock.calls[0]).toHaveLength(2);
+      // Opener severed so the approval page can't reach back into the app.
+      expect(fakeTab.opener).toBeNull();
+      // And the already-open tab is navigated to the approval URL.
+      expect(fakeTab.location.href).toBe(REQUEST.approvalUrl);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

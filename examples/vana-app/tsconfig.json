@@ -1,0 +1,12 @@
+{
+  "extends": "../../packages/vana-sdk/tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@opendatalabs/vana-sdk/server": ["../../packages/vana-sdk/src/server.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

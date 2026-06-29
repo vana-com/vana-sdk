@@ -1,0 +1,17 @@
+{
+  "name": "@opendatalabs/vana-app-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "tsx src/run.ts"
+  },
+  "dependencies": {
+    "@opendatalabs/vana-sdk": "file:../../packages/vana-sdk"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.3"
+  }
+}

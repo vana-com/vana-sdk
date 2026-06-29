@@ -33,14 +33,33 @@ export interface DirectConnectTransports<T = unknown> {
   readResult: (requestId: string) => Promise<ApprovedDataResult<T>>;
 }
 
+/**
+ * A handle to a tab opened synchronously under the user's click gesture.
+ *
+ * @remarks
+ * The flow opens this tab *before* it knows the approval URL (popup blockers
+ * only allow `window.open()` during the click's transient activation), then
+ * navigates it once `createRequest` resolves.
+ */
+export interface ConnectWindow {
+  /** Point the already-open tab at the approval URL. */
+  navigate(url: string): void;
+  /** Close the tab (used to clean up an un-navigated tab on failure/reset). */
+  close(): void;
+}
+
 /** Tunables for the connect flow. */
 export interface DirectConnectOptions {
   /** Status poll interval in ms. Defaults to 1500. */
   pollIntervalMs?: number;
   /** Overall timeout in ms before giving up. Defaults to 300000 (5 min). */
   timeoutMs?: number;
-  /** Opens the approval URL. Defaults to `window.open`. Injectable for tests. */
-  openWindow?: (url: string) => void;
+  /**
+   * Synchronously open a blank tab under the click's transient activation and
+   * return a handle to navigate later, or `null` if the browser blocked it.
+   * Defaults to `window.open("", "_blank")`. Injectable for tests.
+   */
+  openWindow?: () => ConnectWindow | null;
   /** `setTimeout`. Injectable for tests. Defaults to `globalThis.setTimeout`. */
   setTimeoutFn?: (cb: () => void, ms: number) => unknown;
   /** `clearTimeout`. Injectable for tests. Defaults to `globalThis.clearTimeout`. */
@@ -59,7 +78,16 @@ export interface DirectConnectOptions {
 export type DirectConnectState<T = unknown> =
   | { type: "idle" }
   | { type: "creating" }
-  | { type: "awaiting_approval"; request: AccessRequest }
+  | {
+      type: "awaiting_approval";
+      request: AccessRequest;
+      /**
+       * `true` when the browser blocked the approval popup. The UI should
+       * render `request.approvalUrl` as a visible "Open approval" link so the
+       * user can open it manually instead of the flow silently hanging.
+       */
+      popupBlocked: boolean;
+    }
   | { type: "reading"; request: AccessRequest }
   | { type: "done"; result: ApprovedDataResult<T> }
   | { type: "error"; error: Error };
@@ -102,10 +130,22 @@ export function createDirectConnectFlow<T = unknown>(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const openWindow =
     options.openWindow ??
-    ((url: string) => {
-      if (typeof window !== "undefined" && window.open) {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
+    ((): ConnectWindow | null => {
+      if (typeof window === "undefined" || !window.open) return null;
+      // Open a blank tab now (synchronously, inside the gesture) and navigate
+      // it after createRequest resolves. We can't pass "noopener" here: that
+      // makes window.open() return null, which would throw away the handle we
+      // need to set `.location.href` later.
+      const opened = window.open("", "_blank");
+      if (!opened) return null;
+      return {
+        navigate(url: string) {
+          opened.location.href = url;
+        },
+        close() {
+          opened.close();
+        },
+      };
     });
   const setTimeoutFn =
     options.setTimeoutFn ??
@@ -121,6 +161,10 @@ export function createDirectConnectFlow<T = unknown>(
   const listeners = new Set<() => void>();
   let pollHandle: unknown = null;
   let running = false;
+  // Holds the tab we opened only while it is still blank (un-navigated). Once
+  // navigated to the approval URL we drop the reference so reset/cleanup never
+  // closes the live approval tab the user is interacting with.
+  let openedWindow: ConnectWindow | null = null;
 
   function emit(): void {
     for (const listener of listeners) listener();
@@ -135,6 +179,14 @@ export function createDirectConnectFlow<T = unknown>(
     if (pollHandle !== null) {
       clearTimeoutFn(pollHandle);
       pollHandle = null;
+    }
+  }
+
+  /** Close the opened tab if it is still blank (never navigated). */
+  function closeUnnavigatedWindow(): void {
+    if (openedWindow) {
+      openedWindow.close();
+      openedWindow = null;
     }
   }
 
@@ -216,6 +268,16 @@ export function createDirectConnectFlow<T = unknown>(
     async start(): Promise<void> {
       if (running || isRunningPhase()) return;
       running = true;
+
+      // Open the approval tab *synchronously*, while the click's transient
+      // activation is still live. The approval URL isn't known yet (it comes
+      // from createRequest below), so open a blank tab now and navigate it
+      // once the URL arrives. Opening *after* the await — as this flow used to
+      // — runs outside the gesture, so the browser suppresses it as an
+      // unsolicited popup and the flow stalls forever (BUI-622).
+      const approvalWindow = openWindow();
+      openedWindow = approvalWindow;
+
       setState({ type: "creating" });
 
       let request: AccessRequest;
@@ -223,13 +285,29 @@ export function createDirectConnectFlow<T = unknown>(
         request = await transports.createRequest();
       } catch (err) {
         running = false;
+        closeUnnavigatedWindow();
         setState({ type: "error", error: toError(err) });
         return;
       }
-      if (!running) return;
+      if (!running) {
+        closeUnnavigatedWindow();
+        return;
+      }
 
-      setState({ type: "awaiting_approval", request });
-      openWindow(request.approvalUrl);
+      if (approvalWindow) {
+        approvalWindow.navigate(request.approvalUrl);
+        // Hand the tab off to the user; we no longer own/close it.
+        openedWindow = null;
+      }
+      // `approvalWindow === null` means the popup was blocked. Surface it so
+      // the UI renders request.approvalUrl as a visible "Open approval" link
+      // instead of hanging. We poll either way, so a manual open still
+      // resolves the flow, and the timeout still bounds the wait.
+      setState({
+        type: "awaiting_approval",
+        request,
+        popupBlocked: approvalWindow === null,
+      });
 
       const deadline = now() + timeoutMs;
       scheduleNextPoll(request, deadline);
@@ -238,6 +316,7 @@ export function createDirectConnectFlow<T = unknown>(
     reset(): void {
       running = false;
       clearPoll();
+      closeUnnavigatedWindow();
       setState({ type: "idle" });
     },
   };

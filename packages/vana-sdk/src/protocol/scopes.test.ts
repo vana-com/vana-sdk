@@ -31,9 +31,19 @@ describe("parseScope", () => {
     expect(parseScope("test.dpv1.260130").subcategory).toBe("260130");
   });
 
+  it("preserves historical camelCase scope tails", () => {
+    // The contract-freeze spec preserves these registered camelCase scopes
+    // (260410-contract-freeze.md § "Scope id format"). The tail allows
+    // uppercase; only the source_id must stay lowercase.
+    expect(parseScope("spotify.savedTracks").category).toBe("savedTracks");
+    expect(parseScope("youtube.playlistItems").category).toBe("playlistItems");
+    expect(parseScope("youtube.watchLater").category).toBe("watchLater");
+  });
+
   it("rejects invalid scope shapes", () => {
     expect(() => parseScope("a")).toThrow(ZodError);
     expect(() => parseScope("a.b.c.d")).toThrow(ZodError);
+    // source_id (first segment) must remain lowercase
     expect(() => parseScope("Instagram.Profile")).toThrow(ZodError);
   });
 });

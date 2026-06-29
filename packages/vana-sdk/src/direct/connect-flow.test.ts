@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createDirectConnectFlow } from "./connect-flow";
+import type { DirectConnectOptions } from "./connect-flow";
 import type {
   AccessRequest,
   AccessRequestStatus,
@@ -465,12 +466,19 @@ describe("createDirectConnectFlow", () => {
     expect(winB.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
   });
 
-  it("default opener opens blank, severs opener, and navigates (no noopener)", async () => {
+  it("default opener opens blank, severs opener, sets no-referrer, then navigates", async () => {
     const h = makeHarness();
+    const appended: Array<{ name?: string; content?: string }> = [];
+    const head = { appendChild: (el: { name?: string }) => appended.push(el) };
     const fakeTab = {
       location: { href: "" },
       opener: {} as unknown,
       close: vi.fn(),
+      document: {
+        head,
+        documentElement: head,
+        createElement: () => ({}) as Record<string, unknown>,
+      },
     };
     const open = vi.fn(() => fakeTab);
     vi.stubGlobal("window", { open });
@@ -492,16 +500,45 @@ describe("createDirectConnectFlow", () => {
 
       await flow.start();
 
-      // Opened blank with exactly two args — no "noopener" feature string,
-      // which would force window.open() to return null and lose the handle.
+      // Opened blank with exactly two args — no "noopener"/"noreferrer" feature
+      // string, which would force window.open() to return null and lose the handle.
       expect(open).toHaveBeenCalledWith("", "_blank");
       expect(open.mock.calls[0]).toHaveLength(2);
       // Opener severed so the approval page can't reach back into the app.
       expect(fakeTab.opener).toBeNull();
+      // A no-referrer meta was injected before navigation (restores the privacy
+      // the old "noreferrer" feature gave).
+      const meta = appended.find((el) => el.name === "referrer");
+      expect(meta?.content).toBe("no-referrer");
       // And the already-open tab is navigated to the approval URL.
       expect(fakeTab.location.href).toBe(REQUEST.approvalUrl);
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("reads a custom opener swapped in after the flow was created", async () => {
+    const h = makeHarness();
+    const winLate = makeWindow();
+    const options: DirectConnectOptions = {
+      now: h.now,
+      setTimeoutFn: h.setTimeoutFn,
+      clearTimeoutFn: h.clearTimeoutFn,
+    };
+
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => REQUEST,
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      options,
+    );
+
+    // Swap the opener in AFTER construction — start() must read the latest.
+    options.openApprovalWindow = () => winLate.handle;
+
+    await flow.start();
+    expect(winLate.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
   });
 });

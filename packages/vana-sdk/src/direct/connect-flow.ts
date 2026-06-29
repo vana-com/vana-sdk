@@ -124,6 +124,48 @@ function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
 }
 
 /**
+ * Default {@link DirectConnectOptions.openApprovalWindow}: open a blank tab
+ * synchronously (inside the click gesture) and return a handle to navigate
+ * once the approval URL is known. Returns `null` when blocked or non-DOM.
+ */
+function defaultOpenApprovalWindow(): ConnectWindow | null {
+  if (typeof window === "undefined" || !window.open) return null;
+  // We can't pass the "noopener"/"noreferrer" feature string here: it makes
+  // window.open() return null, which would throw away the handle we need to
+  // navigate later. So we open plain and re-create both protections by hand.
+  const opened = window.open("", "_blank");
+  if (!opened) return null;
+  // Sever the opener link while the tab is still about:blank, so the approval
+  // page can't reach back into the app (reverse tab-nabbing).
+  try {
+    opened.opener = null;
+  } catch {
+    // Some environments make `opener` read-only; best-effort only.
+  }
+  return {
+    navigate(url: string) {
+      // Restore the no-referrer protection the old "noreferrer" feature gave:
+      // tag the blank document so the upcoming navigation sends no Referer to
+      // the approval page (best-effort; the blank doc is same-origin here).
+      try {
+        const meta = opened.document.createElement("meta");
+        meta.name = "referrer";
+        meta.content = "no-referrer";
+        (opened.document.head ?? opened.document.documentElement)?.appendChild(
+          meta,
+        );
+      } catch {
+        // Cross-origin/unavailable document: skip, navigation still proceeds.
+      }
+      opened.location.href = url;
+    },
+    close() {
+      opened.close();
+    },
+  };
+}
+
+/**
  * Create a connect-flow store.
  *
  * @param transports - Backend transports (`createRequest`, `getStatus`, `readResult`).
@@ -136,33 +178,9 @@ export function createDirectConnectFlow<T = unknown>(
 ): DirectConnectFlow<T> {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const openApprovalWindow =
-    options.openApprovalWindow ??
-    ((): ConnectWindow | null => {
-      if (typeof window === "undefined" || !window.open) return null;
-      // Open a blank tab now (synchronously, inside the gesture) and navigate
-      // it after createRequest resolves. We can't pass "noopener" here: that
-      // makes window.open() return null, which would throw away the handle we
-      // need to set `.location.href` later.
-      const opened = window.open("", "_blank");
-      if (!opened) return null;
-      // Sever the opener link while the tab is still about:blank, so the
-      // approval page can't reach back into the app (reverse tab-nabbing).
-      // Doing it here keeps the navigable handle that "noopener" would deny.
-      try {
-        opened.opener = null;
-      } catch {
-        // Some environments make `opener` read-only; best-effort only.
-      }
-      return {
-        navigate(url: string) {
-          opened.location.href = url;
-        },
-        close() {
-          opened.close();
-        },
-      };
-    });
+  // Resolved lazily at start() (see below) so a custom opener swapped in after
+  // construction is still honoured — matching the latest-callback pattern the
+  // React hook uses for its transports.
   const setTimeoutFn =
     options.setTimeoutFn ??
     ((cb: () => void, ms: number) => globalThis.setTimeout(cb, ms));
@@ -297,6 +315,10 @@ export function createDirectConnectFlow<T = unknown>(
       // once the URL arrives. Opening *after* the await — as this flow used to
       // — runs outside the gesture, so the browser suppresses it as an
       // unsolicited popup and the flow stalls forever (BUI-622).
+      // Read the opener option *now* (not at construction) so a custom opener
+      // swapped in after the flow was created is still used.
+      const openApprovalWindow =
+        options.openApprovalWindow ?? defaultOpenApprovalWindow;
       const approvalWindow = openApprovalWindow();
       openedWindow = approvalWindow;
 

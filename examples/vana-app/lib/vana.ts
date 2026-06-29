@@ -1,7 +1,7 @@
 import "server-only";
 
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import {
   createDirectDataController,
   dataPathForScope,
@@ -108,7 +108,10 @@ function optionalEscrow(): { escrowContract: `0x${string}` } | undefined {
 async function loadSampleData(): Promise<unknown> {
   const localPath = process.env.VANA_SAMPLE_DATA_PATH;
   if (localPath) {
-    return JSON.parse(await readFile(resolve(localPath), "utf8")) as unknown;
+    const samplePath = isAbsolute(localPath)
+      ? localPath
+      : resolve(process.env.INIT_CWD ?? process.cwd(), localPath);
+    return JSON.parse(await readFile(samplePath, "utf8")) as unknown;
   }
 
   const response = await fetch(sampleDataUrl());

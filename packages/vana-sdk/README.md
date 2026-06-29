@@ -104,12 +104,12 @@ const result = await storage.upload(myBlob, "report.json");
 console.log(result.url);
 ```
 
-## Build a direct Vana app
+## Build a Vana app
 
 Request user-approved data, read it from the user's Personal Server, and pay
 for the read — without the browser ever seeing your app private key or choosing
-scopes. Your **backend** owns the controller (`@opendatalabs/vana-sdk/server`);
-your **frontend** drives a two-tab approval flow with a React hook
+scopes. Your **backend** owns the Data Portability controller
+(`@opendatalabs/vana-sdk/server`); your **frontend** drives a two-tab approval flow with a React hook
 (`@opendatalabs/vana-sdk/react`).
 
 > **How it fits together.** Access requests are created through the Vana Account
@@ -136,12 +136,12 @@ export const vana = createDirectDataController({
   network: process.env.VANA_NETWORK === "moksha" ? "moksha" : "mainnet",
   appPrivateKey: process.env.VANA_APP_PRIVATE_KEY!,
   app: {
-    id: "notes-lens",
-    name: "Notes Lens",
+    id: "spotify-taste",
+    name: "Spotify Taste",
     homepageUrl: process.env.VANA_APP_URL!,
   },
-  source: "icloud_notes",
-  scopes: ["icloud_notes.notes"],
+  source: "spotify",
+  scopes: ["spotify.savedTracks"],
   // Settle paid reads through the DPv2 escrow gateway. The controller signs the
   // GenericPayment with your app key; you supply the gateway client + contract.
   escrow: {
@@ -172,7 +172,7 @@ const status = await vana.getAccessRequestStatus(requestId);
 // GET /api/vana/data?requestId=...
 const result = await vana.readApprovedData({ requestId });
 // -> {
-//   scope: "icloud_notes.notes",
+//   scope: "spotify.savedTracks",
 //   data: ...,
 //   payment?: {            // present only when this read settled a payment
 //     amount, asset, paymentNonce, paidAt,
@@ -194,7 +194,7 @@ amount and asset owed.
 "use client";
 import { useDirectVanaConnect } from "@opendatalabs/vana-sdk/react";
 
-export function ConnectNotesButton() {
+export function ConnectSpotifyButton() {
   const connect = useDirectVanaConnect({
     createRequest: () =>
       fetch("/api/vana/request", { method: "POST" }).then((r) => r.json()),
@@ -214,7 +214,7 @@ export function ConnectNotesButton() {
       onClick={connect.start}
       type="button"
     >
-      {connect.state.type === "idle" ? "Connect Apple Notes" : "Connecting..."}
+      {connect.state.type === "idle" ? "Connect Spotify" : "Connecting..."}
     </button>
   );
 }
@@ -224,6 +224,23 @@ The hook calls `createRequest`, opens the Vana approval URL, polls `getStatus`
 until the request is approved, then calls `readResult`. `react` is an optional
 peer dependency. The underlying `createDirectConnectFlow` store is also exported
 for non-React frontends.
+
+### Test with large sample data
+
+When testing with realistic exports, use the public fixture catalog in
+[`vana-com/data-connectors`](https://github.com/vana-com/data-connectors). Keep
+the payload in a file or raw URL and point your app or agent at that location.
+Do not paste large JSON into the terminal.
+
+The controller can run against local test data by injecting an
+`accessRequestClient` that returns an approved request and a
+`personalServerFetch` that loads the sample payload, while the rest of your app
+still calls `readApprovedData`.
+
+See [`examples/vana-app`](../../examples/vana-app) for a runnable Next.js Vana
+app. It includes the route handlers, return page, and React connect button from
+this flow, defaults to sample-data mode using `vana-com/data-connectors`, and
+can be switched to live protocol mode with environment variables.
 
 ## Networks
 

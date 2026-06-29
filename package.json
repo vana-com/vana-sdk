@@ -5,7 +5,8 @@
   "version": "1.0.9",
   "description": "Vana SDK monorepo",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/*"
   ],
   "scripts": {
     "build": "turbo run build",

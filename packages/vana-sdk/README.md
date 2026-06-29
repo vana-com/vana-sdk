@@ -237,12 +237,10 @@ The controller can run against local test data by injecting an
 `personalServerFetch` that loads the sample payload, while the rest of your app
 still calls `readApprovedData`.
 
-See [`examples/vana-app`](../../examples/vana-app) for a runnable Vana app
-backend slice. It loads the `spotify.savedTracks.large` fixture from
-data-connectors by default, can be pointed at a local `VANA_SAMPLE_DATA_PATH`,
-returns data through the same `ApprovedDataResult` shape as a real Personal
-Server read, and can be swapped back to the default network clients by removing
-the two injected test doubles.
+See [`examples/vana-app`](../../examples/vana-app) for a runnable Next.js Vana
+app. It includes the route handlers, return page, and React connect button from
+this flow, defaults to sample-data mode using `vana-com/data-connectors`, and
+can be switched to live protocol mode with environment variables.
 
 ## Networks
 

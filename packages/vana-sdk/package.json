@@ -37,6 +37,15 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
     },
+    "./session-relay": {
+      "browser": {
+        "types": "./dist/session-relay.d.ts",
+        "import": "./dist/session-relay.js"
+      },
+      "types": "./dist/session-relay.d.ts",
+      "import": "./dist/session-relay.js",
+      "require": "./dist/session-relay.cjs"
+    },
     "./chains": {
       "browser": {
         "types": "./dist/chains.browser.d.ts",

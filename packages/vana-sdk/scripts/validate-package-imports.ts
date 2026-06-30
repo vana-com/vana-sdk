@@ -10,6 +10,7 @@ const imports = [
   "@opendatalabs/vana-sdk/account/personal-server-registration",
   "@opendatalabs/vana-sdk/account/personal-server-lite-owner-binding",
   "@opendatalabs/vana-sdk/browser",
+  "@opendatalabs/vana-sdk/session-relay",
 ];
 
 function run(command: string, args: string[], cwd: string): string {

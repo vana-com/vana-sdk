@@ -21,4 +21,36 @@
  * @module session-relay
  */
 
-export * from "./session-relay/index";
+export {
+  SESSION_RELAY_DEV_URL,
+  SESSION_RELAY_PRODUCTION_URL,
+  getSessionRelayUrl,
+} from "./session-relay/endpoints";
+export {
+  SessionRelayError,
+  type SessionRelayErrorDetails,
+} from "./session-relay/errors";
+export {
+  computeSessionRelayBodyHash,
+  buildSessionRelayWeb3SignedHeader,
+} from "./session-relay/signing";
+export {
+  createSessionRelayClient,
+  createSessionRelayBuilderClient,
+} from "./session-relay/client";
+export type {
+  SessionRelayEnvironment,
+  SessionRelayFetch,
+  SessionRelayClientOptions,
+  SessionRelayBuilderClientOptions,
+  SessionRelayInitParams,
+  SessionRelayInitResult,
+  SessionRelayGrantPayload,
+  SessionRelayPollResult,
+  SessionRelayClaimRequest,
+  SessionRelayClaimResponse,
+  SessionRelayApproveRequest,
+  SessionRelayDenyRequest,
+  SessionRelayClient,
+  SessionRelayBuilderClient,
+} from "./session-relay/types";

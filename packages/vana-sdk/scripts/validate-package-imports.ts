@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -19,6 +19,60 @@ function run(command: string, args: string[], cwd: string): string {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+function validateTypeScriptConsumer(consumerDir: string): void {
+  writeFileSync(
+    join(consumerDir, "package.json"),
+    JSON.stringify({ type: "module" }, null, 2),
+  );
+  writeFileSync(
+    join(consumerDir, "tsconfig.json"),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          module: "Node16",
+          moduleResolution: "Node16",
+          noEmit: true,
+          skipLibCheck: true,
+          strict: true,
+          target: "ES2022",
+        },
+        include: ["index.ts"],
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    join(consumerDir, "index.ts"),
+    [
+      'import { createSessionRelayBuilderClient, SessionRelayError, type SessionRelayInitResult } from "@opendatalabs/vana-sdk/session-relay";',
+      "",
+      "const relay = createSessionRelayBuilderClient({",
+      '  granteeAddress: "0x0000000000000000000000000000000000000000",',
+      '  signMessage: async () => "0x00",',
+      "});",
+      "const initResult: Promise<SessionRelayInitResult> = relay.initSession({",
+      '  scopes: ["test.scope"],',
+      "});",
+      "void initResult;",
+      "void SessionRelayError;",
+      "",
+    ].join("\n"),
+  );
+
+  run(
+    process.execPath,
+    [
+      join(process.cwd(), "node_modules/typescript/bin/tsc"),
+      "--noEmit",
+      "-p",
+      consumerDir,
+    ],
+    consumerDir,
+  );
+  console.log("✓ TypeScript consumer imports");
 }
 
 const tempDir = mkdtempSync(join(tmpdir(), "vana-sdk-package-imports-"));
@@ -51,6 +105,8 @@ try {
     );
     console.log(`✓ ${specifier}`);
   }
+
+  validateTypeScriptConsumer(consumerDir);
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }

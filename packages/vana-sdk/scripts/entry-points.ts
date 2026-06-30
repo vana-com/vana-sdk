@@ -10,6 +10,8 @@ export const NODE_ENTRY_POINTS = [
   "src/platform.node.ts",
   // Direct Data Controller (server-side; owns the app private key).
   "src/server.ts",
+  // Session Relay service integration (builder and app handoff clients).
+  "src/session-relay.ts",
 ];
 
 export const BROWSER_ENTRY_POINTS = [
@@ -19,6 +21,8 @@ export const BROWSER_ENTRY_POINTS = [
   "src/platform.browser.ts",
   // Direct Vana connect React hook (browser-safe).
   "src/react.ts",
+  // Session Relay service integration (browser-safe with injected signer).
+  "src/session-relay.ts",
 ];
 
 // Environment-agnostic entry points (resolve conditionally based on platform)

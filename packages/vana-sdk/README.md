@@ -29,6 +29,10 @@ encryption, storage providers, and a shared isomorphic platform layer.
 - **Storage providers** — `VanaStorage` (default, talks to `storage.vana.org`),
   `R2Storage`, `StorageManager`, `IpfsStorage`, `PinataStorage`,
   `GoogleDriveStorage`, `DropboxStorage`, `CallbackStorage`.
+- **Vana service integrations** — `@opendatalabs/vana-sdk/server`,
+  `@opendatalabs/vana-sdk/react`, and `@opendatalabs/vana-sdk/session-relay`
+  for Vana-operated app handoff flows. These are integration helpers, not
+  protocol-core modules.
 - **Platform adapters** — `NodePlatformAdapter` and `BrowserPlatformAdapter`
   with a shared `VanaPlatformAdapter` interface, plus detection helpers
   (`detectPlatform`, `isPlatformSupported`, `createPlatformAdapter`,

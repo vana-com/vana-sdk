@@ -89,6 +89,15 @@ export function serverRegistrationDomain(
   );
 }
 
+export function serverDeregistrationDomain(
+  config: DataPortabilityGatewayConfig,
+): TypedDataDomain {
+  return buildDomain(
+    config.chainId,
+    config.contracts.dataPortabilityServer as `0x${string}`,
+  );
+}
+
 export function builderRegistrationDomain(
   config: DataPortabilityGatewayConfig,
 ): TypedDataDomain {
@@ -142,6 +151,20 @@ export const SERVER_REGISTRATION_TYPES = {
     { name: "serverAddress", type: "address" },
     { name: "publicKey", type: "string" },
     { name: "serverUrl", type: "string" },
+  ],
+} as const;
+
+// Mirrors the data-gateway `ServerDeregistration` type
+// (data-gateway/lib/eip712.ts). `serverId` ties the signature to a specific
+// registration instance and `deadline` bounds its validity — both are required
+// for the gateway's replay protection, so this shape must match exactly or the
+// gateway's signature recovery will reject it.
+export const SERVER_DEREGISTRATION_TYPES = {
+  ServerDeregistration: [
+    { name: "ownerAddress", type: "address" },
+    { name: "serverAddress", type: "address" },
+    { name: "serverId", type: "bytes32" },
+    { name: "deadline", type: "uint256" },
   ],
 } as const;
 
@@ -217,6 +240,15 @@ export interface ServerRegistrationMessage {
   serverAddress: `0x${string}`;
   publicKey: string;
   serverUrl: string;
+}
+
+export interface ServerDeregistrationMessage {
+  ownerAddress: `0x${string}`;
+  serverAddress: `0x${string}`;
+  /** The server record's id (bytes32) from `GET /v1/servers/:address`. */
+  serverId: `0x${string}`;
+  /** Unix timestamp (seconds) after which the signature is no longer valid. */
+  deadline: bigint;
 }
 
 export interface BuilderRegistrationMessage {

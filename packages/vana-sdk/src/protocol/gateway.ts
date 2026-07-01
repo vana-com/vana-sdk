@@ -188,6 +188,14 @@ export interface RegisterServerResult {
   alreadyRegistered: boolean;
 }
 
+export interface RevokeServerParams {
+  ownerAddress: string;
+  serverAddress: string;
+  /** Unix timestamp (seconds) the deregistration signature expires. */
+  deadline: number;
+  signature: string;
+}
+
 export interface RegisterBuilderParams {
   ownerAddress: string;
   // Wallet the builder authenticates to the Personal Server with. The
@@ -476,6 +484,7 @@ export interface GatewayClient {
   ): Promise<DataPointListResult>;
   getSchema(schemaId: string): Promise<Schema | null>;
   registerServer(params: RegisterServerParams): Promise<RegisterServerResult>;
+  revokeServer(params: RevokeServerParams): Promise<void>;
   registerBuilder(
     params: RegisterBuilderParams,
   ): Promise<RegisterBuilderResult>;
@@ -768,6 +777,25 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
           grantVersion: params.grantVersion,
         }),
       });
+      if (res.status === 409) return;
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+    },
+
+    async revokeServer(params: RevokeServerParams): Promise<void> {
+      const res = await fetch(`${base}/v1/servers/${params.serverAddress}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${params.signature}`,
+        },
+        body: JSON.stringify({
+          ownerAddress: params.ownerAddress,
+          deadline: params.deadline,
+        }),
+      });
+      // 409 = server already deregistered → treat as idempotent success.
       if (res.status === 409) return;
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);

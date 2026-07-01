@@ -289,6 +289,75 @@ describe("createGatewayClient", () => {
     );
   });
 
+  it("deregisters a server via DELETE with Web3Signed auth and owner+deadline body", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.revokeServer({
+        ownerAddress: "0xowner",
+        serverAddress: "0xserver",
+        deadline: 1782911924,
+        signature: "sig",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/servers/0xserver",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Web3Signed sig",
+        }),
+        body: JSON.stringify({
+          ownerAddress: "0xowner",
+          deadline: 1782911924,
+        }),
+      }),
+    );
+  });
+
+  it("treats a 409 (already deregistered) as idempotent success", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ error: "Server already deregistered" }, { status: 409 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.revokeServer({
+        ownerAddress: "0xowner",
+        serverAddress: "0xserver",
+        deadline: 1782911924,
+        signature: "sig",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws when the gateway rejects the deregistration", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ error: "unauthorized" }, { status: 401 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.revokeServer({
+        ownerAddress: "0xowner",
+        serverAddress: "0xserver",
+        deadline: 1782911924,
+        signature: "badsig",
+      }),
+    ).rejects.toThrow(/Gateway error: 401/);
+  });
+
   it("registers a builder with Web3Signed auth, returns the gateway-computed builderId", async () => {
     const fetchMock = vi
       .fn()

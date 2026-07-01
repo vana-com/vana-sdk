@@ -600,7 +600,11 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
     },
 
     async listServersByOwner(owner: string): Promise<OwnerServersResult> {
-      const res = await fetch(`${base}/v1/servers?owner=${owner}`);
+      // URLSearchParams encodes the owner so a malformed value (e.g.
+      // "0xabc&foo=bar") can't inject extra query params. Same pattern as
+      // listDataPointsByOwner.
+      const params = new URLSearchParams({ owner });
+      const res = await fetch(`${base}/v1/servers?${params.toString()}`);
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }

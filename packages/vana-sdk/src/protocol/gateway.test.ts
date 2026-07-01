@@ -555,6 +555,23 @@ describe("createGatewayClient", () => {
     ).rejects.toThrow("Gateway error: 400 Bad Request");
   });
 
+  it("URL-encodes the owner so a malformed value cannot inject extra query params", async () => {
+    // Regression guard: an owner like "0xabc&foo=bar" must not smuggle a
+    // `foo=bar` query param into the gateway request — the `&` has to be
+    // percent-encoded. Naive template-string interpolation would let this
+    // through; URLSearchParams doesn't.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ active: [], revoked: [], count: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createGatewayClient("https://g").listServersByOwner("0xabc&foo=bar");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/servers?owner=0xabc%26foo%3Dbar",
+    );
+  });
+
   it("reads escrow balance without an envelope wrap", async () => {
     const balanceBody = {
       account: "0xpayer",

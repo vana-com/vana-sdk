@@ -497,6 +497,81 @@ describe("createGatewayClient", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("lists servers by owner without an envelope wrap, split into active + revoked", async () => {
+    const body = {
+      active: [
+        {
+          id: "3",
+          ownerAddress: "0xowner",
+          serverAddress: "0xserver3",
+          publicKey: "0xpub3",
+          serverUrl: "https://server3.example",
+          status: "confirmed",
+          chainBlockHeight: "100",
+          addedAt: "2026-06-01T00:00:00.000Z",
+          revokedAt: null,
+        },
+      ],
+      revoked: [
+        {
+          id: "1",
+          ownerAddress: "0xowner",
+          serverAddress: "0xserver1",
+          publicKey: "0xpub1",
+          serverUrl: "https://server1.example",
+          status: "finalized",
+          chainBlockHeight: "50",
+          addedAt: "2026-05-01T00:00:00.000Z",
+          revokedAt: "2026-05-15T00:00:00.000Z",
+        },
+      ],
+      count: 2,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(body));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g").listServersByOwner("0xowner"),
+    ).resolves.toEqual(body);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/servers?owner=0xowner",
+    );
+  });
+
+  it("surfaces list-servers 400 for invalid owner as a thrown error", async () => {
+    // Empty owner is 200 {active:[],revoked:[],count:0} on the gateway, not
+    // 404 — so we don't return null here. Only genuine errors (like a
+    // malformed address returning 400) should throw.
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({}, { status: 400, statusText: "Bad Request" }),
+        ),
+    );
+    await expect(
+      createGatewayClient("https://g").listServersByOwner("not-an-address"),
+    ).rejects.toThrow("Gateway error: 400 Bad Request");
+  });
+
+  it("URL-encodes the owner so a malformed value cannot inject extra query params", async () => {
+    // Regression guard: an owner like "0xabc&foo=bar" must not smuggle a
+    // `foo=bar` query param into the gateway request — the `&` has to be
+    // percent-encoded. Naive template-string interpolation would let this
+    // through; URLSearchParams doesn't.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ active: [], revoked: [], count: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createGatewayClient("https://g").listServersByOwner("0xabc&foo=bar");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://g/v1/servers?owner=0xabc%26foo%3Dbar",
+    );
+  });
+
   it("reads escrow balance without an envelope wrap", async () => {
     const balanceBody = {
       account: "0xpayer",

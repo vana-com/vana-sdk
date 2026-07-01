@@ -49,6 +49,38 @@ export interface Schema {
   addedAt: string;
 }
 
+// Row shape returned by `GET /v1/servers?owner=…`. A discovery-only list —
+// the endpoint carries no per-item gateway attestation (use
+// `getServer(serverAddress)` if you need a verifiable single-server proof).
+// `status` is the gateway's chain-sync state ('pending' | 'confirmed' |
+// 'finalized' | 'reorged'); kept as an open string since the gateway may add
+// states without a SDK bump.
+export interface OwnerServerRecord {
+  id: string;
+  ownerAddress: string;
+  serverAddress: string;
+  publicKey: string;
+  serverUrl: string;
+  status: string;
+  chainBlockHeight: string | null;
+  // ISO timestamp of the gateway-side upsert.
+  addedAt: string;
+  // ISO timestamp when the grantor deregistered this server. Always null for
+  // entries in the `active` list, always non-null for `revoked`.
+  revokedAt: string | null;
+}
+
+// Response from `GET /v1/servers?owner=…`. Split into two arrays; each is
+// ordered newest-first (`addedAt DESC`, `id ASC` tiebreaker) so `active[0]`
+// is unambiguously the newest active server — the sensible default when the
+// caller just needs one URL. The gateway caps the total across both arrays
+// at 200 — per-owner counts are tiny in practice, so no cursor.
+export interface OwnerServersResult {
+  active: OwnerServerRecord[];
+  revoked: OwnerServerRecord[];
+  count: number;
+}
+
 export interface ServerInfo {
   id: string;
   ownerAddress: string;
@@ -460,6 +492,14 @@ export interface GatewayClient {
   getSchemaForScope(scope: string): Promise<Schema | null>;
   getServer(address: string): Promise<ServerInfo | null>;
   /**
+   * List every personal server an owner has registered — split into `active`
+   * (currently trusted) and `revoked` (deregistered). Each list is ordered
+   * newest-first; `active[0]` is the sensible default when the caller just
+   * needs one URL for the owner. Empty owner returns `{active: [], revoked: [], count: 0}`.
+   * Discovery-only endpoint — no per-server attestation; use `getServer` for that.
+   */
+  listServersByOwner(owner: string): Promise<OwnerServersResult>;
+  /**
    * Fetch a single data point by its deterministic id (keccak256 of (owner, scope)).
    * Returns null on 404. The gateway omits `status` from the response body — read it
    * from the on-chain DataRegistryV2 contract when you need the canonical lifecycle state.
@@ -557,6 +597,16 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
       return unwrapEnvelope<ServerInfo>(res);
+    },
+
+    async listServersByOwner(owner: string): Promise<OwnerServersResult> {
+      const res = await fetch(`${base}/v1/servers?owner=${owner}`);
+      if (!res.ok) {
+        throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
+      }
+      // Unlike /v1/servers/:address, the list endpoint returns the body
+      // directly — no GatewayEnvelope, no attestation (discovery-only).
+      return (await res.json()) as OwnerServersResult;
     },
 
     async getDataPoint(dataPointId: string): Promise<DataPointRecord | null> {

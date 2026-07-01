@@ -284,6 +284,8 @@ export {
   type Builder,
   type Schema,
   type ServerInfo,
+  type OwnerServerRecord,
+  type OwnerServersResult,
   type GatewayGrantFee,
   type GatewayGrantStatus,
   type GatewayGrantResponse,

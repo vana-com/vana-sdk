@@ -1,7 +1,12 @@
 name: Perform a code review when a pull request is created.
 on:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize, reopened]
+
+# Cancel in-progress reviews when new commits are pushed
+concurrency:
+  group: codex-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   codex:
@@ -15,6 +20,7 @@ jobs:
         with:
           # Explicitly check out the PR's merge commit.
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 0  # Need full history for incremental diffs
 
       - name: Pre-fetch base and head refs for the PR
         run: |
@@ -26,34 +32,102 @@ jobs:
       # need to be downloaded before the "Run Codex" step because Codex's
       # default sandbox disables network access.
 
+      - name: Compute diff for review
+        id: compute_diff
+        run: |
+          # Determine what to review based on event type
+          if [ "${{ github.event.action }}" = "opened" ] || [ "${{ github.event.action }}" = "reopened" ]; then
+            # Full PR review
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            REVIEW_TYPE="full"
+          else
+            # Incremental review (synchronize event)
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.event.after }}"
+            REVIEW_TYPE="incremental"
+          fi
+
+          # Generate diff and commit log
+          git diff --unified=5 "$BASE_SHA" "$HEAD_SHA" > /tmp/diff.txt
+          git log --oneline "$BASE_SHA".."$HEAD_SHA" > /tmp/commits.txt
+          git diff --name-status "$BASE_SHA" "$HEAD_SHA" > /tmp/changed_files.txt
+
+          # Calculate sizes
+          DIFF_LINES=$(wc -l < /tmp/diff.txt)
+          DIFF_SIZE=$(wc -c < /tmp/diff.txt)
+
+          echo "review_type=$REVIEW_TYPE" >> $GITHUB_OUTPUT
+          echo "base_sha=$BASE_SHA" >> $GITHUB_OUTPUT
+          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "diff_lines=$DIFF_LINES" >> $GITHUB_OUTPUT
+          echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
+
+          # Skip if diff is too large (>100KB or >10000 lines)
+          if [ "$DIFF_SIZE" -gt 102400 ] || [ "$DIFF_LINES" -gt 10000 ]; then
+            echo "skip_review=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Diff is too large for review ($DIFF_LINES lines, $(($DIFF_SIZE / 1024))KB)"
+          else
+            echo "skip_review=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Codex
         id: run_codex
+        if: steps.compute_diff.outputs.skip_review != 'true'
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt: |
             This is PR #${{ github.event.pull_request.number }} for ${{ github.repository }}.
-            Base SHA: ${{ github.event.pull_request.base.sha }}
-            Head SHA: ${{ github.event.pull_request.head.sha }}
 
-            Review ONLY the changes introduced by the PR.
+            ${{ steps.compute_diff.outputs.review_type == 'full' && format('
+            📋 FULL PR REVIEW
+
+            Review the entire pull request.
+            Base SHA: {0}
+            Head SHA: {1}
+
+            PR Title: {2}
+            PR Description:
+            {3}
+            ', steps.compute_diff.outputs.base_sha, steps.compute_diff.outputs.head_sha, github.event.pull_request.title, github.event.pull_request.body) || '' }}
+
+            ${{ steps.compute_diff.outputs.review_type == 'incremental' && format('
+            🔄 INCREMENTAL REVIEW
+
+            Review ONLY the new commits pushed to this PR.
+            Before: {0}
+            After: {1}
+            {2}
+
+            Focus on what changed in this push, not the entire PR.
+            ', steps.compute_diff.outputs.base_sha, steps.compute_diff.outputs.head_sha, github.event.forced && '⚠️ This was a FORCE PUSH (history rewritten).' || '') || '' }}
+
+            Commits in this ${{ steps.compute_diff.outputs.review_type == 'full' && 'PR' || 'push' }}:
+            $(cat /tmp/commits.txt)
+
+            Changed files:
+            $(cat /tmp/changed_files.txt)
+
+            Full diff (unified format):
+            $(cat /tmp/diff.txt)
+
+            ---
+
             Suggest any improvements, potential bugs, or issues.
             Be concise and specific in your feedback.
-
-            Pull request title and body:
-            ----
-            ${{ github.event.pull_request.title }}
-            ${{ github.event.pull_request.body }}
+            Focus on correctness, security, performance, and maintainability.
 
   post_feedback:
     runs-on: ubuntu-latest
     needs: codex
-    if: needs.codex.outputs.final_message != ''
+    if: always()  # Run even if review was skipped
     permissions:
       issues: write
       pull-requests: write
     steps:
       - name: Report Codex feedback
+        if: needs.codex.outputs.final_message != ''
         uses: actions/github-script@v7
         env:
           CODEX_FINAL_MESSAGE: ${{ needs.codex.outputs.final_message }}

@@ -1,6 +1,6 @@
 {
   "name": "@opendatalabs/vana-sdk",
-  "version": "3.10.0",
+  "version": "3.10.1",
   "description": "A TypeScript library for interacting with Vana Network smart contracts.",
   "publishConfig": {
     "access": "public"

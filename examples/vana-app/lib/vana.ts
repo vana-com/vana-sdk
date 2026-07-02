@@ -96,15 +96,6 @@ function optionalEndpoints(): Partial<DirectServiceEndpoints> | undefined {
   return Object.keys(endpoints).length > 0 ? endpoints : undefined;
 }
 
-function optionalEscrow(): { escrowContract: `0x${string}` } | undefined {
-  const escrowContract = process.env.VANA_ESCROW_CONTRACT;
-  if (!escrowContract) return undefined;
-  if (!/^0x[0-9a-fA-F]{40}$/.test(escrowContract)) {
-    throw new Error("VANA_ESCROW_CONTRACT must be a 0x-prefixed address");
-  }
-  return { escrowContract: escrowContract as `0x${string}` };
-}
-
 async function loadSampleData(): Promise<unknown> {
   const localPath = process.env.VANA_SAMPLE_DATA_PATH;
   if (localPath) {
@@ -198,7 +189,6 @@ function createConfiguredController(): DirectDataController {
     network: directNetwork(),
     appPrivateKey: requireEnv("VANA_APP_PRIVATE_KEY"),
     endpoints: optionalEndpoints(),
-    escrow: optionalEscrow(),
   });
 }
 

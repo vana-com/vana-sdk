@@ -88,6 +88,16 @@ const TRANSPORT_RETRY_DEFAULTS: Required<PersonalServerTransportRetryOptions> =
     maxDelayMs: 5_000,
   };
 
+/** Clamp a caller-supplied attempt count to a finite integer >= 1. */
+function resolveAttempts(attempts: number): number {
+  return Number.isFinite(attempts) ? Math.max(1, Math.floor(attempts)) : 1;
+}
+
+/** An aborted request is the caller's intent to stop — never retry it. */
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -109,8 +119,9 @@ async function fetchWithTransportRetry(
   }>,
   retry: Required<PersonalServerTransportRetryOptions>,
 ): Promise<FetchResponseLike> {
+  const attempts = resolveAttempts(retry.attempts);
   let lastError: unknown;
-  for (let attempt = 0; attempt < Math.max(1, retry.attempts); attempt += 1) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (attempt > 0) {
       await sleep(
         Math.min(retry.maxDelayMs, retry.initialDelayMs * 2 ** (attempt - 1)),
@@ -123,6 +134,11 @@ async function fetchWithTransportRetry(
         headers: request.headers,
       });
     } catch (error) {
+      // An abort is a deliberate cancellation, not a flaky tunnel — surface it
+      // immediately instead of burning attempts (and backoff) on it.
+      if (isAbortError(error)) {
+        throw error;
+      }
       lastError = error;
     }
   }

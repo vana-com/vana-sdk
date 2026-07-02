@@ -45,6 +45,7 @@ export {
   type PersonalServerDataReadRequest,
   type PersonalServerReadResult,
   type PersonalServerFetch,
+  type PersonalServerTransportRetryOptions,
   type FetchResponseLike,
 } from "./direct/personal-server-read";
 // Escrow-backed payment (built on protocol/escrow).

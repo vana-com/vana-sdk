@@ -263,6 +263,27 @@ describe("readPersonalServerData transport retry", () => {
     expect(call).toBe(3);
   });
 
+  it("does not retry an aborted request", async () => {
+    let call = 0;
+    await expect(
+      readPersonalServerData({
+        personalServerUrl: "https://ps.example.com",
+        scope: "icloud_notes.notes",
+        grantId: GRANT_ID,
+        payerAddress: PAYER,
+        signMessage,
+        transportRetry: fastRetry,
+        fetchFn: async () => {
+          call += 1;
+          const err = new Error("The operation was aborted");
+          err.name = "AbortError";
+          throw err;
+        },
+      }),
+    ).rejects.toThrow("aborted");
+    expect(call).toBe(1);
+  });
+
   it("does not retry a received HTTP error response", async () => {
     let call = 0;
     await expect(

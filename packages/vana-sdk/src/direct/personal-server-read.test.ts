@@ -220,6 +220,138 @@ describe("parsePersonalServerPaymentRequired", () => {
   });
 });
 
+describe("readPersonalServerData transport retry", () => {
+  const fastRetry = { attempts: 3, initialDelayMs: 1, maxDelayMs: 2 };
+
+  it("retries when fetch throws and succeeds on a later attempt", async () => {
+    let call = 0;
+    const result = await readPersonalServerData({
+      personalServerUrl: "https://ps.example.com",
+      scope: "icloud_notes.notes",
+      grantId: GRANT_ID,
+      payerAddress: PAYER,
+      signMessage,
+      transportRetry: fastRetry,
+      fetchFn: async () => {
+        call += 1;
+        if (call < 3) {
+          throw new TypeError("fetch failed: socket disconnected");
+        }
+        return jsonRes({ items: [1] });
+      },
+    });
+    expect(call).toBe(3);
+    expect(result.data).toEqual({ items: [1] });
+  });
+
+  it("rethrows the transport error once attempts are exhausted", async () => {
+    let call = 0;
+    await expect(
+      readPersonalServerData({
+        personalServerUrl: "https://ps.example.com",
+        scope: "icloud_notes.notes",
+        grantId: GRANT_ID,
+        payerAddress: PAYER,
+        signMessage,
+        transportRetry: fastRetry,
+        fetchFn: async () => {
+          call += 1;
+          throw new TypeError("fetch failed: ECONNRESET");
+        },
+      }),
+    ).rejects.toThrow("ECONNRESET");
+    expect(call).toBe(3);
+  });
+
+  it("does not retry a received HTTP error response", async () => {
+    let call = 0;
+    await expect(
+      readPersonalServerData({
+        personalServerUrl: "https://ps.example.com",
+        scope: "icloud_notes.notes",
+        grantId: GRANT_ID,
+        payerAddress: PAYER,
+        signMessage,
+        transportRetry: fastRetry,
+        fetchFn: async () => {
+          call += 1;
+          return jsonRes({ error: "boom" }, { status: 500 });
+        },
+      }),
+    ).rejects.toThrow("Personal Server read failed: 500");
+    expect(call).toBe(1);
+  });
+
+  it("re-signs auth per attempt on a fresh Web3Signed header", async () => {
+    let call = 0;
+    const authHeaders: string[] = [];
+    await readPersonalServerData({
+      personalServerUrl: "https://ps.example.com",
+      scope: "icloud_notes.notes",
+      grantId: GRANT_ID,
+      payerAddress: PAYER,
+      signMessage,
+      transportRetry: fastRetry,
+      fetchFn: async (_input, init) => {
+        call += 1;
+        authHeaders.push(init.headers.Authorization);
+        if (call === 1) {
+          throw new TypeError("fetch failed");
+        }
+        return jsonRes({ ok: true });
+      },
+    });
+    expect(authHeaders).toHaveLength(2);
+    for (const header of authHeaders) {
+      expect(header).toMatch(/^Web3Signed /);
+    }
+  });
+
+  it("reuses the SAME X-PAYMENT header across paid-read transport retries (no double pay)", async () => {
+    let call = 0;
+    const escrow = mockEscrow();
+    const paymentHeaders: Array<string | undefined> = [];
+    const result = await readPersonalServerData({
+      personalServerUrl: "https://ps.example.com",
+      scope: "icloud_notes.notes",
+      grantId: GRANT_ID,
+      payerAddress: PAYER,
+      signMessage,
+      escrow,
+      transportRetry: fastRetry,
+      fetchFn: async (_input, init) => {
+        call += 1;
+        if (call === 1) {
+          // paymentNonce pinned in the challenge so this test never consumes
+          // the process-local per-payer nonce counter other tests rely on.
+          return jsonRes(
+            {
+              grantId: GRANT_ID,
+              asset: NATIVE_ASSET_ADDRESS,
+              amount: "1000",
+              paymentNonce: "7",
+            },
+            { status: 402 },
+          );
+        }
+        paymentHeaders.push(init.headers["X-PAYMENT"]);
+        if (call === 2) {
+          // Tunnel dies while delivering the paid read.
+          throw new TypeError("fetch failed: socket disconnected");
+        }
+        return jsonRes({ ok: true });
+      },
+    });
+    expect(result.data).toEqual({ ok: true });
+    // Exactly one payment authorization was signed...
+    expect(escrow.signTypedData).toHaveBeenCalledTimes(1);
+    // ...and both paid attempts carried the identical signed header.
+    expect(paymentHeaders).toHaveLength(2);
+    expect(paymentHeaders[0]).toBeDefined();
+    expect(paymentHeaders[1]).toBe(paymentHeaders[0]);
+  });
+});
+
 describe("readPersonalServerData", () => {
   it("returns data without a payment receipt when no 402 occurs", async () => {
     const result = await readPersonalServerData({

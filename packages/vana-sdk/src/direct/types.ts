@@ -82,11 +82,23 @@ export interface AccessRequest {
   appAddress: string;
 }
 
-/** Lifecycle status of an access request. */
+/**
+ * Lifecycle status of an access request.
+ *
+ * @remarks
+ * - `"pending"` — created, awaiting user approval.
+ * - `"approved"` / `"ready_for_read"` — the grant exists and the Personal
+ *   Server is reachable; the data is read-ready (see {@link DirectDataController.readApprovedData}).
+ * - `"completed"` — the app has already read the data and acknowledged it, so
+ *   the DCR is terminal. A `"completed"` request is **not** read-ready — the
+ *   browser Personal Server may no longer be serving it.
+ * - `"denied"` / `"expired"` — terminal, no data was delivered.
+ */
 export type AccessRequestStatusValue =
   | "pending"
   | "approved"
   | "ready_for_read"
+  | "completed"
   | "denied"
   | "expired";
 

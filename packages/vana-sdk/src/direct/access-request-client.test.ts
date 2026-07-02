@@ -127,6 +127,25 @@ describe("createDefaultAccessRequestClient", () => {
     });
   });
 
+  it("passes through the terminal completed status without downgrading it", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          status: "completed",
+          personalServerUrl: "https://ps.example.com",
+          grantId: "0xgrant",
+          scope: "icloud_notes.notes",
+        },
+      })),
+    });
+
+    const status = await client.getAccessRequestStatus("dcr_10");
+    expect(status.status).toBe("completed");
+  });
+
   it("signs create, status, and acknowledge requests when app auth is configured", async () => {
     const requests: Array<{
       init?: {

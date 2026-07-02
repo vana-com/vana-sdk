@@ -55,6 +55,7 @@ const VALID_STATUSES: readonly AccessRequestStatusValue[] = [
   "pending",
   "approved",
   "ready_for_read",
+  "completed",
   "denied",
   "expired",
 ];

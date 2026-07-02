@@ -469,6 +469,20 @@ describe("createDirectDataController — readApprovedData", () => {
     expect(result.data).toEqual({ ok: true });
   });
 
+  it("throws AccessNotApprovedError and does not read when the DCR is completed", async () => {
+    const personalServerFetch = vi.fn(async () => jsonResponse({ ok: true }));
+    const vana = makeController(
+      { ...approvedStatus(), status: "completed" },
+      personalServerFetch,
+    );
+
+    await expect(vana.readApprovedData({ requestId: "dcr_1" })).rejects.toThrow(
+      AccessNotApprovedError,
+    );
+    // `completed` is terminal, not read-ready: the PS is never contacted.
+    expect(personalServerFetch).not.toHaveBeenCalled();
+  });
+
   it("settles a 402 via escrow and returns a structured payment receipt", async () => {
     let call = 0;
     const payForOp = vi.fn(async () => payResultFixture());

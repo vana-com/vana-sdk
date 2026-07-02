@@ -210,6 +210,10 @@ function isHexPrivateKey(value: string): value is Hex {
   return /^0x[0-9a-fA-F]{64}$/.test(value);
 }
 
+// A DCR is read-ready only while the grant exists and the Personal Server is
+// still serving it: `approved` (durable PS) or `ready_for_read` (browser PS).
+// `completed` is terminal — the app already read and acknowledged, and the
+// browser PS may be gone — so it is deliberately excluded here.
 function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
   return status === "approved" || status === "ready_for_read";
 }

@@ -64,6 +64,27 @@ The live controller uses Vana Account access requests, Personal Server reads,
 and the SDK's default DPv2 escrow settlement path. Optional endpoint overrides
 are documented in `.env.example`.
 
+## Before you ship
+
+The API routes are deliberately unauthenticated so the example runs with zero
+setup. Before deploying a real app on this template:
+
+- **Bind the routes to a user session.** Anyone who can reach
+  `/api/vana/request` can create access requests, and anyone holding a
+  `requestId` can call `/api/vana/data`.
+- **Keep the read cache.** `/api/vana/data` caches the result per request ID so
+  repeat calls do not trigger repeat Personal Server reads (which can each
+  settle a fee from escrow in live mode). If you remove or replace it, make
+  sure repeat calls still cannot drain your escrow.
+- **Rate-limit `/api/vana/request`.**
+- **Set env vars in your host's project settings.** On Vercel, add `VANA_MODE`
+  (and the rest of `.env.local`) under Project Settings → Environment Variables
+  for all environments, then redeploy — `.env.local` is not uploaded, so a
+  deploy without them silently falls back to sample-mode defaults or fails.
+- **Polling is bounded by the SDK.** `useDirectVanaConnect` accepts
+  `pollIntervalMs` and `timeoutMs` (default 5 minutes). Use those instead of
+  hand-rolling a polling loop that never expires.
+
 Do not paste large payloads into an agent prompt. Put the export in a local file
 and give the agent the path plus the scope name. If reusable sample data belongs
 in source control, add it to data-connectors and keep it sanitized.

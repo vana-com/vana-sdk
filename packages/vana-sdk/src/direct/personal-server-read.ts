@@ -63,6 +63,88 @@ export interface PersonalServerDataReadRequest {
   headers: Record<string, string>;
 }
 
+/**
+ * Transport-level retry knobs for {@link readPersonalServerData}.
+ *
+ * @remarks
+ * Applies only when the underlying `fetch` **throws** (connection reset, DNS,
+ * socket died mid-handshake — the browser-PS relay drop window). A received
+ * HTTP response is never retried here: 402 has its own payment loop and other
+ * statuses are surfaced to the caller unchanged.
+ */
+export interface PersonalServerTransportRetryOptions {
+  /** Total attempts including the first (default 3). `1` disables retries. */
+  attempts?: number;
+  /** Delay before the first retry (ms); doubles per retry (default 1_000). */
+  initialDelayMs?: number;
+  /** Cap on the between-retry delay (ms, default 5_000). */
+  maxDelayMs?: number;
+}
+
+const TRANSPORT_RETRY_DEFAULTS: Required<PersonalServerTransportRetryOptions> =
+  {
+    attempts: 3,
+    initialDelayMs: 1_000,
+    maxDelayMs: 5_000,
+  };
+
+/** Clamp a caller-supplied attempt count to a finite integer >= 1. */
+function resolveAttempts(attempts: number): number {
+  return Number.isFinite(attempts) ? Math.max(1, Math.floor(attempts)) : 1;
+}
+
+/** An aborted request is the caller's intent to stop — never retry it. */
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Run a fetch with bounded transport retries.
+ *
+ * Each attempt rebuilds the request via `buildRequest` so the Web3Signed
+ * header is freshly signed (local app-key signature — cheap), while letting
+ * the caller pin anything that must NOT be regenerated across attempts
+ * (an already-signed `X-PAYMENT` header keeps its paymentNonce, so a retry
+ * can never mint a second escrow payment for the same read).
+ */
+async function fetchWithTransportRetry(
+  fetchFn: PersonalServerFetch,
+  buildRequest: () => Promise<{
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+  }>,
+  retry: Required<PersonalServerTransportRetryOptions>,
+): Promise<FetchResponseLike> {
+  const attempts = resolveAttempts(retry.attempts);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (attempt > 0) {
+      await sleep(
+        Math.min(retry.maxDelayMs, retry.initialDelayMs * 2 ** (attempt - 1)),
+      );
+    }
+    const request = await buildRequest();
+    try {
+      return await fetchFn(request.url, {
+        method: request.method,
+        headers: request.headers,
+      });
+    } catch (error) {
+      // An abort is a deliberate cancellation, not a flaky tunnel — surface it
+      // immediately instead of burning attempts (and backoff) on it.
+      if (isAbortError(error)) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 /** Outcome of {@link readPersonalServerData}: the payload plus optional receipt. */
 export interface PersonalServerReadResult {
   /** The decoded JSON payload returned by the Personal Server. */
@@ -261,6 +343,11 @@ function hasPositiveAmount(amount: string): boolean {
  * once. If escrow is not configured, throws {@link PaymentRequiredError} carrying
  * the parsed requirement so callers can debug amount/asset.
  *
+ * Transport failures (fetch throwing — the browser-PS relay reconnect window)
+ * are retried with backoff per `transportRetry` (default 3 attempts). The paid
+ * retry reuses the already-signed `X-PAYMENT` header, so transport retries can
+ * never double-pay.
+ *
  * @param params - Connection details, app signer, optional escrow config and fetch.
  * @returns `{ data, payment? }`.
  */
@@ -272,6 +359,7 @@ export async function readPersonalServerData(params: {
   signMessage: Web3SignedSignFn;
   escrow?: EscrowPaymentConfig;
   fetchFn?: PersonalServerFetch;
+  transportRetry?: PersonalServerTransportRetryOptions;
 }): Promise<PersonalServerReadResult> {
   const fetchFn =
     params.fetchFn ?? (globalThis.fetch as unknown as PersonalServerFetch);
@@ -280,18 +368,24 @@ export async function readPersonalServerData(params: {
       "No fetch implementation available for Personal Server read",
     );
   }
+  const transportRetry = {
+    ...TRANSPORT_RETRY_DEFAULTS,
+    ...params.transportRetry,
+  };
 
-  const initial = await buildPersonalServerDataReadRequest({
-    personalServerUrl: params.personalServerUrl,
-    scope: params.scope,
-    grantId: params.grantId,
-    signMessage: params.signMessage,
-  });
+  const buildRequest = () =>
+    buildPersonalServerDataReadRequest({
+      personalServerUrl: params.personalServerUrl,
+      scope: params.scope,
+      grantId: params.grantId,
+      signMessage: params.signMessage,
+    });
 
-  let res = await fetchFn(initial.url, {
-    method: initial.method,
-    headers: initial.headers,
-  });
+  let res = await fetchWithTransportRetry(
+    fetchFn,
+    buildRequest,
+    transportRetry,
+  );
 
   let payment: DirectPaymentReceipt | undefined;
 
@@ -330,17 +424,21 @@ export async function readPersonalServerData(params: {
       config: params.escrow,
     });
 
-    // Re-sign and retry with x402 payment proof for the Personal Server to validate.
-    const retry = await buildPersonalServerDataReadRequest({
-      personalServerUrl: params.personalServerUrl,
-      scope: params.scope,
-      grantId: params.grantId,
-      signMessage: params.signMessage,
-    });
-    res = await fetchFn(retry.url, {
-      method: retry.method,
-      headers: { ...retry.headers, "X-PAYMENT": paymentHeader },
-    });
+    // Re-sign and retry with x402 payment proof for the Personal Server to
+    // validate. The payment header is built exactly once: transport retries
+    // below re-sign only the Web3Signed auth and resend the SAME X-PAYMENT
+    // (same paymentNonce), so a dropped tunnel cannot mint a second payment.
+    res = await fetchWithTransportRetry(
+      fetchFn,
+      async () => {
+        const retry = await buildRequest();
+        return {
+          ...retry,
+          headers: { ...retry.headers, "X-PAYMENT": paymentHeader },
+        };
+      },
+      transportRetry,
+    );
 
     if (res.status === 402) {
       throw new PaymentRequiredError(

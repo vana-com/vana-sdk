@@ -44,6 +44,7 @@ import {
 import {
   readPersonalServerData,
   type PersonalServerFetch,
+  type PersonalServerTransportRetryOptions,
 } from "./personal-server-read";
 import type {
   AccessRequest,
@@ -116,6 +117,14 @@ export interface DirectDataControllerConfig {
   fetchFn?: FetchLike;
   /** `fetch` used for the Personal Server read. Defaults to `globalThis.fetch`. */
   personalServerFetch?: PersonalServerFetch;
+  /**
+   * Transport-retry knobs for the Personal Server read
+   * ({@link PersonalServerTransportRetryOptions}). Defaults to 3 attempts with
+   * exponential backoff. Retries fire only when fetch throws (the browser-PS
+   * relay reconnect window), never on a received HTTP status, and never
+   * re-sign a payment.
+   */
+  personalServerTransportRetry?: PersonalServerTransportRetryOptions;
 }
 
 /**
@@ -346,6 +355,7 @@ export function createDirectDataController(
         signMessage,
         escrow,
         fetchFn: config.personalServerFetch,
+        transportRetry: config.personalServerTransportRetry,
       });
       try {
         await accessRequestClient.acknowledgeRead?.(input.requestId);

@@ -123,7 +123,7 @@ When modifying public APIs:
 ## Questions?
 
 - GitHub Issues: Bug reports and features
-- Discord: [#developers channel](https://discord.gg/vanabuilders)
+- Discord: [#developers channel](https://discord.gg/vanaofficial)
 - Email: developers@vana.org
 
 ## License

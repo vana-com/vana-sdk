@@ -262,7 +262,7 @@ in October 2025; the report is in [`audits/`](https://github.com/vana-com/vana-s
 
 - [Documentation](https://docs.vana.org/docs/sdk)
 - [API reference](https://vana-com.github.io/vana-sdk)
-- [Discord](https://discord.gg/vanabuilders)
+- [Discord](https://discord.gg/vanaofficial)
 
 ## License
 

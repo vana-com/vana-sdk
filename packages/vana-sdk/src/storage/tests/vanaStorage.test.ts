@@ -544,11 +544,23 @@ describe("VanaStorage", () => {
       ).rejects.toThrow(/does not match provider network/);
     });
 
-    it("rejects a legacy unscoped URL when configured for a network", async () => {
+    it("accepts a legacy unscoped URL when configured for a network (migration)", async () => {
       const storage = makeNetworkStorage("moksha");
-      await expect(
-        storage.download(`${ENDPOINT}/v1/blobs/${signerAddress}/scope/at`),
-      ).rejects.toThrow(/does not match provider network/);
+      const url = `${ENDPOINT}/v1/blobs/${signerAddress}/scope/at`;
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(new Uint8Array([7]), { status: 200 }),
+      );
+      const blob = await storage.download(url);
+      expect(Array.from(new Uint8Array(await blob.arrayBuffer()))).toEqual([7]);
+
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+      expect(await storage.delete(url)).toBe(true);
+
+      const [downloadUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const [deleteUrl] = mockFetch.mock.calls[1] as [string, RequestInit];
+      expect(downloadUrl).toBe(url);
+      expect(deleteUrl).toBe(url);
     });
 
     it("rejects an unknown network segment", async () => {

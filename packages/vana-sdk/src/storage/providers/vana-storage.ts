@@ -57,9 +57,11 @@ export interface VanaStorageConfig {
   /**
    * Protocol network (`mainnet` or `moksha`) that scopes blob paths.
    *
-   * When set, upload/download/delete use network-scoped routes
+   * When set, uploads use network-scoped routes
    * (`/v1/networks/{network}/blobs/...`) so `moksha` and `mainnet` data for the
-   * same owner/scope/timestamp never collide. When omitted, the provider
+   * same owner/scope/timestamp never collide. Reads and deletes still accept
+   * legacy `/v1/blobs/...` URLs on the same endpoint (for migration) but reject
+   * URLs scoped to a *different* explicit network. When omitted, the provider
    * preserves the legacy `/v1/blobs/...` routes and behavior.
    *
    * Network is orthogonal to {@link endpoint}: `endpoint` picks the product
@@ -374,11 +376,16 @@ export class VanaStorage implements StorageProvider {
         "vana-storage",
       );
     }
-    // A provider configured for one protocol network must never sign a request
-    // scoped to another — that would let a Moksha-scoped wallet act on mainnet
-    // data (and vice versa). Legacy (unscoped) URLs remain acceptable when this
-    // provider is itself unscoped.
-    if (route.network !== this.network) {
+    // A provider must never sign a request scoped to a *different explicit*
+    // protocol network — that would let a Moksha-scoped wallet act on mainnet
+    // data (and vice versa). Legacy (unscoped) URLs are always accepted so a
+    // network-configured provider can still read/delete objects written before
+    // it opted into `network`. A legacy (unscoped) provider, however, rejects
+    // network-scoped URLs since it never produced them.
+    const crossNetwork = this.network
+      ? route.network !== undefined && route.network !== this.network
+      : route.network !== undefined;
+    if (crossNetwork) {
       throw new StorageError(
         `URL network '${route.network ?? "legacy"}' does not match provider network '${this.network ?? "legacy"}'`,
         "INVALID_URL",

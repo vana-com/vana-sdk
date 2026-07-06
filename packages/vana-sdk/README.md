@@ -137,8 +137,12 @@ const result = await storage.upload(
 
 When `network` is omitted, `VanaStorage` uses the legacy `/v1/blobs/...` routes,
 preserving backward compatibility. The Web3Signed audience is always the
-endpoint origin, never the network. A provider configured for one network
-rejects URLs scoped to another so a Moksha wallet can't act on mainnet data.
+endpoint origin, never the network.
+
+A network-configured provider still accepts legacy same-endpoint
+`/v1/blobs/...` URLs so it can read or delete objects written before the opt-in,
+but it rejects URLs scoped to a _different_ explicit network — a Moksha provider
+won't act on a `mainnet`-scoped URL, and vice versa.
 
 ## Build a Vana app
 

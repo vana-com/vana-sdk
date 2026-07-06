@@ -73,6 +73,7 @@ export type {
   VanaStorageConfig,
   VanaStorageSigner,
 } from "./providers/vana-storage";
+export type { ProtocolNetwork } from "../protocol/networks";
 export { GoogleDriveStorage } from "./providers/google-drive";
 export { DropboxStorage } from "./providers/dropbox";
 export { IpfsStorage } from "./providers/ipfs";

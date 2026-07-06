@@ -11,6 +11,7 @@
  */
 
 import type { DirectEnv, DirectNetwork, DirectServiceEndpoints } from "./types";
+import { getProtocolNetworkChainId } from "../protocol/networks";
 
 /** Production (mainnet) service URLs. */
 export const PRODUCTION_ENDPOINTS: DirectServiceEndpoints = {
@@ -59,5 +60,5 @@ export function getDirectDefaultNetwork(env: DirectEnv): DirectNetwork {
  * @returns The network chain id.
  */
 export function getDirectNetworkChainId(network: DirectNetwork): number {
-  return network === "moksha" ? 14800 : 1480;
+  return getProtocolNetworkChainId(network);
 }

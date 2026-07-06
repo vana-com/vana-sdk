@@ -108,10 +108,10 @@ const result = await storage.upload(myBlob, "report.json");
 console.log(result.url);
 ```
 
-### Scope Vana storage by chain ID
+### Scope Vana storage by network
 
-Set `chainId` when writing to Vana Storage for a specific chain (e.g. `1480` for
-Vana mainnet, `14800` for Moksha). Uploads then use chain-scoped routes
+Set `network` when writing to Vana Storage for a specific Vana network. The SDK
+resolves the network to its chain ID and uploads through chain-scoped routes
 (`/v1/chains/{chainId}/blobs/...`) so data for different chains never collides.
 
 ```typescript
@@ -119,7 +119,7 @@ import { createVanaStorageProvider } from "@opendatalabs/vana-sdk/node";
 
 const storage = createVanaStorageProvider({
   endpoint: "https://storage.vana.org",
-  chainId: 14800,
+  network: "moksha",
   signer: {
     address: account.address,
     signMessage: (msg) => account.signMessage({ message: msg }),
@@ -132,8 +132,9 @@ const result = await storage.upload(
 );
 ```
 
-Chain-configured providers reject legacy blob URLs and URLs scoped to a
-different explicit chain ID.
+Network-configured providers reject legacy blob URLs and URLs scoped to a
+different chain. If you need a custom or future protocol network that this SDK
+does not know yet, pass `chainId` explicitly.
 
 ## Build a Vana app
 

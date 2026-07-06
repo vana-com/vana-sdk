@@ -10,6 +10,11 @@ import {
   buildWeb3SignedHeader,
   type Web3SignedSignFn,
 } from "../../auth/web3-signed-builder";
+import {
+  getProtocolNetworkChainId,
+  isProtocolNetwork,
+  type ProtocolNetwork,
+} from "../../protocol/networks";
 
 const DEFAULT_ENDPOINT = "https://storage.vana.org";
 const LEGACY_BLOB_PATH_PREFIX = "/v1/blobs";
@@ -40,12 +45,21 @@ export interface VanaStorageConfig {
   /**
    * Base URL of the vana-storage Worker. Defaults to `https://storage.vana.org`.
    *
-   * This selects the storage endpoint and is independent of {@link chainId}.
+   * This selects the storage endpoint and is independent of {@link network} /
+   * {@link chainId}.
    */
   endpoint?: string;
   /**
-   * Numeric chain ID (e.g. `1480` for Vana mainnet, `14800` for Moksha) that
-   * scopes blob paths.
+   * Named Vana protocol network that scopes blob paths. Prefer this for known
+   * Vana networks because it keeps callers on the SDK's typed network registry.
+   *
+   * When set, uploads use chain-scoped routes derived from the network's chain
+   * ID (`/v1/chains/1480/...` for mainnet, `/v1/chains/14800/...` for Moksha).
+   */
+  network?: ProtocolNetwork;
+  /**
+   * Explicit numeric chain ID for custom or future networks not yet represented
+   * by {@link ProtocolNetwork}.
    *
    * When set, uploads use chain-scoped routes
    * (`/v1/chains/{chainId}/blobs/...`) so data for different chains under the
@@ -54,8 +68,10 @@ export interface VanaStorageConfig {
    * rather than read through an ambiguous fallback. When omitted, the provider
    * preserves the legacy `/v1/blobs/...` routes and behavior.
    *
-   * Chain ID is orthogonal to {@link endpoint}: `endpoint` picks the storage
-   * host, `chainId` picks the chain namespace within that host.
+   * `chainId` and {@link network} are mutually consistent ways to select the
+   * namespace. If both are provided, they must resolve to the same chain ID.
+   * `endpoint` remains orthogonal: it picks the storage host, not the protocol
+   * namespace.
    */
   chainId?: number;
   /**
@@ -91,10 +107,11 @@ interface VanaStorageUploadResponse {
  * The owner address is prepended automatically to produce the canonical
  * blob path `/v1/blobs/{owner}/{scope}/{collectedAt}`.
  *
- * When {@link VanaStorageConfig.chainId} is set, paths are chain-scoped as
+ * When {@link VanaStorageConfig.network} or {@link VanaStorageConfig.chainId}
+ * is set, paths are chain-scoped as
  * `/v1/chains/{chainId}/blobs/{owner}/{scope}/{collectedAt}` so different chains
  * never collide on the same host. The Web3Signed audience remains the endpoint
- * origin regardless of chain ID.
+ * origin regardless of network.
  *
  * @category Storage
  *
@@ -119,6 +136,7 @@ interface VanaStorageUploadResponse {
  */
 export class VanaStorage implements StorageProvider {
   private readonly endpoint: string;
+  private readonly network?: ProtocolNetwork;
   private readonly chainId?: number;
   private readonly blobPathPrefix: string;
   private readonly signer: VanaStorageSigner;
@@ -134,14 +152,9 @@ export class VanaStorage implements StorageProvider {
       );
     }
     this.endpoint = (config.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, "");
-    if (config.chainId !== undefined && !isValidChainId(config.chainId)) {
-      throw new StorageError(
-        `Unsupported vana-storage chainId '${String(config.chainId)}'`,
-        "INVALID_CHAIN_ID",
-        "vana-storage",
-      );
-    }
-    this.chainId = config.chainId;
+    const resolved = resolveStorageNamespace(config);
+    this.network = resolved.network;
+    this.chainId = resolved.chainId;
     this.blobPathPrefix =
       this.chainId !== undefined
         ? `/v1/chains/${this.chainId}/blobs`
@@ -376,12 +389,19 @@ export class VanaStorage implements StorageProvider {
     // rather than read through a second ambiguous path.
     if (route.chainId !== this.chainId) {
       throw new StorageError(
-        `URL chainId '${route.chainId ?? "legacy"}' does not match provider chainId '${this.chainId ?? "legacy"}'`,
+        `URL chainId '${route.chainId ?? "legacy"}' does not match provider namespace '${this.namespaceDescription()}'`,
         "INVALID_URL",
         "vana-storage",
       );
     }
     return parsed.pathname;
+  }
+
+  private namespaceDescription(): string {
+    if (this.network !== undefined) {
+      return `${this.network} (${this.chainId})`;
+    }
+    return this.chainId === undefined ? "legacy" : String(this.chainId);
   }
 }
 
@@ -394,6 +414,44 @@ interface ParsedBlobRoute {
 
 function isValidChainId(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function resolveStorageNamespace(
+  config: Pick<VanaStorageConfig, "network" | "chainId">,
+): {
+  chainId?: number;
+  network?: ProtocolNetwork;
+} {
+  if (config.network !== undefined && !isProtocolNetwork(config.network)) {
+    throw new StorageError(
+      `Unsupported vana-storage network '${String(config.network)}'`,
+      "INVALID_NETWORK",
+      "vana-storage",
+    );
+  }
+
+  if (config.chainId !== undefined && !isValidChainId(config.chainId)) {
+    throw new StorageError(
+      `Unsupported vana-storage chainId '${String(config.chainId)}'`,
+      "INVALID_CHAIN_ID",
+      "vana-storage",
+    );
+  }
+
+  if (config.network === undefined) {
+    return { chainId: config.chainId };
+  }
+
+  const networkChainId = getProtocolNetworkChainId(config.network);
+  if (config.chainId !== undefined && config.chainId !== networkChainId) {
+    throw new StorageError(
+      `vana-storage network '${config.network}' resolves to chainId '${networkChainId}', not '${config.chainId}'`,
+      "INVALID_CHAIN_ID",
+      "vana-storage",
+    );
+  }
+
+  return { chainId: networkChainId, network: config.network };
 }
 
 /**

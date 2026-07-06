@@ -26,7 +26,7 @@ export const DEV_ENDPOINTS: DirectServiceEndpoints = {
   chainId: 14800,
   accessRequestBaseUrl: "https://app-dev.vana.org",
   approvalAppBaseUrl: "https://app-dev.vana.org",
-  escrowGatewayUrl: "https://dp-rpc-dev.vana.org",
+  escrowGatewayUrl: "https://dp-rpc.moksha.vana.org",
 } as const;
 
 /**

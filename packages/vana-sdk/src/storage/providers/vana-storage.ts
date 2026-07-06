@@ -49,9 +49,9 @@ export interface VanaStorageConfig {
    *
    * When set, uploads use chain-scoped routes
    * (`/v1/chains/{chainId}/blobs/...`) so data for different chains under the
-   * same owner/scope/timestamp never collides. Reads and deletes still accept
-   * legacy `/v1/blobs/...` URLs on the same endpoint (for migration) but reject
-   * URLs scoped to a *different* explicit chain ID. When omitted, the provider
+   * same owner/scope/timestamp never collides. Reads and deletes must use the
+   * same chain-scoped namespace; legacy blobs should be migrated or re-collected
+   * rather than read through an ambiguous fallback. When omitted, the provider
    * preserves the legacy `/v1/blobs/...` routes and behavior.
    *
    * Chain ID is orthogonal to {@link endpoint}: `endpoint` picks the storage

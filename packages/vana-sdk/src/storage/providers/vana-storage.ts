@@ -12,7 +12,7 @@ import {
 } from "../../auth/web3-signed-builder";
 
 const DEFAULT_ENDPOINT = "https://storage.vana.org";
-const BLOB_PATH_PREFIX = "/v1/blobs";
+const LEGACY_BLOB_PATH_PREFIX = "/v1/blobs";
 const DEFAULT_TOKEN_TTL_SECONDS = 300;
 const MAX_UPLOAD_ATTEMPTS = 4;
 const MAX_RATE_LIMIT_DELAY_MS = 30_000;
@@ -32,6 +32,15 @@ export interface VanaStorageSigner {
 }
 
 /**
+ * Protocol network that scopes storage paths. This is the on-chain protocol
+ * network (`mainnet` or `moksha`), independent of the product host chosen via
+ * {@link VanaStorageConfig.endpoint}.
+ *
+ * @category Storage
+ */
+export type ProtocolNetwork = "mainnet" | "moksha";
+
+/**
  * Configuration for {@link VanaStorage}.
  *
  * @category Storage
@@ -39,8 +48,24 @@ export interface VanaStorageSigner {
 export interface VanaStorageConfig {
   /**
    * Base URL of the vana-storage Worker. Defaults to `https://storage.vana.org`.
+   *
+   * This selects the **product host** and is independent of {@link network}.
+   * For example, `https://storage-dev.vana.org` is the internal-staging host;
+   * it is not a synonym for any protocol network.
    */
   endpoint?: string;
+  /**
+   * Protocol network (`mainnet` or `moksha`) that scopes blob paths.
+   *
+   * When set, upload/download/delete use network-scoped routes
+   * (`/v1/networks/{network}/blobs/...`) so `moksha` and `mainnet` data for the
+   * same owner/scope/timestamp never collide. When omitted, the provider
+   * preserves the legacy `/v1/blobs/...` routes and behavior.
+   *
+   * Network is orthogonal to {@link endpoint}: `endpoint` picks the product
+   * host, `network` picks the protocol namespace within that host.
+   */
+  network?: ProtocolNetwork;
   /**
    * Wallet signer used to authenticate writes and reads.
    */
@@ -74,6 +99,11 @@ interface VanaStorageUploadResponse {
  * The owner address is prepended automatically to produce the canonical
  * blob path `/v1/blobs/{owner}/{scope}/{collectedAt}`.
  *
+ * When {@link VanaStorageConfig.network} is set, paths are network-scoped as
+ * `/v1/networks/{network}/blobs/{owner}/{scope}/{collectedAt}` so `moksha` and
+ * `mainnet` never collide on the same host. The Web3Signed audience remains the
+ * endpoint origin regardless of network.
+ *
  * @category Storage
  *
  * @example
@@ -97,6 +127,8 @@ interface VanaStorageUploadResponse {
  */
 export class VanaStorage implements StorageProvider {
   private readonly endpoint: string;
+  private readonly network?: ProtocolNetwork;
+  private readonly blobPathPrefix: string;
   private readonly signer: VanaStorageSigner;
   private readonly ownerAddress: string;
   private readonly fetchImpl: typeof fetch;
@@ -110,6 +142,10 @@ export class VanaStorage implements StorageProvider {
       );
     }
     this.endpoint = (config.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, "");
+    this.network = config.network;
+    this.blobPathPrefix = this.network
+      ? `/v1/networks/${this.network}/blobs`
+      : LEGACY_BLOB_PATH_PREFIX;
     this.signer = config.signer;
     this.ownerAddress = (
       config.ownerAddress ?? config.signer.address
@@ -134,7 +170,7 @@ export class VanaStorage implements StorageProvider {
     }
 
     const subpath = encodeRelativePath(filename);
-    const path = `${BLOB_PATH_PREFIX}/${this.ownerAddress}/${subpath}`;
+    const path = `${this.blobPathPrefix}/${this.ownerAddress}/${subpath}`;
     const body = new Uint8Array(await file.arrayBuffer());
     const contentType =
       file.type !== "" ? file.type : "application/octet-stream";
@@ -325,28 +361,95 @@ export class VanaStorage implements StorageProvider {
         "vana-storage",
       );
     }
-    // Restrict to /v1/blobs/{owner}/{scope}/{collectedAt} so a caller
-    // cannot induce this wallet to sign arbitrary same-host paths.
-    const segments = parsed.pathname.split("/").filter((s) => s.length > 0);
-    const isTraversal = (s: string): boolean => s === "." || s === "..";
-    const valid =
-      segments.length === 5 &&
-      segments[0] === "v1" &&
-      segments[1] === "blobs" &&
-      segments[2]?.toLowerCase() === this.ownerAddress &&
-      segments[3] !== undefined &&
-      !isTraversal(segments[3]) &&
-      segments[4] !== undefined &&
-      !isTraversal(segments[4]);
-    if (!valid) {
+    // Restrict to a blob path for this owner so a caller cannot induce this
+    // wallet to sign arbitrary same-host paths. Both the legacy
+    // `/v1/blobs/{owner}/{scope}/{collectedAt}` shape and the network-scoped
+    // `/v1/networks/{network}/blobs/{owner}/{scope}/{collectedAt}` shape are
+    // accepted so URLs stored before/after opting into `network` still resolve.
+    const route = parseBlobPath(parsed.pathname);
+    if (!route || route.owner.toLowerCase() !== this.ownerAddress) {
       throw new StorageError(
-        `URL path '${parsed.pathname}' must be /v1/blobs/${this.ownerAddress}/{scope}/{collectedAt}`,
+        `URL path '${parsed.pathname}' must be ${this.blobPathPrefix}/${this.ownerAddress}/{scope}/{collectedAt}`,
+        "INVALID_URL",
+        "vana-storage",
+      );
+    }
+    // A provider configured for one protocol network must never sign a request
+    // scoped to another — that would let a Moksha-scoped wallet act on mainnet
+    // data (and vice versa). Legacy (unscoped) URLs remain acceptable when this
+    // provider is itself unscoped.
+    if (route.network !== this.network) {
+      throw new StorageError(
+        `URL network '${route.network ?? "legacy"}' does not match provider network '${this.network ?? "legacy"}'`,
         "INVALID_URL",
         "vana-storage",
       );
     }
     return parsed.pathname;
   }
+}
+
+interface ParsedBlobRoute {
+  network?: ProtocolNetwork;
+  owner: string;
+  scope: string;
+  collectedAt: string;
+}
+
+const PROTOCOL_NETWORKS: readonly ProtocolNetwork[] = ["mainnet", "moksha"];
+
+function isProtocolNetwork(value: string): value is ProtocolNetwork {
+  return (PROTOCOL_NETWORKS as readonly string[]).includes(value);
+}
+
+/**
+ * Parse a storage blob pathname into structured route info, or `null` when the
+ * path is neither the legacy nor the network-scoped blob shape. Segments are
+ * returned decoded; traversal segments (`.` / `..`) are rejected as invalid.
+ */
+function parseBlobPath(pathname: string): ParsedBlobRoute | null {
+  const segments = pathname.split("/").filter((s) => s.length > 0);
+  const isTraversal = (s: string): boolean => s === "." || s === "..";
+
+  // Legacy: /v1/blobs/{owner}/{scope}/{collectedAt}
+  if (
+    segments.length === 5 &&
+    segments[0] === "v1" &&
+    segments[1] === "blobs"
+  ) {
+    const [, , owner, scope, collectedAt] = segments as [
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+    if (isTraversal(scope) || isTraversal(collectedAt)) return null;
+    return { owner, scope, collectedAt };
+  }
+
+  // Network-scoped: /v1/networks/{network}/blobs/{owner}/{scope}/{collectedAt}
+  if (
+    segments.length === 7 &&
+    segments[0] === "v1" &&
+    segments[1] === "networks" &&
+    segments[3] === "blobs"
+  ) {
+    const [, , network, , owner, scope, collectedAt] = segments as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+    if (!isProtocolNetwork(network)) return null;
+    if (isTraversal(scope) || isTraversal(collectedAt)) return null;
+    return { network, owner, scope, collectedAt };
+  }
+
+  return null;
 }
 
 function encodeRelativePath(filename: string): string {

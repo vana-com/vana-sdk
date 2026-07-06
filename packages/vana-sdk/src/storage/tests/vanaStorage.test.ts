@@ -424,6 +424,152 @@ describe("VanaStorage", () => {
     });
   });
 
+  describe("network-scoped storage", () => {
+    let mockFetch: Mock;
+    let signerAddress: string;
+
+    beforeEach(() => {
+      mockFetch = vi.fn();
+      signerAddress = makeSigner().address.toLowerCase();
+    });
+
+    function makeNetworkStorage(network: "mainnet" | "moksha") {
+      return new VanaStorage({
+        endpoint: ENDPOINT,
+        network,
+        signer: makeSigner(),
+        fetchImpl: mockFetch as unknown as typeof fetch,
+      });
+    }
+
+    it("uploads to /v1/networks/{network}/blobs/... when network is set", async () => {
+      const storage = makeNetworkStorage("moksha");
+      mockFetch.mockResolvedValue(
+        jsonResponse({
+          key: `networks/moksha/${signerAddress}/scope/at`,
+          url: `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`,
+          etag: "etag-net",
+          size: 1,
+        }),
+      );
+
+      await storage.upload(new Blob([new Uint8Array([1])]), "scope/at");
+
+      const [calledUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(calledUrl).toBe(
+        `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`,
+      );
+    });
+
+    it("keeps the Web3Signed audience as the endpoint origin, not the network", async () => {
+      const storage = makeNetworkStorage("mainnet");
+      mockFetch.mockResolvedValue(
+        jsonResponse({
+          key: `networks/mainnet/${signerAddress}/scope/at`,
+          url: `${ENDPOINT}/v1/networks/mainnet/blobs/${signerAddress}/scope/at`,
+          etag: "etag-aud",
+          size: 1,
+        }),
+      );
+
+      await storage.upload(new Blob([new Uint8Array([1])]), "scope/at");
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = init.headers as Record<string, string>;
+      const parsed = parseWeb3SignedHeader(headers["authorization"]);
+      expect(parsed.payload.aud).toBe(ENDPOINT);
+      expect(parsed.payload.uri).toBe(
+        `/v1/networks/mainnet/blobs/${signerAddress}/scope/at`,
+      );
+    });
+
+    it("moksha and mainnet produce distinct paths for the same owner/scope/timestamp", async () => {
+      const respond = () =>
+        mockFetch.mockResolvedValueOnce(
+          jsonResponse({ key: "k", url: `${ENDPOINT}/x`, etag: "e", size: 1 }),
+        );
+
+      respond();
+      await makeNetworkStorage("moksha").upload(
+        new Blob([new Uint8Array([1])]),
+        "scope/at",
+      );
+      respond();
+      await makeNetworkStorage("mainnet").upload(
+        new Blob([new Uint8Array([1])]),
+        "scope/at",
+      );
+
+      const [mokshaUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const [mainnetUrl] = mockFetch.mock.calls[1] as [string, RequestInit];
+      expect(mokshaUrl).toContain(`/v1/networks/moksha/blobs/`);
+      expect(mainnetUrl).toContain(`/v1/networks/mainnet/blobs/`);
+      expect(mokshaUrl).not.toBe(mainnetUrl);
+    });
+
+    it("downloads and deletes network-scoped URLs on the same endpoint", async () => {
+      const storage = makeNetworkStorage("moksha");
+      const url = `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`;
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(new Uint8Array([9]), { status: 200 }),
+      );
+      const blob = await storage.download(url);
+      expect(Array.from(new Uint8Array(await blob.arrayBuffer()))).toEqual([9]);
+
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+      expect(await storage.delete(url)).toBe(true);
+
+      const [downloadUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const [deleteUrl] = mockFetch.mock.calls[1] as [string, RequestInit];
+      expect(downloadUrl).toBe(url);
+      expect(deleteUrl).toBe(url);
+    });
+
+    it("rejects a mainnet-scoped URL when configured for moksha", async () => {
+      const storage = makeNetworkStorage("moksha");
+      await expect(
+        storage.download(
+          `${ENDPOINT}/v1/networks/mainnet/blobs/${signerAddress}/scope/at`,
+        ),
+      ).rejects.toThrow(/does not match provider network/);
+    });
+
+    it("rejects a moksha-scoped URL when configured for mainnet", async () => {
+      const storage = makeNetworkStorage("mainnet");
+      await expect(
+        storage.delete(
+          `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`,
+        ),
+      ).rejects.toThrow(/does not match provider network/);
+    });
+
+    it("rejects a legacy unscoped URL when configured for a network", async () => {
+      const storage = makeNetworkStorage("moksha");
+      await expect(
+        storage.download(`${ENDPOINT}/v1/blobs/${signerAddress}/scope/at`),
+      ).rejects.toThrow(/does not match provider network/);
+    });
+
+    it("rejects an unknown network segment", async () => {
+      const storage = makeNetworkStorage("moksha");
+      await expect(
+        storage.download(
+          `${ENDPOINT}/v1/networks/testnet/blobs/${signerAddress}/scope/at`,
+        ),
+      ).rejects.toThrow(/must be \/v1\/networks\/moksha\/blobs/);
+    });
+
+    it("legacy (unscoped) provider rejects network-scoped URLs", async () => {
+      const storage = makeStorage(mockFetch);
+      await expect(
+        storage.download(
+          `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`,
+        ),
+      ).rejects.toThrow(/does not match provider network/);
+    });
+  });
+
   describe("getConfig", () => {
     it("reports auth required and list disabled", () => {
       const storage = new VanaStorage({

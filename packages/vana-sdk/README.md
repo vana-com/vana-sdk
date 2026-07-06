@@ -108,6 +108,38 @@ const result = await storage.upload(myBlob, "report.json");
 console.log(result.url);
 ```
 
+### Scope Vana storage to a protocol network
+
+`VanaStorage` has two independent axes. `endpoint` is the **product host**
+(e.g. `https://storage.vana.org` for production, `https://storage-dev.vana.org`
+for internal staging). `network` is the **protocol network** (`mainnet` or
+`moksha`) that scopes the blob path. They are not synonyms — `storage-dev` is a
+staging host, not a stand-in for Moksha.
+
+```typescript
+import { createVanaStorageProvider } from "@opendatalabs/vana-sdk/node";
+
+const storage = createVanaStorageProvider({
+  endpoint: "https://storage.vana.org", // product host
+  network: "moksha", // protocol namespace within that host
+  signer: {
+    address: account.address,
+    signMessage: (msg) => account.signMessage({ message: msg }),
+  },
+});
+
+// Uploads to /v1/networks/moksha/blobs/{owner}/{scope}/{collectedAt}
+const result = await storage.upload(
+  myBlob,
+  "instagram.profile/2026-05-08T20:00:00.000Z",
+);
+```
+
+When `network` is omitted, `VanaStorage` uses the legacy `/v1/blobs/...` routes,
+preserving backward compatibility. The Web3Signed audience is always the
+endpoint origin, never the network. A provider configured for one network
+rejects URLs scoped to another so a Moksha wallet can't act on mainnet data.
+
 ## Build a Vana app
 
 Request user-approved data, read it from the user's Personal Server, and pay

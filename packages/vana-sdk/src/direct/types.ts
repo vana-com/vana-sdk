@@ -1,4 +1,5 @@
 import type { EscrowAccessRecord } from "../protocol/escrow";
+import type { ProtocolNetwork } from "../protocol/networks";
 
 /**
  * Shared types for the Direct Data Controller and the browser connect helper.
@@ -28,7 +29,7 @@ export type DirectEnv = "dev" | "production";
  * - `"mainnet"` — Vana mainnet (`chainId` 1480).
  * - `"moksha"` — Moksha testnet (`chainId` 14800).
  */
-export type DirectNetwork = "mainnet" | "moksha";
+export type DirectNetwork = ProtocolNetwork;
 
 /**
  * App identity advertised to users during approval and attributed in Builder

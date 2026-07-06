@@ -444,6 +444,15 @@ describe("VanaStorage", () => {
       });
     }
 
+    function makeNetworkStorage(network: "mainnet" | "moksha") {
+      return new VanaStorage({
+        endpoint: ENDPOINT,
+        network,
+        signer: makeSigner(),
+        fetchImpl: mockFetch as unknown as typeof fetch,
+      });
+    }
+
     it("rejects unsupported chainId values at construction", () => {
       expect(
         () =>
@@ -454,6 +463,95 @@ describe("VanaStorage", () => {
             fetchImpl: mockFetch as unknown as typeof fetch,
           }),
       ).toThrow(/Unsupported vana-storage chainId '-1'/);
+    });
+
+    it("rejects unsupported network values at construction", () => {
+      expect(
+        () =>
+          new VanaStorage({
+            endpoint: ENDPOINT,
+            network: "preview" as unknown as "moksha",
+            signer: makeSigner(),
+            fetchImpl: mockFetch as unknown as typeof fetch,
+          }),
+      ).toThrow(/Unsupported vana-storage network 'preview'/);
+    });
+
+    it("uploads to the chain namespace resolved from a typed network", async () => {
+      const storage = makeNetworkStorage("moksha");
+      mockFetch.mockResolvedValue(
+        jsonResponse({
+          key: `chains/${MOKSHA}/${signerAddress}/scope/at`,
+          url: `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`,
+          etag: "etag-network",
+          size: 1,
+        }),
+      );
+
+      await storage.upload(new Blob([new Uint8Array([1])]), "scope/at");
+
+      const [calledUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(calledUrl).toBe(
+        `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`,
+      );
+    });
+
+    it("accepts matching network and chainId configuration", async () => {
+      const storage = new VanaStorage({
+        endpoint: ENDPOINT,
+        network: "mainnet",
+        chainId: MAINNET,
+        signer: makeSigner(),
+        fetchImpl: mockFetch as unknown as typeof fetch,
+      });
+      mockFetch.mockResolvedValue(
+        jsonResponse({
+          key: `chains/${MAINNET}/${signerAddress}/scope/at`,
+          url: `${ENDPOINT}/v1/chains/${MAINNET}/blobs/${signerAddress}/scope/at`,
+          etag: "etag-network-chain",
+          size: 1,
+        }),
+      );
+
+      await storage.upload(new Blob([new Uint8Array([1])]), "scope/at");
+
+      const [calledUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(calledUrl).toBe(
+        `${ENDPOINT}/v1/chains/${MAINNET}/blobs/${signerAddress}/scope/at`,
+      );
+    });
+
+    it("rejects mismatched network and chainId configuration", () => {
+      expect(
+        () =>
+          new VanaStorage({
+            endpoint: ENDPOINT,
+            network: "moksha",
+            chainId: MAINNET,
+            signer: makeSigner(),
+            fetchImpl: mockFetch as unknown as typeof fetch,
+          }),
+      ).toThrow(/network 'moksha' resolves to chainId '14800', not '1480'/);
+    });
+
+    it("still supports explicit chainId for custom or future networks", async () => {
+      const customChainId = 99999;
+      const storage = makeChainStorage(customChainId);
+      mockFetch.mockResolvedValue(
+        jsonResponse({
+          key: `chains/${customChainId}/${signerAddress}/scope/at`,
+          url: `${ENDPOINT}/v1/chains/${customChainId}/blobs/${signerAddress}/scope/at`,
+          etag: "etag-custom-chain",
+          size: 1,
+        }),
+      );
+
+      await storage.upload(new Blob([new Uint8Array([1])]), "scope/at");
+
+      const [calledUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(calledUrl).toBe(
+        `${ENDPOINT}/v1/chains/${customChainId}/blobs/${signerAddress}/scope/at`,
+      );
     });
 
     it("uploads to /v1/chains/{chainId}/blobs/... when chainId is set", async () => {
@@ -546,7 +644,7 @@ describe("VanaStorage", () => {
         storage.download(
           `${ENDPOINT}/v1/chains/${MAINNET}/blobs/${signerAddress}/scope/at`,
         ),
-      ).rejects.toThrow(/does not match provider chainId/);
+      ).rejects.toThrow(/does not match provider namespace/);
     });
 
     it("rejects a moksha-scoped URL when configured for mainnet", async () => {
@@ -555,14 +653,14 @@ describe("VanaStorage", () => {
         storage.delete(
           `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`,
         ),
-      ).rejects.toThrow(/does not match provider chainId/);
+      ).rejects.toThrow(/does not match provider namespace/);
     });
 
     it("rejects a legacy unscoped URL when configured for a chain", async () => {
       const storage = makeChainStorage(MOKSHA);
       await expect(
         storage.download(`${ENDPOINT}/v1/blobs/${signerAddress}/scope/at`),
-      ).rejects.toThrow(/does not match provider chainId/);
+      ).rejects.toThrow(/does not match provider namespace/);
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -581,7 +679,7 @@ describe("VanaStorage", () => {
         storage.download(
           `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`,
         ),
-      ).rejects.toThrow(/does not match provider chainId/);
+      ).rejects.toThrow(/does not match provider namespace/);
     });
   });
 

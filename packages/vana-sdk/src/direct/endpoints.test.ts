@@ -32,4 +32,10 @@ describe("getDirectEndpoints", () => {
     expect(getDirectNetworkChainId("mainnet")).toBe(1480);
     expect(getDirectNetworkChainId("moksha")).toBe(14800);
   });
+
+  it("rejects unsupported runtime network strings", () => {
+    expect(() =>
+      getDirectNetworkChainId("preview" as unknown as "moksha"),
+    ).toThrow(/Unsupported Vana protocol network: preview/);
+  });
 });

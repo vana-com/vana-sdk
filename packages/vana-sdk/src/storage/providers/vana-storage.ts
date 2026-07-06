@@ -32,15 +32,6 @@ export interface VanaStorageSigner {
 }
 
 /**
- * Protocol network that scopes storage paths. This is the on-chain protocol
- * network (`mainnet` or `moksha`), independent of the product host chosen via
- * {@link VanaStorageConfig.endpoint}.
- *
- * @category Storage
- */
-export type ProtocolNetwork = "mainnet" | "moksha";
-
-/**
  * Configuration for {@link VanaStorage}.
  *
  * @category Storage
@@ -49,25 +40,24 @@ export interface VanaStorageConfig {
   /**
    * Base URL of the vana-storage Worker. Defaults to `https://storage.vana.org`.
    *
-   * This selects the **product host** and is independent of {@link network}.
-   * For example, `https://storage-dev.vana.org` is the internal-staging host;
-   * it is not a synonym for any protocol network.
+   * This selects the storage endpoint and is independent of {@link chainId}.
    */
   endpoint?: string;
   /**
-   * Protocol network (`mainnet` or `moksha`) that scopes blob paths.
+   * Numeric chain ID (e.g. `1480` for Vana mainnet, `14800` for Moksha) that
+   * scopes blob paths.
    *
-   * When set, uploads use network-scoped routes
-   * (`/v1/networks/{network}/blobs/...`) so `moksha` and `mainnet` data for the
-   * same owner/scope/timestamp never collide. Reads and deletes still accept
+   * When set, uploads use chain-scoped routes
+   * (`/v1/chains/{chainId}/blobs/...`) so data for different chains under the
+   * same owner/scope/timestamp never collides. Reads and deletes still accept
    * legacy `/v1/blobs/...` URLs on the same endpoint (for migration) but reject
-   * URLs scoped to a *different* explicit network. When omitted, the provider
+   * URLs scoped to a *different* explicit chain ID. When omitted, the provider
    * preserves the legacy `/v1/blobs/...` routes and behavior.
    *
-   * Network is orthogonal to {@link endpoint}: `endpoint` picks the product
-   * host, `network` picks the protocol namespace within that host.
+   * Chain ID is orthogonal to {@link endpoint}: `endpoint` picks the storage
+   * host, `chainId` picks the chain namespace within that host.
    */
-  network?: ProtocolNetwork;
+  chainId?: number;
   /**
    * Wallet signer used to authenticate writes and reads.
    */
@@ -101,10 +91,10 @@ interface VanaStorageUploadResponse {
  * The owner address is prepended automatically to produce the canonical
  * blob path `/v1/blobs/{owner}/{scope}/{collectedAt}`.
  *
- * When {@link VanaStorageConfig.network} is set, paths are network-scoped as
- * `/v1/networks/{network}/blobs/{owner}/{scope}/{collectedAt}` so `moksha` and
- * `mainnet` never collide on the same host. The Web3Signed audience remains the
- * endpoint origin regardless of network.
+ * When {@link VanaStorageConfig.chainId} is set, paths are chain-scoped as
+ * `/v1/chains/{chainId}/blobs/{owner}/{scope}/{collectedAt}` so different chains
+ * never collide on the same host. The Web3Signed audience remains the endpoint
+ * origin regardless of chain ID.
  *
  * @category Storage
  *
@@ -129,7 +119,7 @@ interface VanaStorageUploadResponse {
  */
 export class VanaStorage implements StorageProvider {
   private readonly endpoint: string;
-  private readonly network?: ProtocolNetwork;
+  private readonly chainId?: number;
   private readonly blobPathPrefix: string;
   private readonly signer: VanaStorageSigner;
   private readonly ownerAddress: string;
@@ -144,17 +134,18 @@ export class VanaStorage implements StorageProvider {
       );
     }
     this.endpoint = (config.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, "");
-    if (config.network !== undefined && !isProtocolNetwork(config.network)) {
+    if (config.chainId !== undefined && !isValidChainId(config.chainId)) {
       throw new StorageError(
-        `Unsupported vana-storage network '${String(config.network)}'`,
-        "INVALID_NETWORK",
+        `Unsupported vana-storage chainId '${String(config.chainId)}'`,
+        "INVALID_CHAIN_ID",
         "vana-storage",
       );
     }
-    this.network = config.network;
-    this.blobPathPrefix = this.network
-      ? `/v1/networks/${this.network}/blobs`
-      : LEGACY_BLOB_PATH_PREFIX;
+    this.chainId = config.chainId;
+    this.blobPathPrefix =
+      this.chainId !== undefined
+        ? `/v1/chains/${this.chainId}/blobs`
+        : LEGACY_BLOB_PATH_PREFIX;
     this.signer = config.signer;
     this.ownerAddress = (
       config.ownerAddress ?? config.signer.address
@@ -371,10 +362,7 @@ export class VanaStorage implements StorageProvider {
       );
     }
     // Restrict to a blob path for this owner so a caller cannot induce this
-    // wallet to sign arbitrary same-host paths. Both the legacy
-    // `/v1/blobs/{owner}/{scope}/{collectedAt}` shape and the network-scoped
-    // `/v1/networks/{network}/blobs/{owner}/{scope}/{collectedAt}` shape are
-    // accepted so URLs stored before/after opting into `network` still resolve.
+    // wallet to sign arbitrary same-host paths.
     const route = parseBlobPath(parsed.pathname);
     if (!route || route.owner.toLowerCase() !== this.ownerAddress) {
       throw new StorageError(
@@ -383,18 +371,12 @@ export class VanaStorage implements StorageProvider {
         "vana-storage",
       );
     }
-    // A provider must never sign a request scoped to a *different explicit*
-    // protocol network — that would let a Moksha-scoped wallet act on mainnet
-    // data (and vice versa). Legacy (unscoped) URLs are always accepted so a
-    // network-configured provider can still read/delete objects written before
-    // it opted into `network`. A legacy (unscoped) provider, however, rejects
-    // network-scoped URLs since it never produced them.
-    const crossNetwork = this.network
-      ? route.network !== undefined && route.network !== this.network
-      : route.network !== undefined;
-    if (crossNetwork) {
+    // A provider must only sign requests for its configured namespace. Chain
+    // mode is strict: old legacy blobs should be migrated or re-collected
+    // rather than read through a second ambiguous path.
+    if (route.chainId !== this.chainId) {
       throw new StorageError(
-        `URL network '${route.network ?? "legacy"}' does not match provider network '${this.network ?? "legacy"}'`,
+        `URL chainId '${route.chainId ?? "legacy"}' does not match provider chainId '${this.chainId ?? "legacy"}'`,
         "INVALID_URL",
         "vana-storage",
       );
@@ -404,24 +386,19 @@ export class VanaStorage implements StorageProvider {
 }
 
 interface ParsedBlobRoute {
-  network?: ProtocolNetwork;
+  chainId?: number;
   owner: string;
   scope: string;
   collectedAt: string;
 }
 
-const PROTOCOL_NETWORKS: readonly ProtocolNetwork[] = ["mainnet", "moksha"];
-
-function isProtocolNetwork(value: unknown): value is ProtocolNetwork {
-  return (
-    typeof value === "string" &&
-    (PROTOCOL_NETWORKS as readonly string[]).includes(value)
-  );
+function isValidChainId(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
 /**
  * Parse a storage blob pathname into structured route info, or `null` when the
- * path is neither the legacy nor the network-scoped blob shape. Traversal
+ * path is neither the legacy nor the chain-scoped blob shape. Traversal
  * segments (`.` / `..`) are rejected as invalid.
  */
 function parseBlobPath(pathname: string): ParsedBlobRoute | null {
@@ -445,14 +422,14 @@ function parseBlobPath(pathname: string): ParsedBlobRoute | null {
     return { owner, scope, collectedAt };
   }
 
-  // Network-scoped: /v1/networks/{network}/blobs/{owner}/{scope}/{collectedAt}
+  // Chain-scoped: /v1/chains/{chainId}/blobs/{owner}/{scope}/{collectedAt}
   if (
     segments.length === 7 &&
     segments[0] === "v1" &&
-    segments[1] === "networks" &&
+    segments[1] === "chains" &&
     segments[3] === "blobs"
   ) {
-    const [, , network, , owner, scope, collectedAt] = segments as [
+    const [, , chainIdSegment, , owner, scope, collectedAt] = segments as [
       string,
       string,
       string,
@@ -461,9 +438,11 @@ function parseBlobPath(pathname: string): ParsedBlobRoute | null {
       string,
       string,
     ];
-    if (!isProtocolNetwork(network)) return null;
+    if (!/^[0-9]+$/.test(chainIdSegment)) return null;
+    const chainId = Number(chainIdSegment);
+    if (!isValidChainId(chainId)) return null;
     if (isTraversal(scope) || isTraversal(collectedAt)) return null;
-    return { network, owner, scope, collectedAt };
+    return { chainId, owner, scope, collectedAt };
   }
 
   return null;

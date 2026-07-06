@@ -424,7 +424,9 @@ describe("VanaStorage", () => {
     });
   });
 
-  describe("network-scoped storage", () => {
+  describe("chain-scoped storage", () => {
+    const MAINNET = 1480;
+    const MOKSHA = 14800;
     let mockFetch: Mock;
     let signerAddress: string;
 
@@ -433,35 +435,34 @@ describe("VanaStorage", () => {
       signerAddress = makeSigner().address.toLowerCase();
     });
 
-    function makeNetworkStorage(network: "mainnet" | "moksha") {
+    function makeChainStorage(chainId: number) {
       return new VanaStorage({
         endpoint: ENDPOINT,
-        network,
+        chainId,
         signer: makeSigner(),
         fetchImpl: mockFetch as unknown as typeof fetch,
       });
     }
 
-    it("rejects unsupported network values at construction", () => {
+    it("rejects unsupported chainId values at construction", () => {
       expect(
         () =>
           new VanaStorage({
             endpoint: ENDPOINT,
-            // @ts-expect-error - runtime JS callers can still pass bad strings
-            network: "testnet",
+            chainId: -1,
             signer: makeSigner(),
             fetchImpl: mockFetch as unknown as typeof fetch,
           }),
-      ).toThrow(/Unsupported vana-storage network 'testnet'/);
+      ).toThrow(/Unsupported vana-storage chainId '-1'/);
     });
 
-    it("uploads to /v1/networks/{network}/blobs/... when network is set", async () => {
-      const storage = makeNetworkStorage("moksha");
+    it("uploads to /v1/chains/{chainId}/blobs/... when chainId is set", async () => {
+      const storage = makeChainStorage(MOKSHA);
       mockFetch.mockResolvedValue(
         jsonResponse({
-          key: `networks/moksha/${signerAddress}/scope/at`,
-          url: `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`,
-          etag: "etag-net",
+          key: `chains/${MOKSHA}/${signerAddress}/scope/at`,
+          url: `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`,
+          etag: "etag-chain",
           size: 1,
         }),
       );
@@ -470,16 +471,16 @@ describe("VanaStorage", () => {
 
       const [calledUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect(calledUrl).toBe(
-        `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`,
+        `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`,
       );
     });
 
-    it("keeps the Web3Signed audience as the endpoint origin, not the network", async () => {
-      const storage = makeNetworkStorage("mainnet");
+    it("keeps the Web3Signed audience as the endpoint origin, not the chain", async () => {
+      const storage = makeChainStorage(MAINNET);
       mockFetch.mockResolvedValue(
         jsonResponse({
-          key: `networks/mainnet/${signerAddress}/scope/at`,
-          url: `${ENDPOINT}/v1/networks/mainnet/blobs/${signerAddress}/scope/at`,
+          key: `chains/${MAINNET}/${signerAddress}/scope/at`,
+          url: `${ENDPOINT}/v1/chains/${MAINNET}/blobs/${signerAddress}/scope/at`,
           etag: "etag-aud",
           size: 1,
         }),
@@ -492,37 +493,37 @@ describe("VanaStorage", () => {
       const parsed = parseWeb3SignedHeader(headers["authorization"]);
       expect(parsed.payload.aud).toBe(ENDPOINT);
       expect(parsed.payload.uri).toBe(
-        `/v1/networks/mainnet/blobs/${signerAddress}/scope/at`,
+        `/v1/chains/${MAINNET}/blobs/${signerAddress}/scope/at`,
       );
     });
 
-    it("moksha and mainnet produce distinct paths for the same owner/scope/timestamp", async () => {
+    it("different chains produce distinct paths for the same owner/scope/timestamp", async () => {
       const respond = () =>
         mockFetch.mockResolvedValueOnce(
           jsonResponse({ key: "k", url: `${ENDPOINT}/x`, etag: "e", size: 1 }),
         );
 
       respond();
-      await makeNetworkStorage("moksha").upload(
+      await makeChainStorage(MOKSHA).upload(
         new Blob([new Uint8Array([1])]),
         "scope/at",
       );
       respond();
-      await makeNetworkStorage("mainnet").upload(
+      await makeChainStorage(MAINNET).upload(
         new Blob([new Uint8Array([1])]),
         "scope/at",
       );
 
       const [mokshaUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
       const [mainnetUrl] = mockFetch.mock.calls[1] as [string, RequestInit];
-      expect(mokshaUrl).toContain(`/v1/networks/moksha/blobs/`);
-      expect(mainnetUrl).toContain(`/v1/networks/mainnet/blobs/`);
+      expect(mokshaUrl).toContain(`/v1/chains/${MOKSHA}/blobs/`);
+      expect(mainnetUrl).toContain(`/v1/chains/${MAINNET}/blobs/`);
       expect(mokshaUrl).not.toBe(mainnetUrl);
     });
 
-    it("downloads and deletes network-scoped URLs on the same endpoint", async () => {
-      const storage = makeNetworkStorage("moksha");
-      const url = `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`;
+    it("downloads and deletes chain-scoped URLs on the same endpoint", async () => {
+      const storage = makeChainStorage(MOKSHA);
+      const url = `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`;
 
       mockFetch.mockResolvedValueOnce(
         new Response(new Uint8Array([9]), { status: 200 }),
@@ -540,58 +541,47 @@ describe("VanaStorage", () => {
     });
 
     it("rejects a mainnet-scoped URL when configured for moksha", async () => {
-      const storage = makeNetworkStorage("moksha");
+      const storage = makeChainStorage(MOKSHA);
       await expect(
         storage.download(
-          `${ENDPOINT}/v1/networks/mainnet/blobs/${signerAddress}/scope/at`,
+          `${ENDPOINT}/v1/chains/${MAINNET}/blobs/${signerAddress}/scope/at`,
         ),
-      ).rejects.toThrow(/does not match provider network/);
+      ).rejects.toThrow(/does not match provider chainId/);
     });
 
     it("rejects a moksha-scoped URL when configured for mainnet", async () => {
-      const storage = makeNetworkStorage("mainnet");
+      const storage = makeChainStorage(MAINNET);
       await expect(
         storage.delete(
-          `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`,
+          `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`,
         ),
-      ).rejects.toThrow(/does not match provider network/);
+      ).rejects.toThrow(/does not match provider chainId/);
     });
 
-    it("accepts a legacy unscoped URL when configured for a network (migration)", async () => {
-      const storage = makeNetworkStorage("moksha");
-      const url = `${ENDPOINT}/v1/blobs/${signerAddress}/scope/at`;
-
-      mockFetch.mockResolvedValueOnce(
-        new Response(new Uint8Array([7]), { status: 200 }),
-      );
-      const blob = await storage.download(url);
-      expect(Array.from(new Uint8Array(await blob.arrayBuffer()))).toEqual([7]);
-
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
-      expect(await storage.delete(url)).toBe(true);
-
-      const [downloadUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
-      const [deleteUrl] = mockFetch.mock.calls[1] as [string, RequestInit];
-      expect(downloadUrl).toBe(url);
-      expect(deleteUrl).toBe(url);
+    it("rejects a legacy unscoped URL when configured for a chain", async () => {
+      const storage = makeChainStorage(MOKSHA);
+      await expect(
+        storage.download(`${ENDPOINT}/v1/blobs/${signerAddress}/scope/at`),
+      ).rejects.toThrow(/does not match provider chainId/);
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("rejects an unknown network segment", async () => {
-      const storage = makeNetworkStorage("moksha");
+    it("rejects a non-numeric chain segment", async () => {
+      const storage = makeChainStorage(MOKSHA);
       await expect(
         storage.download(
-          `${ENDPOINT}/v1/networks/testnet/blobs/${signerAddress}/scope/at`,
+          `${ENDPOINT}/v1/chains/testnet/blobs/${signerAddress}/scope/at`,
         ),
-      ).rejects.toThrow(/must be \/v1\/networks\/moksha\/blobs/);
+      ).rejects.toThrow(/must be \/v1\/chains\/14800\/blobs/);
     });
 
-    it("legacy (unscoped) provider rejects network-scoped URLs", async () => {
+    it("legacy (unscoped) provider rejects chain-scoped URLs", async () => {
       const storage = makeStorage(mockFetch);
       await expect(
         storage.download(
-          `${ENDPOINT}/v1/networks/moksha/blobs/${signerAddress}/scope/at`,
+          `${ENDPOINT}/v1/chains/${MOKSHA}/blobs/${signerAddress}/scope/at`,
         ),
-      ).rejects.toThrow(/does not match provider network/);
+      ).rejects.toThrow(/does not match provider chainId/);
     });
   });
 

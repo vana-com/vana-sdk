@@ -70,7 +70,6 @@ export { R2Storage } from "./providers/r2";
 export type { R2Config } from "./providers/r2";
 export { VanaStorage } from "./providers/vana-storage";
 export type {
-  ProtocolNetwork,
   VanaStorageConfig,
   VanaStorageSigner,
 } from "./providers/vana-storage";

@@ -110,10 +110,7 @@ console.log(result.url);
 
 ### Scope Vana storage to a network
 
-`VanaStorage` can write blobs into a network-specific namespace. Set
-`endpoint` to the Vana Storage API you want to use, and set `network` to the
-protocol network (`mainnet` or `moksha`) that should scope the blob path. The
-storage API endpoint and protocol network are separate settings.
+Set `network` when writing to Vana Storage on a specific protocol network.
 
 ```typescript
 import { createVanaStorageProvider } from "@opendatalabs/vana-sdk/node";
@@ -127,21 +124,14 @@ const storage = createVanaStorageProvider({
   },
 });
 
-// Uploads to /v1/networks/moksha/blobs/{owner}/{scope}/{collectedAt}
 const result = await storage.upload(
   myBlob,
   "instagram.profile/2026-05-08T20:00:00.000Z",
 );
 ```
 
-When `network` is omitted, `VanaStorage` uses the legacy `/v1/blobs/...` routes
-for backward compatibility. The Web3Signed audience is always the endpoint
-origin, never the network.
-
-A network-configured provider still accepts legacy same-endpoint
-`/v1/blobs/...` URLs so it can read or delete objects written before the opt-in,
-but it rejects URLs scoped to a _different_ explicit network — a Moksha provider
-won't act on a `mainnet`-scoped URL, and vice versa.
+Network-configured providers can still read legacy same-endpoint blob URLs, but
+reject URLs scoped to a different explicit network.
 
 ## Build a Vana app
 

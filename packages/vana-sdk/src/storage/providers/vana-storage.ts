@@ -421,8 +421,8 @@ function isProtocolNetwork(value: unknown): value is ProtocolNetwork {
 
 /**
  * Parse a storage blob pathname into structured route info, or `null` when the
- * path is neither the legacy nor the network-scoped blob shape. Segments are
- * returned decoded; traversal segments (`.` / `..`) are rejected as invalid.
+ * path is neither the legacy nor the network-scoped blob shape. Traversal
+ * segments (`.` / `..`) are rejected as invalid.
  */
 function parseBlobPath(pathname: string): ParsedBlobRoute | null {
   const segments = pathname.split("/").filter((s) => s.length > 0);

@@ -108,41 +108,32 @@ const result = await storage.upload(myBlob, "report.json");
 console.log(result.url);
 ```
 
-### Scope Vana storage to a protocol network
+### Scope Vana storage by chain ID
 
-`VanaStorage` has two independent axes. `endpoint` is the **product host**
-(e.g. `https://storage.vana.org` for production, `https://storage-dev.vana.org`
-for internal staging). `network` is the **protocol network** (`mainnet` or
-`moksha`) that scopes the blob path. They are not synonyms — `storage-dev` is a
-staging host, not a stand-in for Moksha.
+Set `chainId` when writing to Vana Storage for a specific chain (e.g. `1480` for
+Vana mainnet, `14800` for Moksha). Uploads then use chain-scoped routes
+(`/v1/chains/{chainId}/blobs/...`) so data for different chains never collides.
 
 ```typescript
 import { createVanaStorageProvider } from "@opendatalabs/vana-sdk/node";
 
 const storage = createVanaStorageProvider({
-  endpoint: "https://storage.vana.org", // product host
-  network: "moksha", // protocol namespace within that host
+  endpoint: "https://storage.vana.org",
+  chainId: 14800,
   signer: {
     address: account.address,
     signMessage: (msg) => account.signMessage({ message: msg }),
   },
 });
 
-// Uploads to /v1/networks/moksha/blobs/{owner}/{scope}/{collectedAt}
 const result = await storage.upload(
   myBlob,
   "instagram.profile/2026-05-08T20:00:00.000Z",
 );
 ```
 
-When `network` is omitted, `VanaStorage` uses the legacy `/v1/blobs/...` routes,
-preserving backward compatibility. The Web3Signed audience is always the
-endpoint origin, never the network.
-
-A network-configured provider still accepts legacy same-endpoint
-`/v1/blobs/...` URLs so it can read or delete objects written before the opt-in,
-but it rejects URLs scoped to a _different_ explicit network — a Moksha provider
-won't act on a `mainnet`-scoped URL, and vice versa.
+Chain-configured providers reject legacy blob URLs and URLs scoped to a
+different explicit chain ID.
 
 ## Build a Vana app
 

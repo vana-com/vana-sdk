@@ -442,6 +442,19 @@ describe("VanaStorage", () => {
       });
     }
 
+    it("rejects unsupported network values at construction", () => {
+      expect(
+        () =>
+          new VanaStorage({
+            endpoint: ENDPOINT,
+            // @ts-expect-error - runtime JS callers can still pass bad strings
+            network: "testnet",
+            signer: makeSigner(),
+            fetchImpl: mockFetch as unknown as typeof fetch,
+          }),
+      ).toThrow(/Unsupported vana-storage network 'testnet'/);
+    });
+
     it("uploads to /v1/networks/{network}/blobs/... when network is set", async () => {
       const storage = makeNetworkStorage("moksha");
       mockFetch.mockResolvedValue(

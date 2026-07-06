@@ -144,6 +144,13 @@ export class VanaStorage implements StorageProvider {
       );
     }
     this.endpoint = (config.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, "");
+    if (config.network !== undefined && !isProtocolNetwork(config.network)) {
+      throw new StorageError(
+        `Unsupported vana-storage network '${String(config.network)}'`,
+        "INVALID_NETWORK",
+        "vana-storage",
+      );
+    }
     this.network = config.network;
     this.blobPathPrefix = this.network
       ? `/v1/networks/${this.network}/blobs`
@@ -405,8 +412,11 @@ interface ParsedBlobRoute {
 
 const PROTOCOL_NETWORKS: readonly ProtocolNetwork[] = ["mainnet", "moksha"];
 
-function isProtocolNetwork(value: string): value is ProtocolNetwork {
-  return (PROTOCOL_NETWORKS as readonly string[]).includes(value);
+function isProtocolNetwork(value: unknown): value is ProtocolNetwork {
+  return (
+    typeof value === "string" &&
+    (PROTOCOL_NETWORKS as readonly string[]).includes(value)
+  );
 }
 
 /**

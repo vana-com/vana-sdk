@@ -108,7 +108,10 @@ async function loadSampleData(): Promise<unknown> {
   const response = await fetch(sampleDataUrl());
   if (!response.ok) {
     throw new Error(
-      `Failed to load sample data: ${response.status} ${response.statusText}`,
+      `Failed to load sample data: ${response.status} ${response.statusText} (${sampleDataUrl()}). ` +
+        `Sample fixtures only exist for a few scopes in vana-com/data-connectors ` +
+        `(see fixture-index.json there). For other sources, point VANA_SAMPLE_DATA_PATH ` +
+        `at a local fixture file or VANA_SAMPLE_DATA_URL at your own fixture JSON.`,
     );
   }
   return (await response.json()) as unknown;

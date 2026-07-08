@@ -283,7 +283,11 @@ export function createDirectConnectFlow<T = unknown>(
       await readAndFinish(request);
       return;
     }
-    if (status.status === "denied" || status.status === "expired") {
+    if (
+      status.status === "completed" ||
+      status.status === "denied" ||
+      status.status === "expired"
+    ) {
       running = false;
       setState({
         type: "error",

@@ -209,6 +209,35 @@ describe("createDirectConnectFlow", () => {
     }
   });
 
+  it("errors when the request is already completed", async () => {
+    const h = makeHarness();
+    const readResult = vi.fn();
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => REQUEST,
+        getStatus: async () => ({ status: "completed" }),
+        readResult,
+      },
+      {
+        openApprovalWindow: () => makeWindow().handle,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    await h.tick();
+
+    const state = flow.getState();
+    expect(state.type).toBe("error");
+    if (state.type === "error") {
+      expect(state.error.message).toMatch(/completed/);
+    }
+    expect(readResult).not.toHaveBeenCalled();
+    expect(h.hasPending()).toBe(false);
+  });
+
   it("times out when approval never arrives", async () => {
     const h = makeHarness();
     const flow = createDirectConnectFlow(

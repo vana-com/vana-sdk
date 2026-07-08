@@ -39,6 +39,6 @@ export async function GET(request: Request): Promise<Response> {
   try {
     return Response.json(await read);
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(error, { mapNotFound: true });
   }
 }

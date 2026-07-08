@@ -12,6 +12,6 @@ export async function GET(request: Request): Promise<Response> {
     const status = await getVanaController().getAccessRequestStatus(requestId);
     return Response.json(status);
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(error, { mapNotFound: true });
   }
 }

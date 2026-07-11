@@ -279,6 +279,7 @@ export {
 } from "./protocol/data-file";
 export {
   createGatewayClient,
+  GatewayGrantVersionConflictError,
   type GatewayEnvelope,
   type GatewayProof,
   type Builder,

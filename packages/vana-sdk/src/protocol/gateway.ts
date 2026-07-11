@@ -532,6 +532,24 @@ export interface GatewayClient {
   settle(params?: SettleParams): Promise<SettleResult>;
 }
 
+/**
+ * Thrown when `POST /v1/grants` returns 409 without a grant id — a stale
+ * `grantVersion` conflict. Unlike registerServer's 409 (an idempotent
+ * replay of the same registration), a stale-version grants 409 means the
+ * registration did NOT apply. The gateway includes the current stored
+ * version so callers can re-sign at `currentGrantVersion + 1` and retry.
+ */
+export class GatewayGrantVersionConflictError extends Error {
+  readonly status = 409;
+  readonly currentGrantVersion?: string;
+
+  constructor(message: string, currentGrantVersion?: string) {
+    super(message);
+    this.name = "GatewayGrantVersionConflictError";
+    this.currentGrantVersion = currentGrantVersion;
+  }
+}
+
 export function createGatewayClient(baseUrl: string): GatewayClient {
   const base = baseUrl.replace(/\/+$/, "");
 
@@ -796,10 +814,26 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         }),
       });
       if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          grantId: getMutationId(body as Record<string, unknown>, "grantId"),
-        };
+        const body = (await res.json().catch(() => ({}))) as Record<
+          string,
+          unknown
+        >;
+        const grantId = getMutationId(body, "grantId");
+        if (grantId !== undefined) {
+          // Idempotent replay: the gateway echoed the existing grant id.
+          return { grantId };
+        }
+        // Stale grantVersion: the registration did NOT apply. Don't
+        // fabricate an id-less success — surface the conflict with the
+        // gateway's rebase hint (`currentGrantVersion`).
+        throw new GatewayGrantVersionConflictError(
+          typeof body.error === "string"
+            ? body.error
+            : `Gateway error: 409 ${res.statusText}`,
+          typeof body.currentGrantVersion === "string"
+            ? body.currentGrantVersion
+            : undefined,
+        );
       }
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);

@@ -310,11 +310,16 @@ export async function buildEscrowPaymentHeader(params: {
   /** Escrow contract, chain, signer, and nonce configuration. */
   config: EscrowPaymentHeaderConfig;
 }): Promise<string> {
+  const network = params.required.network ?? `vana:${params.config.chainId}`;
+  if (network !== `vana:${params.config.chainId}`) {
+    throw new Error("Payment network must match the configured chain");
+  }
+
   const signed = await signEscrowPayment(params);
   const payment: X402PaymentHeader = {
     x402Version: 1,
     scheme: "vana-escrow-grant",
-    network: params.required.network ?? `vana:${params.config.chainId}`,
+    network,
     payload: signed,
   };
   return base64EncodeJson(payment);

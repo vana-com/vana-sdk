@@ -342,7 +342,7 @@ function parseCanonicalDataAccessPayment(params: {
   body: Record<string, unknown>;
   grantId: string;
   raw: unknown;
-}): PersonalServerDataAccessPaymentOperation {
+}): PersonalServerDataAccessPaymentOperation | undefined {
   const { body, grantId, raw } = params;
   if (body.x402Version !== 1 || body.error !== "PAYMENT_REQUIRED") {
     throw new PersonalServerReadError(
@@ -357,10 +357,7 @@ function parseCanonicalDataAccessPayment(params: {
         .find((candidate) => candidate !== null)
     : undefined;
   if (!operation) {
-    throw new PersonalServerReadError(
-      "Personal Server data-access payment challenge was untrusted or incomplete",
-      402,
-    );
+    return undefined;
   }
 
   return { grantId, raw, ...operation };
@@ -439,7 +436,12 @@ export async function parsePersonalServerPaymentRequired(
   }
   const body = asRecord(raw) ?? {};
   if (hasDataAccessMarker(body)) {
-    return parseCanonicalDataAccessPayment({ body, grantId, raw });
+    const dataAccessOperation = parseCanonicalDataAccessPayment({
+      body,
+      grantId,
+      raw,
+    });
+    if (dataAccessOperation) return dataAccessOperation;
   }
 
   // Legacy grant challenges predate the canonical x402 envelope. Retain their
@@ -459,6 +461,12 @@ export async function parsePersonalServerPaymentRequired(
     );
   }
   const accept = preferredLegacyAccept(body);
+  if (hasDataAccessMarker(body) && !accept) {
+    throw new PersonalServerReadError(
+      "Personal Server data-access payment challenge was untrusted or incomplete",
+      402,
+    );
+  }
   if (hasAcceptsEnvelope && !accept) {
     throw new PersonalServerReadError(
       "Personal Server grant payment challenge had no compatible escrow offer",

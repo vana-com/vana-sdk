@@ -334,6 +334,34 @@ describe("generic escrow payment operations", () => {
     });
   });
 
+  it("rejects a challenge network that differs from the configured chain", async () => {
+    const signTypedData = vi.fn(async () => "0xsig" as `0x${string}`);
+    const cfg = {
+      escrowContract: ESCROW,
+      chainId: 14800,
+      signTypedData,
+    } satisfies EscrowPaymentHeaderConfig;
+
+    await expect(
+      buildEscrowPaymentHeader({
+        payerAddress: PAYER,
+        required: {
+          grantId: GRANT_ID,
+          opType: GRANT_OP_TYPE,
+          opId: GRANT_ID,
+          asset: NATIVE_ASSET_ADDRESS,
+          amount: "1",
+          paymentNonce: "9",
+          network: "vana:14801",
+          raw: {},
+        },
+        config: cfg,
+      }),
+    ).rejects.toThrow(/network must match the configured chain/);
+
+    expect(signTypedData).not.toHaveBeenCalled();
+  });
+
   it("authorizes data_access using the operation id and receipt", async () => {
     const payForOp = vi.fn(async () => ({
       ...payResult(),

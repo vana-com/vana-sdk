@@ -367,6 +367,38 @@ describe("parsePersonalServerPaymentRequired", () => {
     });
   });
 
+  it("selects a valid grant after a malformed data_access offer", async () => {
+    const required = await parsePersonalServerPaymentRequired(
+      jsonRes(
+        dataAccessChallenge([
+          dataAccessAccept({ accessRecord: undefined }),
+          {
+            scheme: "vana-escrow-grant",
+            network: "vana:14800",
+            asset: NATIVE_ASSET_ADDRESS,
+            amount: "12345",
+            message: {
+              payerAddress: PAYER,
+              opType: "grant",
+              opId: GRANT_ID,
+              asset: NATIVE_ASSET_ADDRESS,
+              amount: "12345",
+              paymentNonce: "9",
+            },
+          },
+        ]),
+        { status: 402 },
+      ),
+      GRANT_ID,
+    );
+
+    expect(required).toMatchObject({
+      opType: "grant",
+      opId: GRANT_ID,
+      paymentNonce: "9",
+    });
+  });
+
   it.each([
     ["wrong x402 version", { x402Version: 2 }],
     ["wrong error semantics", { error: "INSUFFICIENT_BALANCE" }],

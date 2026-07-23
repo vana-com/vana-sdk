@@ -334,5 +334,35 @@ export {
   type FailedDepositEntry,
 } from "./protocol/escrow";
 
+// Personal Server escrow payment helpers (server-side direct data flow).
+export {
+  authorizeEscrowPayment,
+  authorizeGrantPayment,
+  buildEscrowPaymentHeader,
+  buildGrantPaymentHeader,
+  createDefaultNonceSource,
+  DATA_ACCESS_OP_TYPE,
+  GRANT_OP_TYPE,
+  paymentReceiptFromHeader,
+  paymentResponseMetadataFromHeader,
+  toDirectFeeBreakdown,
+  toDirectPaymentReceipt,
+  type EscrowPaymentConfig,
+  type EscrowPaymentHeaderConfig,
+  type PaymentNonceSource,
+  type SignTypedDataFn,
+} from "./direct/escrow-payment";
+export {
+  parsePersonalServerPaymentRequired,
+  type FetchResponseLike,
+} from "./direct/personal-server-read";
+export type {
+  DirectPaymentResponseMetadata,
+  PersonalServerDataAccessPaymentOperation,
+  PersonalServerGrantPaymentOperation,
+  PersonalServerPaymentOperation,
+  PersonalServerPaymentRequired,
+} from "./direct/types";
+
 // Personal Server typed errors
 export { PSError, parsePSError, type PSErrorCode } from "./types/ps-errors";

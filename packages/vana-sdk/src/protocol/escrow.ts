@@ -45,9 +45,10 @@ export const GENERIC_PAYMENT_TYPES = {
 /**
  * EIP-712 message payload for a generic op payment.
  *
- * - `opType` is currently `"grant"`. Additional types (file, builder, schema)
- *   may be added in future protocol versions.
- * - `opId` is the bytes32 id of the operation being paid for (e.g. `grantId`).
+ * - `opType` is `"grant"` for legacy grant lifecycle payments or
+ *   `"data_access"` for a standalone receipt-bound read.
+ * - `opId` is the bytes32 id of the operation being paid for: the grant id for
+ *   `"grant"`, or `accessRecord.recordId` for `"data_access"`.
  * - `asset` is the ERC-20 token address, or the zero address for native VANA.
  * - `amount` is the total amount in base units (wei for VANA). Must match the
  *   sum the gateway expects for the current lifecycle of the op.
@@ -264,10 +265,16 @@ export interface PayForOpParams {
   paymentNonce: string;
   /** 0x-prefixed 65-byte EIP-712 signature hex string. */
   signature: `0x${string}`;
-  /** Optional server-signed data access receipt carried by x402 challenges. */
+  /**
+   * Optional data-access receipt carried by x402 challenges.
+   *
+   * The gateway verifies its server signature; this type only describes the
+   * wire shape.
+   */
   accessRecord?: EscrowAccessRecord;
 }
 
+/** Wire shape of a receipt whose server signature the gateway verifies. */
 export interface EscrowAccessRecord {
   dataPointId: `0x${string}`;
   version: string;

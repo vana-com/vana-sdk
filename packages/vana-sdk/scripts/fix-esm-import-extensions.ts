@@ -12,7 +12,7 @@ const distDir = resolve(process.cwd(), "dist");
 const specifierPattern =
   /(\bfrom\s*["']|import\s*\(\s*["'])(\.{1,2}\/[^"']+)(["'])/g;
 
-function collectJsFiles(dir: string): string[] {
+function collectEsmFiles(dir: string): string[] {
   const files: string[] = [];
 
   for (const entry of readdirSync(dir)) {
@@ -20,11 +20,11 @@ function collectJsFiles(dir: string): string[] {
     const stat = statSync(path);
 
     if (stat.isDirectory()) {
-      files.push(...collectJsFiles(path));
+      files.push(...collectEsmFiles(path));
       continue;
     }
 
-    if (path.endsWith(".js")) {
+    if (path.endsWith(".js") || path.endsWith(".d.ts")) {
       files.push(path);
     }
   }
@@ -63,7 +63,7 @@ if (!existsSync(distDir)) {
 let filesChanged = 0;
 let importsChanged = 0;
 
-for (const file of collectJsFiles(distDir)) {
+for (const file of collectEsmFiles(distDir)) {
   const original = readFileSync(file, "utf8");
   let fileImportsChanged = 0;
 

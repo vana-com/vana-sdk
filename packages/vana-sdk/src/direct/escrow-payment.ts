@@ -4,16 +4,16 @@
  * @remarks
  * Builds on the DPv2 escrow surface added in `protocol/escrow`. When a Personal
  * Server read returns `402 Payment Required`, the controller settles the
- * grant's data-access fee through the escrow gateway:
+ * challenged operation through the escrow gateway:
  *
- *  1. Sign a `GenericPayment` EIP-712 message (op `"grant"`, opId = grantId)
- *     with the app key.
+ *  1. Sign the challenge's `GenericPayment` EIP-712 message with the app key.
  *  2. POST it to the gateway's `/v1/escrow/pay` via {@link EscrowGatewayClient}.
  *  3. Map the gateway's {@link EscrowPayResult} into a typed
  *     {@link DirectPaymentReceipt} for the caller to inspect.
  *
- * This module adapts the escrow `payForOp` flow to the direct-read use case; it
- * does not define its own payment scheme.
+ * This module supports legacy `"grant"` operations and receipt-bound
+ * `"data_access"` operations. It adapts the escrow `payForOp` flow to the
+ * direct-read use case; it does not define its own payment scheme.
  *
  * @category Direct
  * @module direct/escrow-payment
@@ -31,11 +31,15 @@ import {
 import type {
   DirectFeeBreakdown,
   DirectPaymentReceipt,
+  DirectPaymentResponseMetadata,
+  PersonalServerPaymentOperation,
   PersonalServerPaymentRequired,
 } from "./types";
 
 /** The escrow `GenericPayment.opType` used for grant-lifecycle payments. */
 export const GRANT_OP_TYPE = "grant" as const;
+/** The escrow `GenericPayment.opType` used for receipt-bound data access. */
+export const DATA_ACCESS_OP_TYPE = "data_access" as const;
 
 /**
  * EIP-712 typed-data signer (e.g. viem `account.signTypedData`).
@@ -63,17 +67,17 @@ export type PaymentNonceSource = (
   payerAddress: string,
 ) => Promise<bigint> | bigint;
 
-interface GrantPaymentMessage {
+interface EscrowPaymentMessage {
   payerAddress: `0x${string}`;
-  opType: typeof GRANT_OP_TYPE;
+  opType: typeof GRANT_OP_TYPE | typeof DATA_ACCESS_OP_TYPE;
   opId: `0x${string}`;
   asset: `0x${string}`;
   amount: string;
   paymentNonce: string;
 }
 
-interface SignedGrantPayment {
-  message: GrantPaymentMessage;
+interface SignedEscrowPayment {
+  message: EscrowPaymentMessage;
   signature: `0x${string}`;
   accessRecord?: EscrowAccessRecord;
 }
@@ -82,13 +86,11 @@ interface X402PaymentHeader {
   x402Version: 1;
   scheme: "vana-escrow-grant";
   network: string;
-  payload: SignedGrantPayment;
+  payload: SignedEscrowPayment;
 }
 
-/** Escrow settlement configuration for the controller. */
-export interface EscrowPaymentConfig {
-  /** Client for the gateway escrow endpoints (`/v1/escrow/*`). */
-  client: EscrowGatewayClient;
+/** Configuration required to sign an escrow X-PAYMENT header. */
+export interface EscrowPaymentHeaderConfig {
   /** Deployed `DataPortabilityEscrow` contract address. */
   escrowContract: `0x${string}`;
   /** Chain id for the EIP-712 domain (1480 mainnet, 14800 moksha). */
@@ -101,6 +103,19 @@ export interface EscrowPaymentConfig {
    * nonces survive restarts (the gateway rejects reused (payer, nonce) pairs).
    */
   nonceSource?: PaymentNonceSource;
+}
+
+/**
+ * Escrow settlement configuration for gateway authorization.
+ *
+ * @remarks
+ * Extends the header-signing boundary with the gateway client used by
+ * {@link authorizeEscrowPayment}. Existing controller and legacy wrapper
+ * callers can continue to provide this full configuration.
+ */
+export interface EscrowPaymentConfig extends EscrowPaymentHeaderConfig {
+  /** Client for the gateway escrow endpoints (`/v1/escrow/*`). */
+  client: EscrowGatewayClient;
 }
 
 /** Map the gateway {@link PaymentBreakdown} into the public {@link DirectFeeBreakdown}. */
@@ -141,6 +156,83 @@ export function createDefaultNonceSource(): PaymentNonceSource {
 }
 
 const processLocalNonceSource = createDefaultNonceSource();
+const UINT256_MAX = (1n << 256n) - 1n;
+const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+const BYTES32_RE = /^0x[0-9a-fA-F]{64}$/;
+const SIGNATURE_RE = /^0x[0-9a-fA-F]{130}$/;
+
+function isUint256Decimal(value: string, allowZero: boolean): boolean {
+  const pattern = allowZero ? /^(0|[1-9]\d*)$/ : /^[1-9]\d*$/;
+  return (
+    value.length <= UINT256_MAX.toString().length &&
+    pattern.test(value) &&
+    BigInt(value) <= UINT256_MAX
+  );
+}
+
+function isValidAccessRecord(record: EscrowAccessRecord): boolean {
+  return (
+    BYTES32_RE.test(record.dataPointId) &&
+    isUint256Decimal(record.version, false) &&
+    ADDRESS_RE.test(record.accessor) &&
+    BYTES32_RE.test(record.recordId) &&
+    SIGNATURE_RE.test(record.signature)
+  );
+}
+
+function validateSigningOperation(
+  payerAddress: `0x${string}`,
+  required: PersonalServerPaymentOperation,
+): void {
+  if (!ADDRESS_RE.test(payerAddress)) {
+    throw new Error("Payment payer must be a 20-byte EVM address");
+  }
+  if (!BYTES32_RE.test(required.opId)) {
+    throw new Error("Payment operation id must be a 32-byte hex value");
+  }
+  if (!ADDRESS_RE.test(required.asset || NATIVE_ASSET_ADDRESS)) {
+    throw new Error("Payment asset must be a 20-byte EVM address");
+  }
+  if (!isUint256Decimal(required.amount, true)) {
+    throw new Error("Payment amount must be a canonical uint256 decimal");
+  }
+  if (
+    required.paymentNonce !== undefined &&
+    !isUint256Decimal(required.paymentNonce, false)
+  ) {
+    throw new Error("Payment nonce must be a positive uint256 decimal");
+  }
+
+  const accessRecord = required.accessRecord;
+  if (required.opType === DATA_ACCESS_OP_TYPE) {
+    if (!accessRecord || !isValidAccessRecord(accessRecord)) {
+      throw new Error("Data-access payment requires a valid access record");
+    }
+    if (required.opId.toLowerCase() !== accessRecord.recordId.toLowerCase()) {
+      throw new Error(
+        "Data-access payment operation id must equal the access record id",
+      );
+    }
+    if (accessRecord.accessor.toLowerCase() !== payerAddress.toLowerCase()) {
+      throw new Error(
+        "Data-access payment accessor must equal the payment payer address",
+      );
+    }
+    return;
+  }
+
+  if (required.amount === "0") {
+    if (
+      !accessRecord ||
+      !isValidAccessRecord(accessRecord) ||
+      accessRecord.accessor.toLowerCase() !== payerAddress.toLowerCase()
+    ) {
+      throw new Error(
+        "Zero-amount grant payments require a valid access record for the payer",
+      );
+    }
+  }
+}
 
 function base64EncodeJson(value: unknown): string {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -155,23 +247,30 @@ function base64DecodeJson(value: string): unknown {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-async function signGrantPayment(params: {
+async function signEscrowPayment(params: {
   payerAddress: `0x${string}`;
-  required: PersonalServerPaymentRequired;
-  config: EscrowPaymentConfig;
-}): Promise<SignedGrantPayment> {
+  required: PersonalServerPaymentOperation;
+  config: EscrowPaymentHeaderConfig;
+}): Promise<SignedEscrowPayment> {
   const { payerAddress, required, config } = params;
+  validateSigningOperation(payerAddress, required);
   const nonceSource = config.nonceSource ?? processLocalNonceSource;
   const paymentNonce = BigInt(
     required.paymentNonce ?? (await nonceSource(payerAddress)),
   );
   const asset = (required.asset || NATIVE_ASSET_ADDRESS) as `0x${string}`;
-  const opId = required.grantId as `0x${string}`;
+  const opId = required.opId as `0x${string}`;
   const amount = BigInt(required.amount);
+  if (amount < 0n || amount > UINT256_MAX) {
+    throw new Error("Payment amount must be a uint256");
+  }
+  if (paymentNonce <= 0n || paymentNonce > UINT256_MAX) {
+    throw new Error("Payment nonce must be a positive uint256");
+  }
 
   const message = {
     payerAddress,
-    opType: GRANT_OP_TYPE,
+    opType: required.opType,
     opId,
     asset,
     amount,
@@ -196,30 +295,147 @@ async function signGrantPayment(params: {
   };
 }
 
-export async function buildGrantPaymentHeader(params: {
+/**
+ * Build the canonical X-PAYMENT header for a validated escrow operation.
+ *
+ * @remarks
+ * Supports both legacy grant payments and receipt-bound data-access payments.
+ * Signing is injected through {@link EscrowPaymentHeaderConfig.signTypedData}.
+ */
+export async function buildEscrowPaymentHeader(params: {
+  /** Address whose escrow balance pays for the operation. */
   payerAddress: `0x${string}`;
-  required: PersonalServerPaymentRequired;
-  config: EscrowPaymentConfig;
+  /** Validated operation parsed from the Personal Server challenge. */
+  required: PersonalServerPaymentOperation;
+  /** Escrow contract, chain, signer, and nonce configuration. */
+  config: EscrowPaymentHeaderConfig;
 }): Promise<string> {
-  const signed = await signGrantPayment(params);
+  const network = params.required.network ?? `vana:${params.config.chainId}`;
+  if (network !== `vana:${params.config.chainId}`) {
+    throw new Error("Payment network must match the configured chain");
+  }
+
+  const signed = await signEscrowPayment(params);
   const payment: X402PaymentHeader = {
     x402Version: 1,
     scheme: "vana-escrow-grant",
-    network: params.required.network ?? `vana:${params.config.chainId}`,
+    network,
     payload: signed,
   };
   return base64EncodeJson(payment);
 }
 
-export function paymentReceiptFromHeader(
+/** Build a legacy grant X-PAYMENT header. */
+export async function buildGrantPaymentHeader(params: {
+  payerAddress: `0x${string}`;
+  required: PersonalServerPaymentRequired;
+  config: EscrowPaymentConfig;
+}): Promise<string> {
+  return buildEscrowPaymentHeader({
+    ...params,
+    required: {
+      ...params.required,
+      opType: GRANT_OP_TYPE,
+      opId: params.required.grantId,
+    },
+  });
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringField(
+  value: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const field = value?.[key];
+  return typeof field === "string" ? field : undefined;
+}
+
+function isCanonicalIsoTimestamp(value: string): boolean {
+  try {
+    return new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse shape-validated payment response metadata echoed by a Personal Server.
+ *
+ * @remarks
+ * This metadata is not authenticated by the gateway. It is suitable for
+ * display and debugging, not as proof that a payment occurred.
+ */
+export function paymentResponseMetadataFromHeader(
   header: string | null | undefined,
-): DirectPaymentReceipt | undefined {
+): DirectPaymentResponseMetadata | undefined {
   if (!header) return undefined;
   try {
-    return toDirectPaymentReceipt(base64DecodeJson(header) as EscrowPayResult);
+    const result = asRecord(base64DecodeJson(header));
+    const breakdown = asRecord(result?.breakdown);
+    const opType = stringField(result, "opType");
+    const opId = stringField(result, "opId");
+    const payerAddress = stringField(result, "payerAddress");
+    const asset = stringField(result, "asset");
+    const amount = stringField(result, "amount");
+    const paymentNonce = stringField(result, "paymentNonce");
+    const registrationFee = stringField(breakdown, "registrationFee");
+    const dataAccessFee = stringField(breakdown, "dataAccessFee");
+    const paidAt = stringField(result, "paidAt");
+    if (
+      result?.success !== true ||
+      !opType ||
+      !opId ||
+      !BYTES32_RE.test(opId) ||
+      !payerAddress ||
+      !ADDRESS_RE.test(payerAddress) ||
+      !asset ||
+      !ADDRESS_RE.test(asset) ||
+      !amount ||
+      !isUint256Decimal(amount, true) ||
+      !paymentNonce ||
+      !isUint256Decimal(paymentNonce, false) ||
+      !registrationFee ||
+      !isUint256Decimal(registrationFee, true) ||
+      !dataAccessFee ||
+      !isUint256Decimal(dataAccessFee, true) ||
+      typeof breakdown?.registrationPaid !== "boolean" ||
+      !paidAt ||
+      !isCanonicalIsoTimestamp(paidAt)
+    ) {
+      return undefined;
+    }
+    return {
+      opType,
+      opId,
+      asset,
+      amount,
+      paymentNonce,
+      breakdown: {
+        registrationFee,
+        dataAccessFee,
+        registrationPaid: breakdown.registrationPaid,
+      },
+      paidAt,
+    };
   } catch {
     return undefined;
   }
+}
+
+/**
+ * @deprecated Use {@link paymentResponseMetadataFromHeader}. A Personal
+ * Server response header is untrusted metadata, not a gateway-authenticated
+ * receipt.
+ */
+export function paymentReceiptFromHeader(
+  header: string | null | undefined,
+): DirectPaymentResponseMetadata | undefined {
+  return paymentResponseMetadataFromHeader(header);
 }
 
 /**
@@ -234,18 +450,40 @@ export async function authorizeGrantPayment(params: {
   required: PersonalServerPaymentRequired;
   config: EscrowPaymentConfig;
 }): Promise<DirectPaymentReceipt> {
-  const { payerAddress, required, config } = params;
-  const signed = await signGrantPayment(params);
+  return authorizeEscrowPayment({
+    ...params,
+    required: {
+      ...params.required,
+      opType: GRANT_OP_TYPE,
+      opId: params.required.grantId,
+    },
+  });
+}
+
+/**
+ * Authorize a validated grant or data-access operation through the escrow
+ * gateway.
+ */
+export async function authorizeEscrowPayment(params: {
+  /** Address whose escrow balance pays for the operation. */
+  payerAddress: `0x${string}`;
+  /** Validated operation to authorize. */
+  required: PersonalServerPaymentOperation;
+  /** Escrow gateway and signing configuration. */
+  config: EscrowPaymentConfig;
+}): Promise<DirectPaymentReceipt> {
+  const { payerAddress, config } = params;
+  const signed = await signEscrowPayment(params);
 
   const result = await config.client.payForOp({
     payerAddress,
-    opType: GRANT_OP_TYPE,
+    opType: signed.message.opType,
     opId: signed.message.opId,
     asset: signed.message.asset,
     amount: signed.message.amount,
     paymentNonce: signed.message.paymentNonce,
     signature: signed.signature,
-    accessRecord: required.accessRecord,
+    accessRecord: signed.accessRecord,
   });
 
   return toDirectPaymentReceipt(result);

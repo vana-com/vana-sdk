@@ -33,6 +33,18 @@
       "import": "./dist/server.js",
       "require": "./dist/server.cjs"
     },
+    "./direct/escrow-payment": {
+      "browser": null,
+      "types": "./dist/direct/escrow-payment.d.ts",
+      "import": "./dist/direct/escrow-payment.js",
+      "require": "./dist/direct/escrow-payment.cjs"
+    },
+    "./direct/personal-server-read": {
+      "browser": null,
+      "types": "./dist/direct/personal-server-read.d.ts",
+      "import": "./dist/direct/personal-server-read.js",
+      "require": "./dist/direct/personal-server-read.cjs"
+    },
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"

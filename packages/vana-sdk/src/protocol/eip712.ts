@@ -158,7 +158,8 @@ export const BUILDER_REGISTRATION_TYPES = {
 // debit to the right op-row; paymentNonce is per-payer monotonic so the same
 // signed message can't be replayed after a revoke + re-register cycle.
 //
-// Today opType is always 'grant' and opId is the bytes32 grantId.
+// Legacy grant payments bind opId to grantId; standalone data_access payments
+// bind opId to the accompanying accessRecord.recordId.
 export const GENERIC_PAYMENT_TYPES = {
   GenericPayment: [
     { name: "payerAddress", type: "address" },

@@ -24,6 +24,46 @@ const DATA_POINT_ID =
   "0x3333333333333333333333333333333333333333333333333333333333333333";
 const RECORD_ID =
   "0x4444444444444444444444444444444444444444444444444444444444444444";
+const ACCESS_SIGNATURE = `0x${"55".repeat(65)}`;
+const VALID_ACCESS_RECORD = {
+  dataPointId: DATA_POINT_ID,
+  version: "1",
+  accessor: PAYER,
+  recordId: RECORD_ID,
+  signature: ACCESS_SIGNATURE,
+};
+const UINT256_MAX_DECIMAL = ((1n << 256n) - 1n).toString();
+
+function dataAccessAccept(overrides: Record<string, unknown> = {}) {
+  return {
+    scheme: "vana-escrow-grant",
+    network: "vana:14800",
+    asset: NATIVE_ASSET_ADDRESS,
+    amount: "12345",
+    message: {
+      payerAddress: PAYER,
+      opType: "data_access",
+      opId: RECORD_ID,
+      asset: NATIVE_ASSET_ADDRESS,
+      amount: "12345",
+      paymentNonce: "9",
+    },
+    accessRecord: VALID_ACCESS_RECORD,
+    ...overrides,
+  };
+}
+
+function dataAccessChallenge(
+  accepts: unknown[] = [dataAccessAccept()],
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    x402Version: 1,
+    error: "PAYMENT_REQUIRED",
+    accepts,
+    ...overrides,
+  };
+}
 
 function jsonRes(
   body: unknown,
@@ -113,6 +153,8 @@ describe("parsePersonalServerPaymentRequired", () => {
       GRANT_ID,
     );
     expect(required.grantId).toBe(GRANT_ID);
+    expect(required.opType).toBe("grant");
+    expect(required.opId).toBe(GRANT_ID);
     expect(required.asset).toBe("0xtoken");
     expect(required.amount).toBe("12345");
   });
@@ -123,6 +165,8 @@ describe("parsePersonalServerPaymentRequired", () => {
       GRANT_ID,
     );
     expect(required.grantId).toBe(GRANT_ID);
+    expect(required.opType).toBe("grant");
+    expect(required.opId).toBe(GRANT_ID);
     expect(required.asset).toBe(NATIVE_ASSET_ADDRESS);
     expect(required.amount).toBe("0");
   });
@@ -131,10 +175,17 @@ describe("parsePersonalServerPaymentRequired", () => {
     const required = await parsePersonalServerPaymentRequired(
       jsonRes(
         {
+          x402Version: 1,
+          error: "PAYMENT_REQUIRED",
           amount: "0",
           accepts: [
             {
+              scheme: "vana-escrow-grant",
+              network: "vana:14800",
+              asset: NATIVE_ASSET_ADDRESS,
+              amount: "12345",
               message: {
+                payerAddress: PAYER,
                 opType: "grant",
                 opId: GRANT_ID,
                 asset: NATIVE_ASSET_ADDRESS,
@@ -146,7 +197,7 @@ describe("parsePersonalServerPaymentRequired", () => {
                 version: "1",
                 accessor: PAYER,
                 recordId: RECORD_ID,
-                signature: "0xsig",
+                signature: ACCESS_SIGNATURE,
               },
             },
           ],
@@ -158,6 +209,8 @@ describe("parsePersonalServerPaymentRequired", () => {
 
     expect(required).toMatchObject({
       grantId: GRANT_ID,
+      opType: "grant",
+      opId: GRANT_ID,
       asset: NATIVE_ASSET_ADDRESS,
       amount: "12345",
       paymentNonce: "9",
@@ -166,7 +219,7 @@ describe("parsePersonalServerPaymentRequired", () => {
         version: "1",
         accessor: PAYER,
         recordId: RECORD_ID,
-        signature: "0xsig",
+        signature: ACCESS_SIGNATURE,
       },
     });
   });
@@ -176,9 +229,16 @@ describe("parsePersonalServerPaymentRequired", () => {
       parsePersonalServerPaymentRequired(
         jsonRes(
           {
+            x402Version: 1,
+            error: "PAYMENT_REQUIRED",
             accepts: [
               {
+                scheme: "vana-escrow-grant",
+                network: "vana:14800",
+                asset: NATIVE_ASSET_ADDRESS,
+                amount: "12345",
                 message: {
+                  payerAddress: PAYER,
                   opType: "grant",
                   opId: OTHER_GRANT_ID,
                   asset: NATIVE_ASSET_ADDRESS,
@@ -195,22 +255,340 @@ describe("parsePersonalServerPaymentRequired", () => {
     ).rejects.toThrow(/requested grant/);
   });
 
+  it("parses a receipt-bound data-access challenge", async () => {
+    const required = await parsePersonalServerPaymentRequired(
+      jsonRes(dataAccessChallenge(), { status: 402 }),
+      GRANT_ID,
+    );
+
+    expect(required).toMatchObject({
+      grantId: GRANT_ID,
+      opType: "data_access",
+      opId: RECORD_ID,
+      accessRecord: { recordId: RECORD_ID },
+    });
+  });
+
+  it.each([
+    ["missing access record", undefined],
+    [
+      "incomplete access record",
+      {
+        dataPointId: DATA_POINT_ID,
+        version: "1",
+        accessor: PAYER,
+        recordId: RECORD_ID,
+      },
+    ],
+    ["invalid dataPointId", { ...VALID_ACCESS_RECORD, dataPointId: "0xshort" }],
+    ["invalid version", { ...VALID_ACCESS_RECORD, version: "0" }],
+    ["invalid accessor", { ...VALID_ACCESS_RECORD, accessor: "0xinvalid" }],
+    ["invalid recordId", { ...VALID_ACCESS_RECORD, recordId: "0xshort" }],
+    ["invalid signature", { ...VALID_ACCESS_RECORD, signature: "0xsig" }],
+  ])("rejects data_access with %s", async (_label, accessRecord) => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          dataAccessChallenge([
+            dataAccessAccept({
+              ...(accessRecord
+                ? { accessRecord }
+                : { accessRecord: undefined }),
+            }),
+          ]),
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/untrusted or incomplete/);
+  });
+
+  it("rejects data_access without an operation id", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          dataAccessChallenge([
+            dataAccessAccept({
+              message: {
+                payerAddress: PAYER,
+                opType: "data_access",
+                asset: NATIVE_ASSET_ADDRESS,
+                amount: "12345",
+                paymentNonce: "9",
+              },
+            }),
+          ]),
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/untrusted or incomplete/);
+  });
+
+  it("rejects data_access when opId does not match recordId", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          dataAccessChallenge([
+            dataAccessAccept({
+              message: {
+                payerAddress: PAYER,
+                opType: "data_access",
+                opId: OTHER_GRANT_ID,
+                asset: NATIVE_ASSET_ADDRESS,
+                amount: "12345",
+                paymentNonce: "9",
+              },
+            }),
+          ]),
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/untrusted or incomplete/);
+  });
+
+  it("selects a later compatible data_access offer", async () => {
+    const required = await parsePersonalServerPaymentRequired(
+      jsonRes(
+        dataAccessChallenge([
+          dataAccessAccept({ scheme: "attacker-scheme" }),
+          dataAccessAccept(),
+        ]),
+        { status: 402 },
+      ),
+      GRANT_ID,
+    );
+
+    expect(required).toMatchObject({
+      opType: "data_access",
+      opId: RECORD_ID,
+      paymentNonce: "9",
+    });
+  });
+
+  it.each([
+    ["wrong x402 version", { x402Version: 2 }],
+    ["wrong error semantics", { error: "INSUFFICIENT_BALANCE" }],
+  ])("rejects data_access with %s", async (_label, overrides) => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(dataAccessChallenge(undefined, overrides), { status: 402 }),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/not a canonical x402 challenge/);
+  });
+
+  it("does not mix an attacker offer with top-level fallback fields", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          dataAccessChallenge(
+            [
+              dataAccessAccept({
+                scheme: "attacker-scheme",
+                accessRecord: undefined,
+              }),
+            ],
+            {
+              opId: RECORD_ID,
+              asset: NATIVE_ASSET_ADDRESS,
+              amount: "12345",
+              paymentNonce: "9",
+              accessRecord: VALID_ACCESS_RECORD,
+            },
+          ),
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/untrusted or incomplete/);
+  });
+
+  it("requires the access record on the same accepts entry", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          dataAccessChallenge([dataAccessAccept({ accessRecord: undefined })], {
+            accessRecord: VALID_ACCESS_RECORD,
+          }),
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/untrusted or incomplete/);
+  });
+
+  it("rejects a message payer that differs from the receipt accessor", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          dataAccessChallenge([
+            dataAccessAccept({
+              message: {
+                payerAddress: "0x2222222222222222222222222222222222222222",
+                opType: "data_access",
+                opId: RECORD_ID,
+                asset: NATIVE_ASSET_ADDRESS,
+                amount: "12345",
+                paymentNonce: "9",
+              },
+            }),
+          ]),
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/untrusted or incomplete/);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["zero", "0"],
+    ["leading zero", "09"],
+    ["above uint256", (1n << 256n).toString()],
+  ])("rejects a data_access %s payment nonce", async (_label, paymentNonce) => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          dataAccessChallenge([
+            dataAccessAccept({
+              message: {
+                payerAddress: PAYER,
+                opType: "data_access",
+                opId: RECORD_ID,
+                asset: NATIVE_ASSET_ADDRESS,
+                amount: "12345",
+                ...(paymentNonce === undefined ? {} : { paymentNonce }),
+              },
+            }),
+          ]),
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/untrusted or incomplete/);
+  });
+
+  it("accepts uint256-max accessRecord.version and rejects overflow", async () => {
+    const valid = await parsePersonalServerPaymentRequired(
+      jsonRes(
+        dataAccessChallenge([
+          dataAccessAccept({
+            accessRecord: {
+              ...VALID_ACCESS_RECORD,
+              version: UINT256_MAX_DECIMAL,
+            },
+          }),
+        ]),
+        { status: 402 },
+      ),
+      GRANT_ID,
+    );
+    expect(valid.accessRecord?.version).toBe(UINT256_MAX_DECIMAL);
+
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          dataAccessChallenge([
+            dataAccessAccept({
+              accessRecord: {
+                ...VALID_ACCESS_RECORD,
+                version: (1n << 256n).toString(),
+              },
+            }),
+          ]),
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/untrusted or incomplete/);
+  });
+
+  it("accepts amount zero only on a complete data_access offer", async () => {
+    const required = await parsePersonalServerPaymentRequired(
+      jsonRes(
+        dataAccessChallenge([
+          dataAccessAccept({
+            amount: "0",
+            message: {
+              payerAddress: PAYER,
+              opType: "data_access",
+              opId: RECORD_ID,
+              asset: NATIVE_ASSET_ADDRESS,
+              amount: "0",
+              paymentNonce: "9",
+            },
+          }),
+        ]),
+        { status: 402 },
+      ),
+      GRANT_ID,
+    );
+    expect(required).toMatchObject({ opType: "data_access", amount: "0" });
+  });
+
+  it("rejects an unsupported legacy grant accepts envelope", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          {
+            x402Version: 999,
+            error: "NOT_PAYMENT",
+            accepts: [
+              {
+                scheme: "evil",
+                network: "vana:14800",
+                message: {
+                  payerAddress: PAYER,
+                  opType: "grant",
+                  opId: GRANT_ID,
+                  asset: NATIVE_ASSET_ADDRESS,
+                  amount: "1",
+                  paymentNonce: "9",
+                },
+              },
+            ],
+          },
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/not a canonical x402 challenge/);
+  });
+
+  it("never falls back to an unqualified legacy accepts offer", async () => {
+    await expect(
+      parsePersonalServerPaymentRequired(
+        jsonRes(
+          {
+            x402Version: 1,
+            error: "PAYMENT_REQUIRED",
+            accepts: [
+              {
+                scheme: "evil",
+                message: {
+                  opType: "grant",
+                  opId: GRANT_ID,
+                  amount: "1",
+                },
+              },
+            ],
+          },
+          { status: 402 },
+        ),
+        GRANT_ID,
+      ),
+    ).rejects.toThrow(/no compatible escrow offer/);
+  });
+
   it("rejects unsupported x402 escrow op types", async () => {
     await expect(
       parsePersonalServerPaymentRequired(
         jsonRes(
           {
-            accepts: [
-              {
-                message: {
-                  opType: "data_access",
-                  opId: GRANT_ID,
-                  asset: NATIVE_ASSET_ADDRESS,
-                  amount: "12345",
-                  paymentNonce: "9",
-                },
-              },
-            ],
+            opType: "subscription",
+            opId: GRANT_ID,
           },
           { status: 402 },
         ),
@@ -470,6 +848,108 @@ describe("readPersonalServerData", () => {
 
     await expect(result).rejects.toThrow(PaymentRequiredError);
     expect(payForOp).not.toHaveBeenCalled();
+  });
+
+  it("signs a current Personal Server zero-fee grant receipt acknowledgment", async () => {
+    let call = 0;
+    const escrow = mockEscrow();
+    const result = await readPersonalServerData({
+      personalServerUrl: "https://ps.example.com",
+      scope: "icloud_notes.notes",
+      grantId: GRANT_ID,
+      payerAddress: PAYER,
+      signMessage,
+      escrow,
+      fetchFn: async () => {
+        call += 1;
+        if (call === 1) {
+          return jsonRes(
+            {
+              x402Version: 1,
+              error: "PAYMENT_REQUIRED",
+              accepts: [
+                {
+                  scheme: "vana-escrow-grant",
+                  network: "vana:14800",
+                  asset: NATIVE_ASSET_ADDRESS,
+                  amount: "0",
+                  message: {
+                    payerAddress: PAYER,
+                    opType: "grant",
+                    opId: GRANT_ID,
+                    asset: NATIVE_ASSET_ADDRESS,
+                    amount: "0",
+                    paymentNonce: "9",
+                  },
+                  accessRecord: VALID_ACCESS_RECORD,
+                },
+              ],
+            },
+            { status: 402 },
+          );
+        }
+        return jsonRes({ ok: true });
+      },
+    });
+
+    expect(result.data).toEqual({ ok: true });
+    expect(escrow.signTypedData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.objectContaining({
+          opType: "grant",
+          opId: GRANT_ID,
+          amount: 0n,
+          paymentNonce: 9n,
+        }),
+      }),
+    );
+  });
+
+  it("signs a zero-amount data_access receipt acknowledgment", async () => {
+    let call = 0;
+    const escrow = mockEscrow();
+    const result = await readPersonalServerData({
+      personalServerUrl: "https://ps.example.com",
+      scope: "icloud_notes.notes",
+      grantId: GRANT_ID,
+      payerAddress: PAYER,
+      signMessage,
+      escrow,
+      fetchFn: async () => {
+        call += 1;
+        if (call === 1) {
+          return jsonRes(
+            dataAccessChallenge([
+              dataAccessAccept({
+                amount: "0",
+                message: {
+                  payerAddress: PAYER,
+                  opType: "data_access",
+                  opId: RECORD_ID,
+                  asset: NATIVE_ASSET_ADDRESS,
+                  amount: "0",
+                  paymentNonce: "9",
+                },
+              }),
+            ]),
+            { status: 402 },
+          );
+        }
+        return jsonRes({ ok: true });
+      },
+    });
+
+    expect(result.data).toEqual({ ok: true });
+    expect(escrow.signTypedData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.objectContaining({
+          opType: "data_access",
+          opId: RECORD_ID,
+          amount: 0n,
+          paymentNonce: 9n,
+        }),
+      }),
+    );
   });
 
   it("throws PaymentRequiredError with amount/asset when escrow is not configured", async () => {

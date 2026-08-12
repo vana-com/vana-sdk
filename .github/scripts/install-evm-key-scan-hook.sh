@@ -38,7 +38,7 @@ validate_policy() {
     exit 2
   }
   case "$origin" in
-    "$CENTRAL_REPOSITORY"|git@github.com:vana-com/.github.git) ;;
+    "$CENTRAL_REPOSITORY"|https://github.com/vana-com/.github|git@github.com:vana-com/.github|git@github.com:vana-com/.github.git) ;;
     *)
       printf 'Refusing unexpected policy-cache origin: %s\n' "$policy_dir" >&2
       exit 2
@@ -66,27 +66,28 @@ prepare_policy() {
     rmdir "$lock_dir" 2>/dev/null || true
   }
   trap cleanup EXIT
-  if validate_policy; then
-    rmdir "$lock_dir"
-    trap - EXIT
-    return
-  fi
-  [[ ! -e "$policy_dir" ]] || {
-    printf 'Refusing invalid policy cache: %s\n' "$policy_dir" >&2
-    exit 2
-  }
+  if ! validate_policy; then
+    [[ ! -e "$policy_dir" ]] || {
+      printf 'Refusing invalid policy cache: %s\n' "$policy_dir" >&2
+      exit 2
+    }
 
-  tmp_dir=$(mktemp -d "$cache_root/.policy.XXXXXX")
-  git init -q "$tmp_dir"
-  git -C "$tmp_dir" remote add origin "$CENTRAL_REPOSITORY"
-  git -C "$tmp_dir" fetch --depth 1 origin "$CENTRAL_POLICY_SHA"
-  git -C "$tmp_dir" checkout -q --detach FETCH_HEAD
-  [[ "$(git -C "$tmp_dir" rev-parse HEAD)" == "$CENTRAL_POLICY_SHA" ]] || {
-    printf 'Fetched policy does not match requested SHA.\n' >&2
-    exit 2
-  }
-  mv "$tmp_dir" "$policy_dir"
-  tmp_dir=''
+    tmp_dir=$(mktemp -d "$cache_root/.policy.XXXXXX")
+    git init -q "$tmp_dir"
+    git -C "$tmp_dir" remote add origin "$CENTRAL_REPOSITORY"
+    git -C "$tmp_dir" fetch --depth 1 origin "$CENTRAL_POLICY_SHA"
+    git -C "$tmp_dir" checkout -q --detach FETCH_HEAD
+    [[ "$(git -C "$tmp_dir" rev-parse HEAD)" == "$CENTRAL_POLICY_SHA" ]] || {
+      printf 'Fetched policy does not match requested SHA.\n' >&2
+      exit 2
+    }
+    mv "$tmp_dir" "$policy_dir"
+    tmp_dir=''
+  fi
+  "$policy_dir/scripts/install-pre-push.sh" prepare \
+    --shared-dir "$policy_dir" \
+    --repo "$repo_root" \
+    --ref "$CENTRAL_POLICY_SHA"
   rmdir "$lock_dir"
   trap - EXIT
 }
@@ -107,7 +108,3 @@ if [[ "$action" == run ]]; then
 fi
 
 prepare_policy
-exec "$policy_dir/scripts/install-pre-push.sh" "$action" \
-  --shared-dir "$policy_dir" \
-  --repo "$repo_root" \
-  --ref "$CENTRAL_POLICY_SHA" "$@"

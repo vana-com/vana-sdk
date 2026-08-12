@@ -9,8 +9,8 @@ Thank you for contributing to the Vana SDK!
 git clone https://github.com/YOUR_USERNAME/vana-sdk.git
 cd vana-sdk
 
-# Install dependencies
-npm install
+# Install dependencies and prepare the optional pre-push EVM key scan
+npm run setup
 
 # Build the SDK
 npm run build

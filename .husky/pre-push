@@ -1,1 +1,2 @@
+.github/scripts/install-evm-key-scan-hook.sh run "$@"
 npm run typecheck && npm run test:coverage

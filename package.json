@@ -25,6 +25,7 @@
     "clean": "turbo run clean",
     "docs": "typedoc",
     "prepare": "husky",
+    "setup": "npm install && .github/scripts/install-evm-key-scan-hook.sh prepare",
     "validate": "turbo run lint typecheck test:coverage"
   },
   "devDependencies": {

@@ -56,6 +56,7 @@ import type {
   DirectAppConfig,
   DirectEnv,
   DirectNetwork,
+  DirectPaymentResponseMetadata,
   DirectServiceEndpoints,
 } from "./types";
 
@@ -191,10 +192,10 @@ export interface DirectDataController {
    * Resolves the request to its grant + Personal Server and performs a Web3Signed
    * read. Hides the `402 Payment Required` flow by default: if a read needs
    * payment, it signs the Personal Server's payment challenge, retries with
-   * `X-PAYMENT`, and attaches a {@link DirectPaymentReceipt} under `payment`
-   * when the Personal Server returns one. After a successful read, the
-   * controller acknowledges the DCR so Vana Web can close/redirect the approval
-   * tab.
+   * `X-PAYMENT`, and attaches shape-validated but unauthenticated
+   * {@link DirectPaymentResponseMetadata} under `payment` when the Personal
+   * Server returns it. After a successful read, the controller acknowledges
+   * the DCR so Vana Web can close/redirect the approval tab.
    *
    * @param input - The `dcr_*` request id to read.
    * @returns `{ scope, data, payment? }`.

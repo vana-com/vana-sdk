@@ -121,12 +121,10 @@ export interface ApprovedDataResult<T = unknown> {
   /** The decoded payload returned by the Personal Server. */
   data: T;
   /**
-   * Payment receipt — present only when this read required (and settled) a
-   * payment. Lets builders inspect the amount, asset, and fee breakdown without
-   * digging into the underlying 402/escrow exchange. Reads served from a paid-up
-   * grant omit this field.
+   * Shape-validated but unauthenticated payment metadata echoed by the
+   * Personal Server. Use for display/debugging, not accounting proof.
    */
-  payment?: DirectPaymentReceipt;
+  payment?: DirectPaymentResponseMetadata;
 }
 
 /**
@@ -188,9 +186,8 @@ export interface AccessRequestClient {
  * approved grant; the other op types are listed here for completeness and to
  * give builders a typed vocabulary when inspecting fee breakdowns.
  *
- * Note: the escrow `GenericPayment` `opType` is currently `"grant"` on the wire
- * for grant lifecycle payments; this enum names the higher-level fee categories
- * the gateway reports in a {@link PaymentBreakdown}.
+ * GenericPayment uses `"grant"` for legacy grant lifecycle payments and
+ * `"data_access"` for standalone receipt-bound reads.
  */
 export const DirectOpType = {
   GrantRegistration: "grant_registration",
@@ -209,18 +206,19 @@ export type DirectOpTypeValue =
  * a data read.
  *
  * @remarks
- * The PS read 402 body identifies the grant to settle and the amount/asset. The
- * controller settles it via the DPv2 escrow gateway (`/v1/escrow/pay`). The full
- * unmodified body is preserved under {@link PersonalServerPaymentRequired.raw}.
+ * The PS read 402 body identifies the challenged operation and amount/asset.
+ * The controller settles it via the DPv2 escrow gateway (`/v1/escrow/pay`). The
+ * full unmodified body is preserved under
+ * {@link PersonalServerPaymentRequired.raw}.
  */
 export interface PersonalServerPaymentRequired {
-  /** Grant id to settle (the escrow `opId`). Defaults to the read's grantId. */
+  /** Grant id authorizing the Personal Server read. */
   grantId: string;
   /** X402 network advertised by the Personal Server challenge. */
   network?: string;
   /** Payment nonce requested by the 402 challenge. */
   paymentNonce?: string;
-  /** Server-signed data access receipt requested by the 402 challenge. */
+  /** Data-access receipt carrying a signature for the gateway to verify. */
   accessRecord?: EscrowAccessRecord;
   /** Asset address owed (zero address = native VANA). */
   asset: string;
@@ -230,18 +228,44 @@ export interface PersonalServerPaymentRequired {
   raw: unknown;
 }
 
+/** A validated legacy grant payment challenge. */
+export interface PersonalServerGrantPaymentOperation extends PersonalServerPaymentRequired {
+  /** Escrow operation discriminator. */
+  opType: "grant";
+  /** Grant id settled by the escrow payment. */
+  opId: string;
+}
+
+/** A validated receipt-bound data-access payment challenge. */
+export interface PersonalServerDataAccessPaymentOperation extends PersonalServerPaymentRequired {
+  /** Escrow operation discriminator. */
+  opType: "data_access";
+  /** Access-record id settled by the escrow payment. */
+  opId: string;
+  /** Complete receipt whose signature is verified later by the gateway. */
+  accessRecord: EscrowAccessRecord;
+  /** Positive uint256 nonce supplied by the Personal Server challenge. */
+  paymentNonce: string;
+}
+
 /**
- * Structured payment metadata attached to a successful paid read.
+ * A Personal Server payment challenge whose escrow operation has been
+ * validated.
  *
  * @remarks
- * Derived from the gateway's {@link EscrowPayResult}. Lets builders debug the
- * amount, asset, and per-op fee breakdown without re-deriving anything from the
- * raw 402/payment exchange.
+ * Validation here is structural and binds operation ids to their receipt. It
+ * does not cryptographically verify the receipt signature; the Personal
+ * Server and Data Gateway perform that verification.
  */
+export type PersonalServerPaymentOperation =
+  | PersonalServerGrantPaymentOperation
+  | PersonalServerDataAccessPaymentOperation;
+
+/** Shape-validated payment response returned directly by the escrow gateway. */
 export interface DirectPaymentReceipt {
   /** Op type settled (the gateway `opType`, e.g. `"grant"`). */
   opType: string;
-  /** Op id settled (the grant id). */
+  /** Op id settled (a grant id or access-record id). */
   opId: string;
   /** Asset paid in (zero address = native VANA). */
   asset: string;
@@ -254,6 +278,16 @@ export interface DirectPaymentReceipt {
   /** ISO timestamp the gateway recorded the payment. */
   paidAt: string;
 }
+
+/**
+ * Untrusted payment response metadata echoed by a Personal Server.
+ *
+ * @remarks
+ * The SDK validates every field before exposing this shape, but the response
+ * header is not signed by the gateway. Use it for display and debugging only,
+ * never as accounting proof that a payment occurred.
+ */
+export type DirectPaymentResponseMetadata = DirectPaymentReceipt;
 
 /**
  * Per-op fee breakdown reported by the gateway.

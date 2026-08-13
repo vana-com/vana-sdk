@@ -256,16 +256,18 @@ export interface RegisterDataPointResult {
 
 // ── Escrow / data-access payment path ───────────────────────────────────────
 // /v1/escrow/pay debits the payer's escrow balance for a payable op. For a
-// grant: opType = 'grant', opId = the bytes32 grantId. amount, paymentNonce,
-// and asset are decimal-uint256 strings on the wire. The signature is the
+// Legacy grants use opType='grant' and opId=grantId. Standalone receipt-bound
+// reads use opType='data_access' and opId=accessRecord.recordId. amount and
+// paymentNonce are decimal uint256 strings on the wire. The signature is the
 // raw EIP-712 hex of GENERIC_PAYMENT_TYPES against escrowPaymentDomain.
 
 // A server-signed delivery receipt attached to a data-access payment. The
 // signature is over RECORD_DATA_ACCESS_TYPES against dataRegistryDomain; the
 // signer must be a personal server the data point's owner has registered as
-// trusted. The gateway re-uses this signature verbatim on-chain in the next
-// /v1/settle pass via DataRegistryV2.recordDataAccess, where `recordId`
-// dedupes via `_usedRecordIds`.
+// trusted. Shape validation in clients does not verify this signature; the
+// gateway verifies it before re-using it on-chain in the next /v1/settle pass
+// via DataRegistryV2.recordDataAccess, where `recordId` dedupes via
+// `_usedRecordIds`.
 export interface AccessRecord {
   dataPointId: string;
   // Decimal-string uint256 — the data point version being attested to.

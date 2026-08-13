@@ -50,12 +50,18 @@ export {
 } from "./direct/personal-server-read";
 // Escrow-backed payment (built on protocol/escrow).
 export {
+  authorizeEscrowPayment,
   authorizeGrantPayment,
+  buildEscrowPaymentHeader,
+  buildGrantPaymentHeader,
+  paymentResponseMetadataFromHeader,
   toDirectPaymentReceipt,
   toDirectFeeBreakdown,
   createDefaultNonceSource,
+  DATA_ACCESS_OP_TYPE,
   GRANT_OP_TYPE,
   type EscrowPaymentConfig,
+  type EscrowPaymentHeaderConfig,
   type SignTypedDataFn,
   type PaymentNonceSource,
 } from "./direct/escrow-payment";
@@ -86,8 +92,12 @@ export type {
   ApprovedDataResult,
   AccessRequestClient,
   DirectOpTypeValue,
+  PersonalServerDataAccessPaymentOperation,
+  PersonalServerGrantPaymentOperation,
+  PersonalServerPaymentOperation,
   PersonalServerPaymentRequired,
   DirectPaymentReceipt,
+  DirectPaymentResponseMetadata,
   DirectFeeBreakdown,
 } from "./direct/types";
 

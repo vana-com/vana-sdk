@@ -10,6 +10,9 @@ export const NODE_ENTRY_POINTS = [
   "src/platform.node.ts",
   // Direct Data Controller (server-side; owns the app private key).
   "src/server.ts",
+  // Server-only direct read/payment helpers.
+  "src/direct/escrow-payment.ts",
+  "src/direct/personal-server-read.ts",
   // Session Relay service integration (builder and app handoff clients).
   "src/session-relay.ts",
 ];

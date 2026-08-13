@@ -4,11 +4,11 @@
  * @remarks
  * The read targets the Personal Server data path (`/v1/data/{scope}`),
  * authenticates with a Web3Signed header (built on {@link buildWeb3SignedHeader}),
- * and — on `402 Payment Required` — settles the grant's data-access fee through
- * the DPv2 escrow gateway and retries once.
+ * and — on `402 Payment Required` — signs the challenged escrow operation and
+ * retries once.
  *
- * The 402 body is parsed into a {@link PersonalServerPaymentRequired} (grant id,
- * asset, and amount owed), which drives the escrow settlement.
+ * The 402 body is parsed into a validated grant or receipt-bound data-access
+ * operation, which drives the escrow settlement.
  *
  * @category Direct
  * @module direct/personal-server-read
@@ -21,15 +21,17 @@ import {
   type EscrowAccessRecord,
 } from "../protocol/escrow";
 import {
-  buildGrantPaymentHeader,
+  buildEscrowPaymentHeader,
+  DATA_ACCESS_OP_TYPE,
   GRANT_OP_TYPE,
-  paymentReceiptFromHeader,
-  type EscrowPaymentConfig,
+  paymentResponseMetadataFromHeader,
+  type EscrowPaymentHeaderConfig,
 } from "./escrow-payment";
 import { PaymentRequiredError, PersonalServerReadError } from "./errors";
 import type {
-  DirectPaymentReceipt,
-  PersonalServerPaymentRequired,
+  DirectPaymentResponseMetadata,
+  PersonalServerDataAccessPaymentOperation,
+  PersonalServerPaymentOperation,
 } from "./types";
 
 /** Minimal `Response`-like shape so the read loop is testable without a DOM. */
@@ -145,12 +147,15 @@ async function fetchWithTransportRetry(
   throw lastError;
 }
 
-/** Outcome of {@link readPersonalServerData}: the payload plus optional receipt. */
+/** Outcome of {@link readPersonalServerData}. */
 export interface PersonalServerReadResult {
   /** The decoded JSON payload returned by the Personal Server. */
   data: unknown;
-  /** Present only when this read required (and settled) a payment. */
-  payment?: DirectPaymentReceipt;
+  /**
+   * Shape-validated but unauthenticated payment metadata echoed by the
+   * Personal Server. Never treat this field as accounting proof.
+   */
+  payment?: DirectPaymentResponseMetadata;
 }
 
 function stripTrailingSlash(url: string): string {
@@ -201,15 +206,41 @@ function isBytes32Hex(value: string): boolean {
   return /^0x[0-9a-fA-F]{64}$/.test(value);
 }
 
-function assertChallengeMatchesGrant(params: {
+const UINT256_MAX = (1n << 256n) - 1n;
+
+function isAddressHex(value: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+
+function isUint256Decimal(value: string, allowZero: boolean): boolean {
+  const pattern = allowZero ? /^(0|[1-9]\d*)$/ : /^[1-9]\d*$/;
+  return (
+    value.length <= UINT256_MAX.toString().length &&
+    pattern.test(value) &&
+    BigInt(value) <= UINT256_MAX
+  );
+}
+
+function isValidDataAccessRecord(record: EscrowAccessRecord): boolean {
+  return (
+    isBytes32Hex(record.dataPointId) &&
+    isUint256Decimal(record.version, false) &&
+    isAddressHex(record.accessor) &&
+    isBytes32Hex(record.recordId) &&
+    /^0x[0-9a-fA-F]{130}$/.test(record.signature)
+  );
+}
+
+function parseLegacyGrantOperation(params: {
   challengeGrantId?: string;
   challengeOpId?: string;
   challengeOpType?: string;
   grantId: string;
-}): void {
+}): { opType: typeof GRANT_OP_TYPE; opId: string } {
   const { challengeGrantId, challengeOpId, challengeOpType, grantId } = params;
 
-  if (challengeOpType && challengeOpType !== GRANT_OP_TYPE) {
+  const opType = challengeOpType ?? GRANT_OP_TYPE;
+  if (opType !== GRANT_OP_TYPE) {
     throw new PersonalServerReadError(
       "Personal Server payment challenge used an unsupported escrow op type",
       402,
@@ -217,24 +248,130 @@ function assertChallengeMatchesGrant(params: {
     );
   }
 
-  const challengedGrantId = challengeOpId ?? challengeGrantId;
-  if (!challengedGrantId) return;
+  const opId = challengeOpId ?? challengeGrantId ?? grantId;
 
-  if (!isBytes32Hex(challengedGrantId)) {
+  if (!opId || !isBytes32Hex(opId)) {
     throw new PersonalServerReadError(
       "Personal Server payment challenge used an invalid escrow op id",
       402,
-      { opId: challengedGrantId },
+      { opId },
     );
   }
 
-  if (challengedGrantId.toLowerCase() !== grantId.toLowerCase()) {
+  if (opId.toLowerCase() !== grantId.toLowerCase()) {
     throw new PersonalServerReadError(
       "Personal Server payment challenge did not match the requested grant",
       402,
-      { opId: challengedGrantId, grantId },
+      { opId, grantId },
     );
   }
+
+  return { opType: GRANT_OP_TYPE, opId };
+}
+
+function hasDataAccessMarker(body: Record<string, unknown>): boolean {
+  if (stringField(body, "opType") === DATA_ACCESS_OP_TYPE) return true;
+  return (
+    Array.isArray(body.accepts) &&
+    body.accepts.some((value) => {
+      const accept = asRecord(value);
+      return (
+        stringField(asRecord(accept?.message), "opType") === DATA_ACCESS_OP_TYPE
+      );
+    })
+  );
+}
+
+function parseCanonicalDataAccessAccept(
+  value: unknown,
+): Omit<PersonalServerDataAccessPaymentOperation, "grantId" | "raw"> | null {
+  const accept = asRecord(value);
+  const message = asRecord(accept?.message);
+  if (
+    stringField(accept, "scheme") !== "vana-escrow-grant" ||
+    stringField(message, "opType") !== DATA_ACCESS_OP_TYPE
+  ) {
+    return null;
+  }
+
+  const network = stringField(accept, "network");
+  const payerAddress = stringField(message, "payerAddress");
+  const opId = stringField(message, "opId");
+  const asset = stringField(message, "asset");
+  const amount = stringField(message, "amount");
+  const paymentNonce = stringField(message, "paymentNonce");
+  const accessRecord = parseAccessRecord(accept?.accessRecord);
+  const acceptAsset = stringField(accept, "asset");
+  const acceptAmount = stringField(accept, "amount");
+
+  if (
+    !network ||
+    !payerAddress ||
+    !isAddressHex(payerAddress) ||
+    !opId ||
+    !isBytes32Hex(opId) ||
+    !asset ||
+    !isAddressHex(asset) ||
+    !amount ||
+    !isUint256Decimal(amount, true) ||
+    !paymentNonce ||
+    !isUint256Decimal(paymentNonce, false) ||
+    !accessRecord ||
+    !isValidDataAccessRecord(accessRecord) ||
+    payerAddress.toLowerCase() !== accessRecord.accessor.toLowerCase() ||
+    opId.toLowerCase() !== accessRecord.recordId.toLowerCase() ||
+    !acceptAsset ||
+    acceptAsset.toLowerCase() !== asset.toLowerCase() ||
+    acceptAmount !== amount
+  ) {
+    return null;
+  }
+
+  return {
+    opType: DATA_ACCESS_OP_TYPE,
+    opId,
+    network,
+    paymentNonce,
+    accessRecord,
+    asset,
+    amount,
+  };
+}
+
+function parseCanonicalDataAccessPayment(params: {
+  body: Record<string, unknown>;
+  grantId: string;
+  raw: unknown;
+}): PersonalServerDataAccessPaymentOperation | undefined {
+  const { body, grantId, raw } = params;
+  if (body.x402Version !== 1 || body.error !== "PAYMENT_REQUIRED") {
+    throw new PersonalServerReadError(
+      "Personal Server data-access payment response was not a canonical x402 challenge",
+      402,
+    );
+  }
+
+  const operation = Array.isArray(body.accepts)
+    ? body.accepts
+        .map(parseCanonicalDataAccessAccept)
+        .find((candidate) => candidate !== null)
+    : undefined;
+  if (!operation) {
+    return undefined;
+  }
+
+  return { grantId, raw, ...operation };
+}
+
+function preferredLegacyAccept(body: Record<string, unknown>) {
+  if (!Array.isArray(body.accepts)) return undefined;
+  return body.accepts.map(asRecord).find((accept) => {
+    const message = asRecord(accept?.message);
+    return (
+      stringField(accept, "scheme") === "vana-escrow-grant" &&
+      stringField(message, "opType") === GRANT_OP_TYPE
+    );
+  });
 }
 
 /**
@@ -270,20 +407,27 @@ export async function buildPersonalServerDataReadRequest(params: {
 }
 
 /**
- * Parse a `402 Payment Required` body into a {@link PersonalServerPaymentRequired}.
+ * Parse a `402 Payment Required` body into a validated payment operation.
  *
  * @remarks
  * Accepts a few field spellings and falls back to the read's own grantId and the
- * native asset when a field is absent.
+ * native asset when a field is absent from a legacy grant challenge.
+ *
+ * Receipt-bound `data_access` uses a fail-closed canonical path: one compatible
+ * `accepts` entry must contain the scheme, network, message, and complete
+ * receipt. Its positive uint256 `paymentNonce` is mandatory because the
+ * Personal Server encodes challenge freshness in that nonce and checks it on
+ * retry. This parser shape-validates the receipt and binds `opId` to `recordId`;
+ * it does not recover or verify the server signature.
  *
  * @param res - The 402 response.
- * @param grantId - The grant id of the read (default `opId`).
+ * @param grantId - The grant id of the read (default legacy grant `opId`).
  * @returns The parsed payment requirement.
  */
 export async function parsePersonalServerPaymentRequired(
   res: FetchResponseLike,
   grantId: string,
-): Promise<PersonalServerPaymentRequired> {
+): Promise<PersonalServerPaymentOperation> {
   let raw: unknown = undefined;
   try {
     raw = await res.json();
@@ -291,18 +435,107 @@ export async function parsePersonalServerPaymentRequired(
     raw = undefined;
   }
   const body = asRecord(raw) ?? {};
-  const accept =
-    Array.isArray(body.accepts) && body.accepts.length > 0
-      ? asRecord(body.accepts[0])
-      : undefined;
-  const message = asRecord(accept?.message);
-  const challengeGrantId = stringField(body, "grantId");
-  const challengeOpId =
-    stringField(message, "opId") ?? stringField(body, "opId");
-  const challengeOpType =
-    stringField(message, "opType") ?? stringField(body, "opType");
+  if (hasDataAccessMarker(body)) {
+    const dataAccessOperation = parseCanonicalDataAccessPayment({
+      body,
+      grantId,
+      raw,
+    });
+    if (dataAccessOperation) return dataAccessOperation;
+  }
 
-  assertChallengeMatchesGrant({
+  // Legacy grant challenges predate the canonical x402 envelope. Retain their
+  // field fallbacks only for truly flat bodies. Once an accepts envelope is
+  // present, validate its canonical framing and select only a compatible offer.
+  const hasAcceptsEnvelope = Object.prototype.hasOwnProperty.call(
+    body,
+    "accepts",
+  );
+  if (
+    hasAcceptsEnvelope &&
+    (body.x402Version !== 1 || body.error !== "PAYMENT_REQUIRED")
+  ) {
+    throw new PersonalServerReadError(
+      "Personal Server grant payment response was not a canonical x402 challenge",
+      402,
+    );
+  }
+  const accept = preferredLegacyAccept(body);
+  if (hasDataAccessMarker(body) && !accept) {
+    throw new PersonalServerReadError(
+      "Personal Server data-access payment challenge was untrusted or incomplete",
+      402,
+    );
+  }
+  if (hasAcceptsEnvelope && !accept) {
+    throw new PersonalServerReadError(
+      "Personal Server grant payment challenge had no compatible escrow offer",
+      402,
+    );
+  }
+
+  if (accept) {
+    const message = asRecord(accept.message);
+    const network = stringField(accept, "network");
+    const payerAddress = stringField(message, "payerAddress");
+    const opId = stringField(message, "opId");
+    const asset = stringField(message, "asset");
+    const amount = stringField(message, "amount");
+    const paymentNonce = stringField(message, "paymentNonce");
+    const acceptAsset = stringField(accept, "asset");
+    const acceptAmount = stringField(accept, "amount");
+    const accessRecord = parseAccessRecord(accept.accessRecord);
+    const hasAccessRecord = accept.accessRecord !== undefined;
+    if (
+      !network ||
+      !payerAddress ||
+      !isAddressHex(payerAddress) ||
+      !opId ||
+      !isBytes32Hex(opId) ||
+      !asset ||
+      !isAddressHex(asset) ||
+      !amount ||
+      !isUint256Decimal(amount, true) ||
+      !paymentNonce ||
+      !isUint256Decimal(paymentNonce, false) ||
+      !acceptAsset ||
+      acceptAsset.toLowerCase() !== asset.toLowerCase() ||
+      acceptAmount !== amount ||
+      (hasAccessRecord &&
+        (!accessRecord ||
+          !isValidDataAccessRecord(accessRecord) ||
+          accessRecord.accessor.toLowerCase() !==
+            payerAddress.toLowerCase())) ||
+      (amount === "0" && !accessRecord)
+    ) {
+      throw new PersonalServerReadError(
+        "Personal Server grant payment challenge was untrusted or incomplete",
+        402,
+      );
+    }
+    const operation = parseLegacyGrantOperation({
+      challengeOpId: opId,
+      challengeOpType: stringField(message, "opType"),
+      grantId,
+    });
+    return {
+      grantId,
+      ...operation,
+      network,
+      paymentNonce,
+      asset,
+      amount,
+      raw,
+      ...(accessRecord ? { accessRecord } : {}),
+    };
+  }
+
+  const challengeGrantId = stringField(body, "grantId");
+  const challengeOpId = stringField(body, "opId");
+  const challengeOpType = stringField(body, "opType");
+
+  const accessRecord = parseAccessRecord(body.accessRecord);
+  const operation = parseLegacyGrantOperation({
     challengeGrantId,
     challengeOpId,
     challengeOpType,
@@ -310,22 +543,21 @@ export async function parsePersonalServerPaymentRequired(
   });
 
   const amountValue =
-    stringField(message, "amount") ??
     stringField(body, "amount") ??
     stringField(body, "maxAmountRequired") ??
     "0";
-  return {
+  const payment = {
     grantId,
-    network: stringField(accept, "network") ?? stringField(body, "network"),
-    paymentNonce:
-      stringField(message, "paymentNonce") ?? stringField(body, "paymentNonce"),
-    accessRecord: parseAccessRecord(accept?.accessRecord ?? body.accessRecord),
-    asset:
-      stringField(message, "asset") ??
-      stringField(body, "asset") ??
-      NATIVE_ASSET_ADDRESS,
+    network: stringField(body, "network"),
+    paymentNonce: stringField(body, "paymentNonce"),
+    asset: stringField(body, "asset") ?? NATIVE_ASSET_ADDRESS,
     amount: amountValue,
     raw,
+  };
+  return {
+    ...payment,
+    ...operation,
+    ...(accessRecord ? { accessRecord } : {}),
   };
 }
 
@@ -334,14 +566,27 @@ function hasPositiveAmount(amount: string): boolean {
   return BigInt(amount) > 0n;
 }
 
+function isReceiptOnlyGrantAcknowledgment(
+  required: PersonalServerPaymentOperation,
+  payerAddress: string,
+): boolean {
+  return (
+    required.opType === GRANT_OP_TYPE &&
+    required.amount === "0" &&
+    required.accessRecord !== undefined &&
+    isValidDataAccessRecord(required.accessRecord) &&
+    required.accessRecord.accessor.toLowerCase() === payerAddress.toLowerCase()
+  );
+}
+
 /**
  * Read approved data from a Personal Server, settling a 402 via escrow.
  *
  * @remarks
  * Sends a Web3Signed-authenticated `GET /v1/data/{scope}`. On `402`, parses what
- * is owed, authorizes an escrow payment for the grant via `escrow`, and retries
- * once. If escrow is not configured, throws {@link PaymentRequiredError} carrying
- * the parsed requirement so callers can debug amount/asset.
+ * is owed, authorizes the challenged escrow operation, and retries once. If
+ * escrow is not configured, throws {@link PaymentRequiredError} carrying the
+ * parsed requirement so callers can debug amount/asset.
  *
  * Transport failures (fetch throwing — the browser-PS relay reconnect window)
  * are retried with backoff per `transportRetry` (default 3 attempts). The paid
@@ -357,7 +602,7 @@ export async function readPersonalServerData(params: {
   grantId: string;
   payerAddress: `0x${string}`;
   signMessage: Web3SignedSignFn;
-  escrow?: EscrowPaymentConfig;
+  escrow?: EscrowPaymentHeaderConfig;
   fetchFn?: PersonalServerFetch;
   transportRetry?: PersonalServerTransportRetryOptions;
 }): Promise<PersonalServerReadResult> {
@@ -387,7 +632,7 @@ export async function readPersonalServerData(params: {
     transportRetry,
   );
 
-  let payment: DirectPaymentReceipt | undefined;
+  let payment: DirectPaymentResponseMetadata | undefined;
 
   if (res.status === 402) {
     const required = await parsePersonalServerPaymentRequired(
@@ -406,9 +651,13 @@ export async function readPersonalServerData(params: {
       );
     }
 
-    if (!hasPositiveAmount(required.amount)) {
+    if (
+      required.opType === GRANT_OP_TYPE &&
+      !hasPositiveAmount(required.amount) &&
+      !isReceiptOnlyGrantAcknowledgment(required, params.payerAddress)
+    ) {
       throw new PaymentRequiredError(
-        "Personal Server payment challenge did not include a positive amount",
+        "Personal Server payment challenge included neither a positive amount nor a valid access receipt",
         {
           scope: params.scope,
           grantId: required.grantId,
@@ -418,7 +667,7 @@ export async function readPersonalServerData(params: {
       );
     }
 
-    const paymentHeader = await buildGrantPaymentHeader({
+    const paymentHeader = await buildEscrowPaymentHeader({
       payerAddress: params.payerAddress,
       required,
       config: params.escrow,
@@ -463,6 +712,8 @@ export async function readPersonalServerData(params: {
     );
   }
 
-  payment = paymentReceiptFromHeader(res.headers.get("X-PAYMENT-RESPONSE"));
+  payment = paymentResponseMetadataFromHeader(
+    res.headers.get("X-PAYMENT-RESPONSE"),
+  );
   return { data: await res.json(), payment };
 }

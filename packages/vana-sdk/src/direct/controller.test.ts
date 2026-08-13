@@ -323,9 +323,6 @@ function mockEscrowConfig(
 ): DirectEscrowConfig {
   return {
     client: {
-      submitDeposit: vi.fn(),
-      getEscrowBalance: vi.fn(),
-      syncEscrowBalance: vi.fn(),
       payForOp,
     },
     escrowContract: "0x000000000000000000000000000000000000dEaD",
@@ -600,9 +597,6 @@ function makeControllerWithPaymentCapture(
 
   const spyPayForOp = vi.fn(async () => payResultFixture());
   const spyClient = {
-    submitDeposit: vi.fn(),
-    getEscrowBalance: vi.fn(),
-    syncEscrowBalance: vi.fn(),
     payForOp: spyPayForOp,
   };
 

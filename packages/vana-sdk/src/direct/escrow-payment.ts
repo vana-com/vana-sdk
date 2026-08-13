@@ -24,7 +24,7 @@ import {
   NATIVE_ASSET_ADDRESS,
   genericPaymentDomain,
   type EscrowAccessRecord,
-  type EscrowGatewayClient,
+  type EscrowPaymentClient,
   type EscrowPayResult,
   type PaymentBreakdown,
 } from "../protocol/escrow";
@@ -115,7 +115,7 @@ export interface EscrowPaymentHeaderConfig {
  */
 export interface EscrowPaymentConfig extends EscrowPaymentHeaderConfig {
   /** Client for the gateway escrow endpoints (`/v1/escrow/*`). */
-  client: EscrowGatewayClient;
+  client: EscrowPaymentClient;
 }
 
 /** Map the gateway {@link PaymentBreakdown} into the public {@link DirectFeeBreakdown}. */

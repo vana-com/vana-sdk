@@ -1,3 +1,13 @@
+import type { EscrowBalanceResult } from "./escrow";
+
+export type {
+  EscrowBalanceEntry,
+  EscrowBalanceResult,
+  FailedDepositEntry as EscrowDepositFailed,
+  FinalizedDepositEntry as EscrowDepositFinalized,
+  SubmittedDepositEntry as EscrowDepositSubmitted,
+} from "./escrow";
+
 export interface GatewayEnvelope<T> {
   data: T;
   proof: GatewayProof;
@@ -413,59 +423,11 @@ export interface SettleResult {
   paced?: { iterations: number };
 }
 
-// /v1/escrow/balance?account=... — pure read. Returns finalized balances by
-// asset, plus the lifecycle breakdown of deposits.
-export interface EscrowBalanceEntry {
-  asset: string;
-  // Gross credited deposits for (account, asset). Decremented only when the
-  // reconcile pass marks a payment finalized — NOT on /v1/escrow/pay.
-  balance: string;
-  // Sum of claimedAmount for deposits still in 'submitted' status — surfaced
-  // separately so clients don't conflate "credited" with "deposit announced
-  // but not yet confirmed."
-  pendingAmount: string;
-  // Sum of payments.amount for (account, asset) regardless of settled status —
-  // mirrors the /v1/escrow/pay handler's soft-lock counter. Subtract from
-  // `balance` to see how much the payer can still authorise.
-  authorizedAmount: string;
-  // `max(balance − authorizedAmount, 0)`. The headroom a payer has against
-  // the soft-lock before /v1/escrow/pay starts returning 402.
-  availableAmount: string;
-  updatedAt: string | null;
-}
-
-export interface EscrowDepositSubmitted {
-  txHash: string;
-  submittedAt: string;
-  claimedAsset: string;
-  claimedAmount: string;
-}
-
-export interface EscrowDepositFinalized {
-  txHash: string;
-  finalizedAt: string | null;
-  blockNumber: string | null;
-  claimedAsset: string;
-  claimedAmount: string;
-}
-
-export interface EscrowDepositFailed {
-  txHash: string;
-  submittedAt: string;
-  claimedAsset: string;
-  claimedAmount: string;
-  lastError: string | null;
-}
-
-export interface EscrowBalance {
-  account: string;
-  balances: EscrowBalanceEntry[];
-  deposits: {
-    submitted: EscrowDepositSubmitted[];
-    finalized: EscrowDepositFinalized[];
-    failed: EscrowDepositFailed[];
-  };
-}
+/**
+ * Legacy `GatewayClient` name for the canonical `/v1/escrow/balance` response.
+ * `availableAmount` is `max(balance − authorizedAmount − withdrawingAmount, 0)`.
+ */
+export type EscrowBalance = EscrowBalanceResult;
 
 // /v1/escrow/deposit announces an on-chain deposit tx so the gateway can
 // reconcile it into the payer's balance. The gateway extracts the credited
@@ -526,7 +488,7 @@ export interface GatewayClient {
   ): Promise<RegisterDataPointResult>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
-  getEscrowBalance(account: string): Promise<EscrowBalance>;
+  getEscrowBalance(account: string): Promise<EscrowBalanceResult>;
   submitEscrowDeposit(params: SubmitDepositParams): Promise<DepositState>;
   payForOperation(
     params: PayForOperationParams,
@@ -830,7 +792,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       }
     },
 
-    async getEscrowBalance(account: string): Promise<EscrowBalance> {
+    async getEscrowBalance(account: string): Promise<EscrowBalanceResult> {
       const res = await fetch(`${base}/v1/escrow/balance?account=${account}`);
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
@@ -838,7 +800,7 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       // Unlike the rest of /v1, the balance endpoint returns the body
       // directly (no GatewayEnvelope wrap) — it's a pure read with no
       // gateway-signed attestation. See data-gateway api/v1/escrow/balance.ts.
-      return (await res.json()) as EscrowBalance;
+      return (await res.json()) as EscrowBalanceResult;
     },
 
     async submitEscrowDeposit(

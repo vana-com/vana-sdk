@@ -17,7 +17,14 @@
  * @module escrow
  */
 
+export {
+  buildWithdrawAuthorizationTypedData,
+  withdrawAuthorizationDomain,
+  WITHDRAW_AUTHORIZATION_TYPES,
+  type WithdrawAuthorizationMessage,
+} from "./eip712";
 import type { TypedDataDomain } from "viem";
+import { isHex } from "viem";
 
 // ---------------------------------------------------------------------------
 // EIP-712 — GenericPayment
@@ -138,14 +145,16 @@ export const NATIVE_ASSET_ADDRESS =
  * - `authorizedAmount` — sum of all in-flight payments authorized by
  *   `/v1/escrow/pay` (soft-lock). May include payments not yet settled
  *   on-chain.
- * - `availableAmount` — `max(balance − authorizedAmount, 0)`. This is what
- *   the payer can authorize before the gateway rejects with 402.
+ * - `withdrawingAmount` — sum of in-flight withdrawal reservations.
+ * - `availableAmount` — `max(balance − authorizedAmount − withdrawingAmount, 0)`.
+ *   This is what the account can still authorize or withdraw.
  */
 export interface EscrowBalanceEntry {
   asset: string;
   balance: string;
   pendingAmount: string;
   authorizedAmount: string;
+  withdrawingAmount: string;
   availableAmount: string;
   updatedAt: string | null;
 }
@@ -234,6 +243,82 @@ export interface EscrowPayResult {
   paidAt: string;
 }
 
+interface EscrowWithdrawalResponseBase {
+  account: `0x${string}`;
+  asset: `0x${string}`;
+  amount: string;
+  withdrawNonce: string;
+  deadline: string;
+}
+
+/** A persisted authorization whose transaction has not been broadcast yet. */
+export interface EscrowWithdrawalSubmittedWithoutTransaction extends EscrowWithdrawalResponseBase {
+  success: true;
+  status: "submitted";
+  txHash: null;
+  message: string;
+}
+
+/** A withdrawal with a persisted transaction that is awaiting reconciliation. */
+export interface EscrowWithdrawalSubmittedWithTransaction {
+  success: true;
+  status: "submitted";
+  txHash: `0x${string}`;
+  message: string;
+  // A provisional-revert response contains only txHash, blockNumber, and
+  // message. Ordinary submissions include the signed-intent fields.
+  account?: `0x${string}`;
+  asset?: `0x${string}`;
+  amount?: string;
+  withdrawNonce?: string;
+  deadline?: string;
+  blockNumber?: string;
+}
+
+/** A withdrawal that the gateway has accepted but not yet confirmed. */
+export type EscrowWithdrawalSubmittedResult =
+  | EscrowWithdrawalSubmittedWithoutTransaction
+  | EscrowWithdrawalSubmittedWithTransaction;
+
+/** A withdrawal whose on-chain debit has reached the named lifecycle state. */
+export interface EscrowWithdrawalSettledResult extends EscrowWithdrawalResponseBase {
+  success: true;
+  status: "confirmed" | "finalized";
+  txHash: `0x${string}`;
+  blockNumber: string | null;
+}
+
+/** Successful lifecycle responses from `POST /v1/escrow/withdraw`. */
+export type EscrowWithdrawalResult =
+  | EscrowWithdrawalSubmittedResult
+  | EscrowWithdrawalSettledResult;
+
+/** Terminal or retryable withdrawal lifecycle state returned with a non-2xx status. */
+export interface EscrowWithdrawalFailureResult extends EscrowWithdrawalResponseBase {
+  success: false;
+  status: "retryable" | "reorged" | "failed";
+  error: string;
+  txHash: `0x${string}` | null;
+  blockNumber?: string | null;
+}
+
+/**
+ * A typed non-2xx gateway lifecycle response.
+ *
+ * `retryable` means resend the exact signed intent. `reorged` and `failed`
+ * require a newly signed authorization with a new nonce.
+ */
+export class EscrowWithdrawalLifecycleError extends Error {
+  override readonly name = "EscrowWithdrawalLifecycleError";
+
+  constructor(
+    readonly httpStatus: number,
+    readonly result: EscrowWithdrawalFailureResult,
+  ) {
+    super(result.error);
+  }
+}
+
 /**
  * Parameters for submitting a deposit tx hash to the gateway.
  *
@@ -272,6 +357,22 @@ export interface PayForOpParams {
    * wire shape.
    */
   accessRecord?: EscrowAccessRecord;
+}
+
+/**
+ * Parameters for `POST /v1/escrow/withdraw`.
+ *
+ * `withdrawNonce` and `deadline` are caller-supplied decimal uint256 strings.
+ * The SDK intentionally does not generate a nonce: retrying safely requires a
+ * durable caller-owned nonce source and the exact same signed payload.
+ */
+export interface WithdrawFromEscrowParams {
+  account: `0x${string}`;
+  asset: `0x${string}`;
+  amount: string;
+  withdrawNonce: string;
+  deadline: string;
+  signature: `0x${string}`;
 }
 
 /** Wire shape of a receipt whose server signature the gateway verifies. */
@@ -330,7 +431,18 @@ export interface EscrowGatewayClient {
    * records the payment. Returns 402 if the payer has insufficient balance.
    */
   payForOp(params: PayForOpParams): Promise<EscrowPayResult>;
+
+  /**
+   * Submit or reconcile a signed withdrawal authorization.
+   *
+   * Retry a `submitted` result with the exact same parameters. Do not replace
+   * `withdrawNonce`, `deadline`, or signature unless starting a new intent.
+   */
+  withdraw(params: WithdrawFromEscrowParams): Promise<EscrowWithdrawalResult>;
 }
+
+/** The only gateway capability required by direct data-access payment flows. */
+export type EscrowPaymentClient = Pick<EscrowGatewayClient, "payForOp">;
 
 /**
  * Creates a client for the gateway escrow endpoints.
@@ -399,6 +511,28 @@ export function createEscrowGatewayClient(
     }
   }
 
+  async function throwOnWithdrawError(res: Response): Promise<void> {
+    if (res.ok) return;
+
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      throw new Error(
+        `Escrow gateway error (POST /v1/escrow/withdraw): ${res.status} ${res.statusText}`,
+      );
+    }
+
+    if (isEscrowWithdrawalFailureResult(body)) {
+      throw new EscrowWithdrawalLifecycleError(res.status, body);
+    }
+
+    const error = getGatewayErrorMessage(body);
+    throw new Error(
+      `Escrow gateway error (POST /v1/escrow/withdraw): ${res.status} ${res.statusText}${error ? `: ${error}` : ""}`,
+    );
+  }
+
   return {
     async submitDeposit({ txHash }) {
       const res = await fetch(`${base}/v1/escrow/deposit`, {
@@ -459,5 +593,92 @@ export function createEscrowGatewayClient(
       await throwOnError(res, "POST /v1/escrow/pay");
       return res.json() as Promise<EscrowPayResult>;
     },
+
+    async withdraw({
+      account,
+      asset,
+      amount,
+      withdrawNonce,
+      deadline,
+      signature,
+    }) {
+      const res = await fetch(`${base}/v1/escrow/withdraw`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${signature}`,
+        },
+        body: JSON.stringify({
+          account,
+          asset,
+          amount,
+          withdrawNonce,
+          deadline,
+        }),
+      });
+      await throwOnWithdrawError(res);
+      return res.json() as Promise<EscrowWithdrawalResult>;
+    },
   };
+}
+
+function getGatewayErrorMessage(body: unknown): string | undefined {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "error" in body &&
+    typeof body.error === "string"
+  ) {
+    return body.error;
+  }
+  return undefined;
+}
+
+function isEscrowWithdrawalFailureResult(
+  body: unknown,
+): body is EscrowWithdrawalFailureResult {
+  if (typeof body !== "object" || body === null) return false;
+  const value = body as Record<string, unknown>;
+  return (
+    value.success === false &&
+    (value.status === "retryable" ||
+      value.status === "reorged" ||
+      value.status === "failed") &&
+    typeof value.error === "string" &&
+    isAddressHex(value.account) &&
+    isAddressHex(value.asset) &&
+    isUint256Decimal(value.amount) &&
+    isUint256Decimal(value.withdrawNonce) &&
+    isUint256Decimal(value.deadline) &&
+    (isHash(value.txHash) || value.txHash === null) &&
+    (!("blockNumber" in value) || isBlockNumber(value.blockNumber))
+  );
+}
+
+function isAddressHex(value: unknown): value is `0x${string}` {
+  return (
+    typeof value === "string" &&
+    isHex(value, { strict: true }) &&
+    value.length === 42
+  );
+}
+
+function isHash(value: unknown): value is `0x${string}` {
+  return (
+    typeof value === "string" &&
+    isHex(value, { strict: true }) &&
+    value.length === 66
+  );
+}
+
+function isUint256Decimal(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 78) {
+    return false;
+  }
+  if (!/^(0|[1-9]\d*)$/.test(value)) return false;
+  return BigInt(value) <= 2n ** 256n - 1n;
+}
+
+function isBlockNumber(value: unknown): value is string | null {
+  return value === null || isUint256Decimal(value);
 }

@@ -94,7 +94,7 @@ function validateTypeScriptConsumer(consumerDir: string): void {
     [
       'import { createSessionRelayBuilderClient, SessionRelayError, type SessionRelayInitResult } from "@opendatalabs/vana-sdk/session-relay";',
       'import { buildEscrowPaymentHeader, type EscrowPaymentConfig, type EscrowPaymentHeaderConfig, type PersonalServerPaymentOperation, type SignTypedDataFn } from "@opendatalabs/vana-sdk/server";',
-      'import { buildWithdrawAuthorizationTypedData, createEscrowGatewayClient, EscrowWithdrawalLifecycleError, type EscrowWithdrawalResult } from "@opendatalabs/vana-sdk/node";',
+      'import { buildWithdrawAuthorizationTypedData, createEscrowGatewayClient, EscrowWithdrawalLifecycleError, EscrowWithdrawalRejectionError, type EscrowWithdrawalResult } from "@opendatalabs/vana-sdk/node";',
       'import { buildEscrowPaymentHeader as buildDirectEscrowPaymentHeader } from "@opendatalabs/vana-sdk/direct/escrow-payment";',
       'import { readPersonalServerData } from "@opendatalabs/vana-sdk/direct/personal-server-read";',
       "",
@@ -131,6 +131,7 @@ function validateTypeScriptConsumer(consumerDir: string): void {
       "void buildWithdrawAuthorizationTypedData;",
       "void createEscrowGatewayClient;",
       "void EscrowWithdrawalLifecycleError;",
+      "void EscrowWithdrawalRejectionError;",
       "void buildDirectEscrowPaymentHeader;",
       "void readPersonalServerData;",
       "",
@@ -195,7 +196,7 @@ try {
     [
       "--input-type=module",
       "-e",
-      'const sdk = await import("@opendatalabs/vana-sdk/node"); for (const name of ["buildWithdrawAuthorizationTypedData", "createEscrowGatewayClient", "EscrowWithdrawalLifecycleError"]) if (!(name in sdk)) throw new Error(`Node entry point is missing ${name}`);',
+      'const sdk = await import("@opendatalabs/vana-sdk/node"); for (const name of ["buildWithdrawAuthorizationTypedData", "createEscrowGatewayClient", "EscrowWithdrawalLifecycleError", "EscrowWithdrawalRejectionError"]) if (!(name in sdk)) throw new Error(`Node entry point is missing ${name}`);',
     ],
     consumerDir,
   );

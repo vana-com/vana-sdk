@@ -418,6 +418,7 @@ describe("createEscrowGatewayClient", () => {
         asset: ZERO,
         amount: withdrawParams.amount,
         withdrawNonce: withdrawParams.withdrawNonce,
+        deadline: withdrawParams.deadline,
         txHash: TX_HASH,
         blockNumber: "123",
       };
@@ -430,6 +431,7 @@ describe("createEscrowGatewayClient", () => {
       const client = createEscrowGatewayClient(GATEWAY);
       expect(await client.withdraw(withdrawParams)).toEqual(submitted);
       expect(await client.withdraw(withdrawParams)).toEqual(confirmed);
+      expect(confirmed.deadline).toBe(withdrawParams.deadline);
 
       const firstBody = (fetchMock.mock.calls[0]?.[1] as RequestInit).body;
       const retryBody = (fetchMock.mock.calls[1]?.[1] as RequestInit).body;

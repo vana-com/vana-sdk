@@ -158,6 +158,7 @@ describe("createEscrowGatewayClient", () => {
           authorizedAmount: "500000000000000000",
           withdrawingAmount: "0",
           availableAmount: "500000000000000000",
+          withdrawalMinimumAmount: "100000000000000000",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
       ],
@@ -172,6 +173,9 @@ describe("createEscrowGatewayClient", () => {
         await createEscrowGatewayClient(GATEWAY).getEscrowBalance(ACCOUNT);
 
       expect(result).toEqual(balanceBody);
+      expect(result.balances[0]?.withdrawalMinimumAmount).toBe(
+        "100000000000000000",
+      );
       expect(fetchMock).toHaveBeenCalledWith(
         `${GATEWAY}/v1/escrow/balance?account=${encodeURIComponent(ACCOUNT)}`,
       );
@@ -220,6 +224,7 @@ describe("createEscrowGatewayClient", () => {
           authorizedAmount: "0",
           withdrawingAmount: "0",
           availableAmount: "2000000000000000000",
+          withdrawalMinimumAmount: null,
           updatedAt: "2026-01-01T00:02:00.000Z",
         },
       ],

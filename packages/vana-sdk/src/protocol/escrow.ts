@@ -156,6 +156,8 @@ export interface EscrowBalanceEntry {
   authorizedAmount: string;
   withdrawingAmount: string;
   availableAmount: string;
+  /** Minimum withdrawal amount currently accepted for this asset, if configured. */
+  withdrawalMinimumAmount: string | null;
   updatedAt: string | null;
 }
 

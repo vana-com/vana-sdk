@@ -5,6 +5,7 @@ import {
   GENERIC_PAYMENT_TYPES,
   NATIVE_ASSET_ADDRESS,
   EscrowWithdrawalLifecycleError,
+  EscrowWithdrawalRejectionError,
   createEscrowGatewayClient,
   genericPaymentDomain,
 } from "./escrow";
@@ -14,7 +15,7 @@ const ACCOUNT = "0xDeAdBeEf00000000000000000000000000000001" as const;
 const SIG =
   "0xdeadbeef000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001" as const;
 const TX_HASH =
-  "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab" as const;
+  "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as const;
 const LIFECYCLE_TX_HASH =
   "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as const;
 const ZERO = "0x0000000000000000000000000000000000000000" as `0x${string}`;
@@ -485,6 +486,46 @@ describe("createEscrowGatewayClient", () => {
       await expect(
         createEscrowGatewayClient(GATEWAY).withdraw(withdrawParams),
       ).rejects.toThrow("deadline has passed");
+    });
+
+    it("preserves definite pre-acceptance rejection codes", async () => {
+      const body = {
+        success: false as const,
+        status: "rejected" as const,
+        code: "insufficient_available" as const,
+        error: "Insufficient available balance for withdrawal",
+        account: withdrawParams.account,
+        asset: withdrawParams.asset,
+        amount: withdrawParams.amount,
+        withdrawNonce: withdrawParams.withdrawNonce,
+        deadline: withdrawParams.deadline,
+        balance: "500",
+        authorizedAmount: "0",
+        withdrawingAmount: "0",
+        availableAmount: "500",
+        requestedAmount: withdrawParams.amount,
+      };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          jsonResponse(body, {
+            status: 400,
+            statusText: "Bad Request",
+          }),
+        ),
+      );
+
+      try {
+        await createEscrowGatewayClient(GATEWAY).withdraw(withdrawParams);
+        throw new Error("expected a rejection error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(EscrowWithdrawalRejectionError);
+        expect(error).toMatchObject({
+          name: "EscrowWithdrawalRejectionError",
+          httpStatus: 400,
+          result: body,
+        });
+      }
     });
 
     it.each([

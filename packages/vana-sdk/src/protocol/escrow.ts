@@ -302,6 +302,27 @@ export interface EscrowWithdrawalFailureResult extends EscrowWithdrawalResponseB
   blockNumber?: string | null;
 }
 
+export type EscrowWithdrawalRejectionCode =
+  | "below_minimum"
+  | "deadline_too_far"
+  | "expired"
+  | "insufficient_available"
+  | "stale_nonce";
+
+/** Definite pre-acceptance rejection. No durable withdrawal intent was created. */
+export interface EscrowWithdrawalRejectedResult extends EscrowWithdrawalResponseBase {
+  success: false;
+  status: "rejected";
+  code: EscrowWithdrawalRejectionCode;
+  error: string;
+  balance?: string;
+  authorizedAmount?: string;
+  withdrawingAmount?: string;
+  availableAmount?: string;
+  requestedAmount?: string;
+  minimumAmount?: string;
+}
+
 /**
  * A typed non-2xx gateway lifecycle response.
  *
@@ -314,6 +335,18 @@ export class EscrowWithdrawalLifecycleError extends Error {
   constructor(
     readonly httpStatus: number,
     readonly result: EscrowWithdrawalFailureResult,
+  ) {
+    super(result.error);
+  }
+}
+
+/** A typed non-2xx gateway rejection before a withdrawal intent is accepted. */
+export class EscrowWithdrawalRejectionError extends Error {
+  override readonly name = "EscrowWithdrawalRejectionError";
+
+  constructor(
+    readonly httpStatus: number,
+    readonly result: EscrowWithdrawalRejectedResult,
   ) {
     super(result.error);
   }
@@ -526,6 +559,9 @@ export function createEscrowGatewayClient(
     if (isEscrowWithdrawalFailureResult(body)) {
       throw new EscrowWithdrawalLifecycleError(res.status, body);
     }
+    if (isEscrowWithdrawalRejectedResult(body)) {
+      throw new EscrowWithdrawalRejectionError(res.status, body);
+    }
 
     const error = getGatewayErrorMessage(body);
     throw new Error(
@@ -653,6 +689,46 @@ function isEscrowWithdrawalFailureResult(
     (isHash(value.txHash) || value.txHash === null) &&
     (!("blockNumber" in value) || isBlockNumber(value.blockNumber))
   );
+}
+
+function isEscrowWithdrawalRejectedResult(
+  body: unknown,
+): body is EscrowWithdrawalRejectedResult {
+  if (typeof body !== "object" || body === null) return false;
+  const value = body as Record<string, unknown>;
+  return (
+    value.success === false &&
+    value.status === "rejected" &&
+    isWithdrawalRejectionCode(value.code) &&
+    typeof value.error === "string" &&
+    isAddressHex(value.account) &&
+    isAddressHex(value.asset) &&
+    isUint256Decimal(value.amount) &&
+    isUint256Decimal(value.withdrawNonce) &&
+    isUint256Decimal(value.deadline) &&
+    optionalUint256Decimal(value.balance) &&
+    optionalUint256Decimal(value.authorizedAmount) &&
+    optionalUint256Decimal(value.withdrawingAmount) &&
+    optionalUint256Decimal(value.availableAmount) &&
+    optionalUint256Decimal(value.requestedAmount) &&
+    optionalUint256Decimal(value.minimumAmount)
+  );
+}
+
+function isWithdrawalRejectionCode(
+  value: unknown,
+): value is EscrowWithdrawalRejectionCode {
+  return (
+    value === "below_minimum" ||
+    value === "deadline_too_far" ||
+    value === "expired" ||
+    value === "insufficient_available" ||
+    value === "stale_nonce"
+  );
+}
+
+function optionalUint256Decimal(value: unknown): boolean {
+  return value === undefined || isUint256Decimal(value);
 }
 
 function isAddressHex(value: unknown): value is `0x${string}` {

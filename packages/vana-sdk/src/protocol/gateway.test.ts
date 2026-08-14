@@ -497,6 +497,41 @@ describe("createGatewayClient", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("throws a typed conflict when a grants 409 carries no grant id", async () => {
+    // A stale-grantVersion 409 is NOT an idempotent replay: the registration
+    // did not apply. The gateway's body has no grantId but does include the
+    // current stored version — surface it so callers can rebase and retry
+    // instead of receiving a fabricated id-less success.
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse(
+        {
+          success: false,
+          error:
+            "Stale grantVersion 1: must be strictly greater than the current stored value 7",
+          currentGrantVersion: "7",
+        },
+        { status: 409 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.createGrant({
+        grantorAddress: "0xowner",
+        granteeId: "builder-1",
+        scopes: ["instagram.profile"],
+        grantVersion: "1",
+        expiresAt: "0",
+        signature: "sig",
+      }),
+    ).rejects.toMatchObject({
+      name: "GatewayGrantVersionConflictError",
+      status: 409,
+      currentGrantVersion: "7",
+    });
+  });
+
   it("lists servers by owner without an envelope wrap, split into active + revoked", async () => {
     const body = {
       active: [

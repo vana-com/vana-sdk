@@ -27,13 +27,27 @@ cache_root="${XDG_DATA_HOME:-$HOME/.local/share}/vana-secret-scan/policy"
 policy_dir="$cache_root/$CENTRAL_POLICY_SHA"
 lock_dir="$cache_root/.${CENTRAL_POLICY_SHA}.lock"
 
+# Git exports GIT_DIR (and friends) into hook processes. In a linked worktree
+# that value is an ABSOLUTE path, so a plain `git -C "$policy_dir" ...` still
+# resolves against the pushing repository and reports ITS remote, HEAD and
+# status instead of the policy cache's — validate_policy then rejects a
+# perfectly good cache with "unexpected policy-cache origin". (In a normal
+# checkout GIT_DIR is the relative ".git", which happens to resolve correctly
+# under -C, which is why this only bites worktrees.) Scrub the inherited
+# repository environment for every command that must target the cache.
+policy_git() {
+  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY \
+    -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR \
+    git "$@"
+}
+
 validate_policy() {
   [[ ! -L "$policy_dir" ]] || {
     printf 'Refusing symlinked policy cache: %s\n' "$policy_dir" >&2
     exit 2
   }
   [[ -d "$policy_dir/.git" ]] || return 1
-  origin=$(git -C "$policy_dir" remote get-url origin) || {
+  origin=$(policy_git -C "$policy_dir" remote get-url origin) || {
     printf 'Refusing unreadable policy cache: %s\n' "$policy_dir" >&2
     exit 2
   }
@@ -44,11 +58,11 @@ validate_policy() {
       exit 2
       ;;
   esac
-  [[ "$(git -C "$policy_dir" rev-parse HEAD)" == "$CENTRAL_POLICY_SHA" ]] || {
+  [[ "$(policy_git -C "$policy_dir" rev-parse HEAD)" == "$CENTRAL_POLICY_SHA" ]] || {
     printf 'Refusing stale policy cache: %s\n' "$policy_dir" >&2
     exit 2
   }
-  [[ -z "$(git -C "$policy_dir" status --porcelain --untracked-files=all -- ':!/.tools')" ]] || {
+  [[ -z "$(policy_git -C "$policy_dir" status --porcelain --untracked-files=all -- ':!/.tools')" ]] || {
     printf 'Refusing modified policy cache: %s\n' "$policy_dir" >&2
     exit 2
   }
@@ -73,11 +87,11 @@ prepare_policy() {
     }
 
     tmp_dir=$(mktemp -d "$cache_root/.policy.XXXXXX")
-    git init -q "$tmp_dir"
-    git -C "$tmp_dir" remote add origin "$CENTRAL_REPOSITORY"
-    git -C "$tmp_dir" fetch --depth 1 origin "$CENTRAL_POLICY_SHA"
-    git -C "$tmp_dir" checkout -q --detach FETCH_HEAD
-    [[ "$(git -C "$tmp_dir" rev-parse HEAD)" == "$CENTRAL_POLICY_SHA" ]] || {
+    policy_git init -q "$tmp_dir"
+    policy_git -C "$tmp_dir" remote add origin "$CENTRAL_REPOSITORY"
+    policy_git -C "$tmp_dir" fetch --depth 1 origin "$CENTRAL_POLICY_SHA"
+    policy_git -C "$tmp_dir" checkout -q --detach FETCH_HEAD
+    [[ "$(policy_git -C "$tmp_dir" rev-parse HEAD)" == "$CENTRAL_POLICY_SHA" ]] || {
       printf 'Fetched policy does not match requested SHA.\n' >&2
       exit 2
     }

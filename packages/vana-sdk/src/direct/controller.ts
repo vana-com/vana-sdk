@@ -172,10 +172,14 @@ export interface DirectDataController {
   /**
    * Create an access request the user can approve.
    *
-   * @param input - The post-approval return URL.
-   * @returns `{ requestId, approvalUrl, appAddress }`.
+   * @param input - The post-approval return URL and optional create retry key.
+   * @returns The request id, HTTPS fallback, and optional installed-app metadata.
    */
-  createAccessRequest(input: { returnUrl: string }): Promise<AccessRequest>;
+  createAccessRequest(input: {
+    returnUrl: string;
+    /** Stable retry key when the caller retries after an uncertain response. */
+    idempotencyKey?: string;
+  }): Promise<AccessRequest>;
 
   /**
    * Fetch the current status of an access request.
@@ -319,6 +323,9 @@ export function createDirectDataController(
         scopes: config.scopes,
         returnUrl: input.returnUrl,
         network,
+        ...(input.idempotencyKey !== undefined
+          ? { idempotencyKey: input.idempotencyKey }
+          : {}),
       });
     },
 

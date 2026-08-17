@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { createDirectConnectFlow } from "./connect-flow";
+import {
+  createDirectConnectFlow,
+  selectDirectAccessRequestUrl,
+} from "./connect-flow";
+import { toResumableAccessRequest } from "./types";
 import type { DirectConnectOptions } from "./connect-flow";
 import type {
   AccessRequest,
@@ -71,6 +75,85 @@ function readyForReadStatus(): AccessRequestStatus {
 }
 
 describe("createDirectConnectFlow", () => {
+  it("selects installed-app URLs only for mobile while the capability is fresh", () => {
+    const request: AccessRequest = {
+      ...REQUEST,
+      installedAppUrl: "vana-dev://continue?id=dcrcont_1",
+      installedAppExpiresAt: new Date(10_000).toISOString(),
+    };
+
+    expect(
+      selectDirectAccessRequestUrl(
+        request,
+        { current: () => "mobile" },
+        () => 0,
+      ),
+    ).toBe(request.installedAppUrl);
+    expect(
+      selectDirectAccessRequestUrl(
+        request,
+        { current: () => "desktop" },
+        () => 0,
+      ),
+    ).toBe(request.approvalUrl);
+    expect(
+      selectDirectAccessRequestUrl(
+        request,
+        { current: () => "mobile" },
+        () => 10_000,
+      ),
+    ).toBe(request.approvalUrl);
+  });
+
+  it("treats touch-capable MacIntel Safari as mobile by default", async () => {
+    const h = makeHarness();
+    const win = makeWindow();
+    vi.stubGlobal("navigator", {
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Safari/605.1.15",
+      platform: "MacIntel",
+      maxTouchPoints: 5,
+    });
+
+    try {
+      const flow = createDirectConnectFlow(
+        {
+          createRequest: async () => ({
+            ...REQUEST,
+            installedAppUrl: "vana-dev://continue?id=dcrcont_ipad",
+          }),
+          getStatus: async () => pendingStatus(),
+          readResult: vi.fn(),
+        },
+        {
+          openApprovalWindow: () => win.handle,
+          now: h.now,
+          setTimeoutFn: h.setTimeoutFn,
+          clearTimeoutFn: h.clearTimeoutFn,
+        },
+      );
+
+      await flow.start();
+
+      expect(win.navigate).toHaveBeenCalledWith(
+        "vana-dev://continue?id=dcrcont_ipad",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("projects resumable metadata without persisting the installed-app capability", () => {
+    const resumable = toResumableAccessRequest({
+      ...REQUEST,
+      installedAppUrl: "vana-dev://continue?id=secret",
+      installedAppExpiresAt: new Date(10_000).toISOString(),
+    });
+
+    expect(resumable).toEqual(REQUEST);
+    expect(JSON.stringify(resumable)).not.toContain("vana-dev");
+  });
+
   it("starts idle", () => {
     const flow = createDirectConnectFlow({
       createRequest: vi.fn(),
@@ -523,6 +606,49 @@ describe("createDirectConnectFlow", () => {
     await h.tick();
     await h.tick();
     expect(flow.getState().type).toBe("done");
+  });
+
+  it("uses a refreshed pending capability for explicit mobile retry", async () => {
+    const h = makeHarness();
+    const retryWindow = makeWindow();
+    const openApprovalWindow = vi
+      .fn<() => ReturnType<typeof makeWindow>["handle"] | null>()
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce(retryWindow.handle);
+    const refreshedUrl = "vana-dev://continue?id=dcrcont_fresh";
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => ({
+          ...REQUEST,
+          installedAppUrl: "vana-dev://continue?id=dcrcont_stale",
+          installedAppExpiresAt: new Date(-1).toISOString(),
+        }),
+        getStatus: async () => ({
+          status: "pending",
+          installedAppUrl: refreshedUrl,
+          installedAppExpiresAt: new Date(60_000).toISOString(),
+        }),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow,
+        browserPlatformPolicy: { current: () => "mobile" },
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    await h.tick();
+    expect(flow.retryOpen()).toBe(true);
+    expect(retryWindow.navigate).toHaveBeenCalledWith(refreshedUrl);
+    const state = flow.getState();
+    expect(state.type).toBe("awaiting_approval");
+    if (state.type === "awaiting_approval") {
+      expect(state.request.approvalUrl).toBe(REQUEST.approvalUrl);
+      expect(state.popupBlocked).toBe(false);
+    }
   });
 
   it("closes the un-navigated tab when createRequest fails", async () => {

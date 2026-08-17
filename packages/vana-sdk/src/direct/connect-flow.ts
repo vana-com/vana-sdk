@@ -18,6 +18,7 @@ import type {
   AccessRequestStatus,
   AccessRequestStatusValue,
   ApprovedDataResult,
+  ResumableAccessRequest,
 } from "./types";
 
 /**
@@ -48,6 +49,14 @@ export interface ConnectWindow {
   close(): void;
 }
 
+/** Browser class used only to choose the destination returned by Vana. */
+export type DirectBrowserPlatform = "desktop" | "mobile";
+
+/** Injectable browser-platform policy; it never asserts whether an app exists. */
+export interface DirectBrowserPlatformPolicy {
+  current(): DirectBrowserPlatform;
+}
+
 /** Tunables for the connect flow. */
 export interface DirectConnectOptions {
   /** Status poll interval in ms. Defaults to 1500. */
@@ -72,6 +81,8 @@ export interface DirectConnectOptions {
    * handle.
    */
   openApprovalWindow?: () => ConnectWindow | null;
+  /** SDK-owned mobile/desktop policy. Injectable for deterministic tests. */
+  browserPlatformPolicy?: DirectBrowserPlatformPolicy;
   /** `setTimeout`. Injectable for tests. Defaults to `globalThis.setTimeout`. */
   setTimeoutFn?: (cb: () => void, ms: number) => unknown;
   /** `clearTimeout`. Injectable for tests. Defaults to `globalThis.clearTimeout`. */
@@ -95,8 +106,8 @@ export type DirectConnectState<T = unknown> =
       request: AccessRequest;
       /**
        * `true` when the browser blocked the approval popup. The UI should
-       * render `request.approvalUrl` as a visible "Open approval" link so the
-       * user can open it manually instead of the flow silently hanging.
+       * offer `retryOpen()` and the universal HTTPS `request.approvalUrl`
+       * fallback instead of silently hanging.
        */
       popupBlocked: boolean;
     }
@@ -116,7 +127,9 @@ export interface DirectConnectFlow<T = unknown> {
    * Resume polling a caller-persisted request without creating a second one.
    * The SDK does not persist the request or any credentials itself.
    */
-  resume(request: AccessRequest): Promise<void>;
+  resume(request: ResumableAccessRequest): Promise<void>;
+  /** Retry the SDK-selected destination under an explicit user gesture. */
+  retryOpen(): boolean;
   /** Reset to `idle` and stop any in-flight polling. */
   reset(): void;
 }
@@ -130,6 +143,48 @@ function toError(value: unknown): Error {
 
 function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
   return status === "approved" || status === "ready_for_read";
+}
+
+const MOBILE_USER_AGENT =
+  /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Opera Mini|IEMobile/i;
+
+function defaultBrowserPlatformPolicy(): DirectBrowserPlatformPolicy {
+  return {
+    current() {
+      if (typeof navigator === "undefined") return "desktop";
+      const isTouchCapableIpad =
+        navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+      return MOBILE_USER_AGENT.test(navigator.userAgent) || isTouchCapableIpad
+        ? "mobile"
+        : "desktop";
+    },
+  };
+}
+
+/**
+ * Select Vana's installed-app destination only on mobile while it is fresh.
+ *
+ * @param request - The access request containing Vana-provided destinations.
+ * @param platformPolicy - The SDK browser classification policy.
+ * @param now - Clock source used to enforce capability expiry.
+ * @returns The installed-app URL for eligible mobile requests, otherwise the
+ * HTTPS approval URL.
+ */
+export function selectDirectAccessRequestUrl(
+  request: AccessRequest,
+  platformPolicy: DirectBrowserPlatformPolicy,
+  now: () => number = Date.now,
+): string {
+  if (platformPolicy.current() !== "mobile" || !request.installedAppUrl) {
+    return request.approvalUrl;
+  }
+  if (request.installedAppExpiresAt !== undefined) {
+    const expiry = Date.parse(request.installedAppExpiresAt);
+    if (!Number.isFinite(expiry) || now() >= expiry) {
+      return request.approvalUrl;
+    }
+  }
+  return request.installedAppUrl;
 }
 
 /**
@@ -199,6 +254,8 @@ export function createDirectConnectFlow<T = unknown>(
       globalThis.clearTimeout(handle as never);
     });
   const now = options.now ?? (() => Date.now());
+  const browserPlatformPolicy =
+    options.browserPlatformPolicy ?? defaultBrowserPlatformPolicy();
 
   let state: DirectConnectState<T> = { type: "idle" };
   const listeners = new Set<() => void>();
@@ -309,6 +366,17 @@ export function createDirectConnectFlow<T = unknown>(
     }
     if (!running) return;
 
+    if (status.status === "pending" && status.installedAppUrl) {
+      request = {
+        ...request,
+        installedAppUrl: status.installedAppUrl,
+        installedAppExpiresAt: status.installedAppExpiresAt,
+      };
+      const popupBlocked =
+        state.type === "awaiting_approval" ? state.popupBlocked : true;
+      setState({ type: "awaiting_approval", request, popupBlocked });
+    }
+
     if (isReadReadyStatus(status.status)) {
       clearPoll();
       await readAndFinish(request);
@@ -381,7 +449,9 @@ export function createDirectConnectFlow<T = unknown>(
       }
 
       if (approvalWindow) {
-        approvalWindow.navigate(request.approvalUrl);
+        approvalWindow.navigate(
+          selectDirectAccessRequestUrl(request, browserPlatformPolicy, now),
+        );
         // Hand the tab off to the user; we no longer own/close it.
         openedWindow = null;
       }
@@ -392,7 +462,7 @@ export function createDirectConnectFlow<T = unknown>(
       beginPolling(request, approvalWindow === null);
     },
 
-    async resume(request: AccessRequest): Promise<void> {
+    async resume(request: ResumableAccessRequest): Promise<void> {
       if (running || isRunningPhase()) return;
       running = true;
       ++activeRunId;
@@ -401,6 +471,29 @@ export function createDirectConnectFlow<T = unknown>(
       // open another approval tab. Treat the absent window like a blocked popup
       // so existing UIs keep exposing the HTTPS approval URL as recovery.
       beginPolling(request, true);
+    },
+
+    retryOpen(): boolean {
+      if (state.type !== "awaiting_approval") return false;
+      const awaiting = state;
+      const openApprovalWindow =
+        options.openApprovalWindow ?? defaultOpenApprovalWindow;
+      const approvalWindow = openApprovalWindow();
+      if (!approvalWindow) {
+        if (!awaiting.popupBlocked) {
+          setState({ ...awaiting, popupBlocked: true });
+        }
+        return false;
+      }
+      approvalWindow.navigate(
+        selectDirectAccessRequestUrl(
+          awaiting.request,
+          browserPlatformPolicy,
+          now,
+        ),
+      );
+      setState({ ...awaiting, popupBlocked: false });
+      return true;
     },
 
     reset(): void {

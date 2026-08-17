@@ -49,6 +49,8 @@ export interface DefaultAccessRequestClientOptions {
   signMessage?: Web3SignedSignFn;
   /** Clock source used for signed request timestamps. */
   now?: () => number;
+  /** Create a signed DCR idempotency key. Injectable for deterministic tests. */
+  createIdempotencyKey?: () => string;
 }
 
 const VALID_STATUSES: readonly AccessRequestStatusValue[] = [
@@ -74,6 +76,24 @@ function normalizeExpiresAt(value: unknown): string | undefined {
   return typeof value === "string" && Number.isFinite(Date.parse(value))
     ? value
     : undefined;
+}
+
+function normalizeUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  try {
+    return new URL(value).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function defaultCreateIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID !== "function") {
+    throw new Error(
+      "Secure randomUUID is unavailable. Pass createIdempotencyKey to createDefaultAccessRequestClient.",
+    );
+  }
+  return globalThis.crypto.randomUUID();
 }
 
 function stripTrailingSlash(url: string): string {
@@ -160,10 +180,16 @@ export function createDefaultAccessRequestClient(
     );
   }
   const base = stripTrailingSlash(options.baseUrl);
+  const createKeysByInput = new Map<string, string>();
 
   return {
     async createAccessRequest(input): Promise<AccessRequest> {
       const path = "/api/data-connection-requests";
+      const retryIdentity = JSON.stringify(input);
+      const idempotencyKey =
+        input.idempotencyKey ??
+        createKeysByInput.get(retryIdentity) ??
+        (options.createIdempotencyKey ?? defaultCreateIdempotencyKey)();
       const body = JSON.stringify({
         appAddress: input.appAddress,
         app: input.app,
@@ -171,7 +197,11 @@ export function createDefaultAccessRequestClient(
         scopes: input.scopes,
         returnUrl: input.returnUrl,
         network: input.network,
+        idempotencyKey,
       });
+      // Retain the key until a complete success response is parsed. This covers
+      // concurrent calls, transport failures, and responses lost after create.
+      createKeysByInput.set(retryIdentity, idempotencyKey);
       const res = await fetchFn(`${base}${path}`, {
         method: "POST",
         headers: {
@@ -196,11 +226,14 @@ export function createDefaultAccessRequestClient(
         appAddress?: string;
         network?: unknown;
         expiresAt?: unknown;
+        installedAppUrl?: unknown;
+        installedAppExpiresAt?: unknown;
       };
       const requestId = responseBody.requestId ?? responseBody.id;
       if (!requestId) {
         throw new Error("Access request service returned no requestId");
       }
+      createKeysByInput.delete(retryIdentity);
       return {
         requestId,
         approvalUrl:
@@ -209,6 +242,10 @@ export function createDefaultAccessRequestClient(
         appAddress: responseBody.appAddress ?? input.appAddress,
         network: normalizeNetwork(responseBody.network),
         expiresAt: normalizeExpiresAt(responseBody.expiresAt),
+        installedAppUrl: normalizeUrl(responseBody.installedAppUrl),
+        installedAppExpiresAt: normalizeExpiresAt(
+          responseBody.installedAppExpiresAt,
+        ),
       };
     },
 
@@ -234,12 +271,16 @@ export function createDefaultAccessRequestClient(
         personalServerUrl?: string;
         grantId?: string;
         scope?: string;
+        installedAppUrl?: unknown;
+        installedAppExpiresAt?: unknown;
       };
       return {
         status: normalizeStatus(body.status),
         personalServerUrl: body.personalServerUrl,
         grantId: body.grantId,
         scope: body.scope,
+        installedAppUrl: normalizeUrl(body.installedAppUrl),
+        installedAppExpiresAt: normalizeExpiresAt(body.installedAppExpiresAt),
       };
     },
 

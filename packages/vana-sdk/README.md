@@ -195,7 +195,15 @@ private key, and handles `402 Payment Required`:
 const request = await vana.createAccessRequest({
   returnUrl: `${process.env.VANA_APP_URL}/connect/return`,
 });
-// -> { requestId: "dcr_...", approvalUrl: "https://app.vana.org/...", appAddress: "0x..." }
+// -> {
+//   requestId: "dcr_...",
+//   approvalUrl: "https://app.vana.org/...",
+//   appAddress: "0x...",
+//   network: "mainnet",
+//   expiresAt: "...",
+//   installedAppUrl?: "vana://continue?...",
+//   installedAppExpiresAt?: "...",
+// }
 
 // GET /api/vana/status?requestId=...
 const status = await vana.getAccessRequestStatus(requestId);
@@ -252,10 +260,32 @@ export function ConnectSpotifyButton() {
 }
 ```
 
-The hook calls `createRequest`, opens the Vana approval URL, polls `getStatus`
-until the request is approved, then calls `readResult`. `react` is an optional
-peer dependency. The underlying `createDirectConnectFlow` store is also exported
-for non-React frontends.
+The hook calls `createRequest`, opens the Vana destination, polls `getStatus`
+until the request is approved, then calls `readResult`. Destination choice stays
+inside the SDK: mobile browsers use a fresh `installedAppUrl` when Vana returns
+one, while desktop browsers and light requests keep using the HTTPS
+`approvalUrl`. Builders should not add user-agent branches, app-install checks,
+deep-link construction, or store-link logic.
+
+If a popup is blocked, render the HTTPS `state.request.approvalUrl` as the
+universal manual fallback or call `retryOpen()` directly from a later user
+gesture. A pending status response may refresh the short-lived installed-app
+destination; `retryOpen()` automatically uses the latest fresh destination.
+This is capability routing, not an assertion that the native app is installed.
+
+For long-running approval or first-install recovery, persist only
+`toResumableAccessRequest(state.request)` and pass that value to `resume()` after
+reload. The projection keeps the DCR id and authoritative DCR expiry while
+removing `installedAppUrl` and `installedAppExpiresAt`. The SDK owns no storage
+and never persists either request metadata or bearer capabilities itself.
+
+Server-side create calls accept an optional `idempotencyKey`. The default HTTP
+client generates a key and reuses it when the same create is retried after an
+uncertain failure; because the key is in the signed body, callers must reuse an
+explicit key when a retry creates a new controller/client instance.
+
+`react` is an optional peer dependency. The underlying
+`createDirectConnectFlow` store is also exported for non-React frontends.
 
 ### Test with large sample data
 

@@ -48,7 +48,10 @@ export {
 // Framework-agnostic store (usable without React).
 export {
   createDirectConnectFlow,
+  selectDirectAccessRequestUrl,
   type ConnectWindow,
+  type DirectBrowserPlatform,
+  type DirectBrowserPlatformPolicy,
   type DirectConnectFlow,
   type DirectConnectState,
   type DirectConnectOptions,
@@ -58,7 +61,9 @@ export {
 // Shared types useful when typing the transports.
 export type {
   AccessRequest,
+  ResumableAccessRequest,
   AccessRequestStatus,
   AccessRequestStatusValue,
   ApprovedDataResult,
 } from "./direct/types";
+export { toResumableAccessRequest } from "./direct/types";

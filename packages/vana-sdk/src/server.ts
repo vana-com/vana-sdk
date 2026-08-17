@@ -87,6 +87,7 @@ export type {
   AppIdentity,
   DirectServiceEndpoints,
   AccessRequest,
+  ResumableAccessRequest,
   AccessRequestStatus,
   AccessRequestStatusValue,
   ApprovedDataResult,
@@ -100,6 +101,7 @@ export type {
   DirectPaymentResponseMetadata,
   DirectFeeBreakdown,
 } from "./direct/types";
+export { toResumableAccessRequest } from "./direct/types";
 
 // Op-type vocabulary constant.
 export { DirectOpType } from "./direct/types";

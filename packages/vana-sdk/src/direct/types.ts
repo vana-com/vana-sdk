@@ -84,6 +84,33 @@ export interface AccessRequest {
   network?: DirectNetwork;
   /** Authoritative ISO-8601 expiry for the access request. */
   expiresAt?: string;
+  /** Opaque installed-app destination for work that cannot finish on Web. */
+  installedAppUrl?: string;
+  /** ISO-8601 expiry of `installedAppUrl`, independent of the DCR expiry. */
+  installedAppExpiresAt?: string;
+}
+
+/** Safe metadata a caller may persist to resume an access request. */
+export type ResumableAccessRequest = Omit<
+  AccessRequest,
+  "installedAppUrl" | "installedAppExpiresAt"
+>;
+
+/**
+ * Remove short-lived bearer capabilities before a caller persists resume data.
+ *
+ * The SDK itself never stores access-request state.
+ *
+ * @param request - The live access request returned by Vana.
+ * @returns Request metadata safe for caller-owned resume storage.
+ */
+export function toResumableAccessRequest(
+  request: AccessRequest,
+): ResumableAccessRequest {
+  const safe = { ...request };
+  delete safe.installedAppUrl;
+  delete safe.installedAppExpiresAt;
+  return safe;
 }
 
 /**
@@ -116,6 +143,10 @@ export interface AccessRequestStatus {
   grantId?: string;
   /** The approved scope — present once data is ready to read. */
   scope?: string;
+  /** Fresh installed-app destination, returned only while still pending. */
+  installedAppUrl?: string;
+  /** ISO-8601 expiry of the refreshed installed-app destination. */
+  installedAppExpiresAt?: string;
 }
 
 /** Result of {@link DirectDataController.readApprovedData}. */
@@ -155,6 +186,11 @@ export interface AccessRequestClient {
     returnUrl: string;
     /** Vana protocol network for this request (`"mainnet"` or `"moksha"`). */
     network: DirectNetwork;
+    /**
+     * Optional retry key. The default client generates and reuses one after a
+     * failed create attempt when omitted.
+     */
+    idempotencyKey?: string;
   }): Promise<AccessRequest>;
 
   /**

@@ -93,6 +93,39 @@ describe("createDefaultAccessRequestClient", () => {
     expect(result).toMatchObject({ network: "moksha", expiresAt });
   });
 
+  it("parses optional installed-app capability metadata from create and status", async () => {
+    const installedAppUrl = "vana-dev://continue?id=dcrcont_9";
+    const installedAppExpiresAt = "2026-08-17T18:05:00.000Z";
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      createIdempotencyKey: () => "idem-9",
+      fetchFn: fakeFetch((url) => ({
+        status: 200,
+        body: url.endsWith("/dcr_9")
+          ? { status: "pending", installedAppUrl, installedAppExpiresAt }
+          : {
+              requestId: "dcr_9",
+              installedAppUrl,
+              installedAppExpiresAt,
+            },
+      })),
+    });
+
+    const request = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "moksha",
+    });
+    const status = await client.getAccessRequestStatus("dcr_9");
+
+    expect(request).toMatchObject({ installedAppUrl, installedAppExpiresAt });
+    expect(status).toMatchObject({ installedAppUrl, installedAppExpiresAt });
+  });
+
   it("omits invalid additive create-response metadata", async () => {
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
@@ -103,6 +136,8 @@ describe("createDefaultAccessRequestClient", () => {
           requestId: "dcr_9",
           network: "testnet",
           expiresAt: "not-a-date",
+          installedAppUrl: "not a url",
+          installedAppExpiresAt: "also-not-a-date",
         },
       })),
     });
@@ -118,6 +153,8 @@ describe("createDefaultAccessRequestClient", () => {
 
     expect(result.network).toBeUndefined();
     expect(result.expiresAt).toBeUndefined();
+    expect(result.installedAppUrl).toBeUndefined();
+    expect(result.installedAppExpiresAt).toBeUndefined();
   });
 
   it("normalizes an unknown status to pending", async () => {
@@ -323,6 +360,46 @@ describe("createDefaultAccessRequestClient", () => {
         network: "mainnet",
       }),
     ).rejects.toThrow(/Access request service error/);
+  });
+
+  it("reuses a generated signed idempotency key after an uncertain create failure", async () => {
+    const bodies: string[] = [];
+    let attempt = 0;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      appAddress: "0xabc",
+      signMessage: async () => "0xsig",
+      createIdempotencyKey: () => "generated-key",
+      fetchFn: async (_url, init) => {
+        bodies.push(init?.body ?? "");
+        attempt++;
+        if (attempt === 1) throw new Error("response lost");
+        return {
+          ok: true,
+          status: 201,
+          statusText: "HTTP 201",
+          json: async () => ({ requestId: "dcr_9" }),
+          text: async () => "",
+        };
+      },
+    });
+    const input = {
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet" as const,
+    };
+
+    await expect(client.createAccessRequest(input)).rejects.toThrow(
+      /response lost/,
+    );
+    await client.createAccessRequest(input);
+
+    expect(JSON.parse(bodies[0] ?? "{}").idempotencyKey).toBe("generated-key");
+    expect(bodies[1]).toBe(bodies[0]);
   });
 
   it("throws on a non-ok acknowledge response", async () => {

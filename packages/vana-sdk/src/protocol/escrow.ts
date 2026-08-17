@@ -490,6 +490,10 @@ export interface EscrowGatewayClient {
   /**
    * Submit or reconcile a signed withdrawal authorization.
    *
+   * The gateway decides which signers may authorize an account. For example,
+   * it may accept the account itself or the confirmed owner of a registered
+   * app account.
+   *
    * Retry a `submitted` result with the exact same parameters. Do not replace
    * `withdrawNonce`, `deadline`, or signature unless starting a new intent.
    */

@@ -272,7 +272,7 @@ export interface GenericPaymentMessage {
 
 /** EIP-712 message authorizing a withdrawal of an account's escrow balance. */
 export interface WithdrawAuthorizationMessage {
-  /** The escrow account and required EIP-712 signer. */
+  /** The escrow account to debit and the withdrawal recipient. */
   account: `0x${string}`;
   /** Native VANA sentinel or the ERC-20 asset contract. */
   asset: `0x${string}`;

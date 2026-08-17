@@ -763,6 +763,257 @@ describe("NATIVE_ASSET_ADDRESS", () => {
   });
 });
 
+describe("getWithdrawNonce", () => {
+  const nonceBody = {
+    success: true as const,
+    account: ACCOUNT,
+    chainId: "1480",
+    lastWithdrawNonce: "3",
+    nextWithdrawNonce: "4",
+  };
+
+  it("GETs the nonce and returns the parsed body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(nonceBody));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result =
+      await createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT);
+
+    expect(result).toEqual(nonceBody);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${GATEWAY}/v1/escrow/withdraw/nonce?account=${encodeURIComponent(ACCOUNT)}`,
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("accepts null lastWithdrawNonce (first withdrawal for account)", async () => {
+    const bodyWithNullLastNonce = {
+      success: true as const,
+      account: ACCOUNT,
+      chainId: "1480",
+      lastWithdrawNonce: null,
+      nextWithdrawNonce: "1",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(bodyWithNullLastNonce));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result =
+      await createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT);
+
+    expect(result).toEqual(bodyWithNullLastNonce);
+    expect(result.lastWithdrawNonce).toBeNull();
+  });
+
+  it("validates the response structure and rejects invalid responses", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        success: true,
+        account: ACCOUNT,
+        chainId: "1480",
+        lastWithdrawNonce: "3",
+        // missing nextWithdrawNonce
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("invalid response structure");
+  });
+
+  it("rejects non-uint256 decimal nonce values", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          success: true,
+          account: ACCOUNT,
+          chainId: "1480",
+          lastWithdrawNonce: "3",
+          nextWithdrawNonce: UINT256_MAX_PLUS_ONE,
+        }),
+      ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("invalid response structure");
+  });
+
+  it("rejects invalid account address", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          success: true,
+          account: "not-an-address",
+          chainId: "1480",
+          lastWithdrawNonce: "3",
+          nextWithdrawNonce: "4",
+        }),
+      ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("invalid response structure");
+  });
+
+  it("rejects non-numeric chainId", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          success: true,
+          account: ACCOUNT,
+          chainId: "abc",
+          lastWithdrawNonce: "3",
+          nextWithdrawNonce: "4",
+        }),
+      ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("invalid response structure");
+  });
+
+  it("throws on non-2xx responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { error: "account not found" },
+            { status: 404, statusText: "Not Found" },
+          ),
+        ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("404");
+  });
+
+  it("includes the error message from the gateway body in the thrown error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { error: "gateway temporarily unavailable" },
+            { status: 503, statusText: "Service Unavailable" },
+          ),
+        ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("gateway temporarily unavailable");
+  });
+
+  it("rejects response with mismatched account (case-insensitive)", async () => {
+    const wrongAccount = "0xdeadbeef00000000000000000000000000000002" as const;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          success: true,
+          account: wrongAccount,
+          chainId: "1480",
+          lastWithdrawNonce: "3",
+          nextWithdrawNonce: "4",
+        }),
+      ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("invalid response structure");
+  });
+
+  it("rejects nonce pair inconsistency: nextWithdrawNonce not lastWithdrawNonce + 1", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          success: true,
+          account: ACCOUNT,
+          chainId: "1480",
+          lastWithdrawNonce: "3",
+          nextWithdrawNonce: "5", // Should be 4
+        }),
+      ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("invalid response structure");
+  });
+
+  it("rejects when lastWithdrawNonce is null but nextWithdrawNonce is not 1", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          success: true,
+          account: ACCOUNT,
+          chainId: "1480",
+          lastWithdrawNonce: null,
+          nextWithdrawNonce: "2", // Should be 1
+        }),
+      ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("invalid response structure");
+  });
+
+  it("sends fetch request with cache: 'no-store' directive", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        success: true,
+        account: ACCOUNT,
+        chainId: "1480",
+        lastWithdrawNonce: "3",
+        nextWithdrawNonce: "4",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("rejects response with success: false even if fields otherwise match", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          success: false,
+          account: ACCOUNT,
+          chainId: "1480",
+          lastWithdrawNonce: "3",
+          nextWithdrawNonce: "4",
+        }),
+      ),
+    );
+
+    await expect(
+      createEscrowGatewayClient(GATEWAY).getWithdrawNonce(ACCOUNT),
+    ).rejects.toThrow("invalid response structure");
+  });
+});
+
 describe("ESCROW_DEPOSIT_ABI", () => {
   it("exposes depositNative as payable", () => {
     const fn = ESCROW_DEPOSIT_ABI.find((f) => f.name === "depositNative");

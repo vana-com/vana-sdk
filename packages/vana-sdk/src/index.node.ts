@@ -344,6 +344,7 @@ export {
   type SubmitDepositParams,
   type PayForOpParams,
   type WithdrawFromEscrowParams,
+  type WithdrawNonceResponse,
   type EscrowGatewayClient,
   type SubmittedDepositEntry,
   type FinalizedDepositEntry,

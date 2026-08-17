@@ -410,6 +410,26 @@ export interface WithdrawFromEscrowParams {
   signature: `0x${string}`;
 }
 
+/**
+ * Response from `GET /v1/escrow/withdraw/nonce`.
+ *
+ * The gateway provides a read-only snapshot of the account's withdrawal nonce
+ * state. This is **not** a reservation; multiple concurrent callers will see
+ * the same `nextWithdrawNonce`. To reduce staleness risk, query immediately before
+ * signing/submitting the withdrawal authorization. However, `stale_nonce` errors can
+ * still occur under concurrent withdrawal attempts; if rejected, re-query and re-sign.
+ *
+ * Use `nextWithdrawNonce` in the signed withdrawal authorization; `lastWithdrawNonce`
+ * is provided for reference and diagnostics.
+ */
+export interface WithdrawNonceResponse {
+  success: true;
+  account: `0x${string}`;
+  chainId: string;
+  lastWithdrawNonce: string | null;
+  nextWithdrawNonce: string;
+}
+
 /** Wire shape of a receipt whose server signature the gateway verifies. */
 export interface EscrowAccessRecord {
   dataPointId: `0x${string}`;
@@ -474,6 +494,19 @@ export interface EscrowGatewayClient {
    * `withdrawNonce`, `deadline`, or signature unless starting a new intent.
    */
   withdraw(params: WithdrawFromEscrowParams): Promise<EscrowWithdrawalResult>;
+
+  /**
+   * Read the authoritative next withdrawal nonce for an account.
+   *
+   * The gateway is the authority on what nonce to use; use the value from
+   * `nextWithdrawNonce` when signing a withdrawal authorization.
+   *
+   * Do NOT generate or cache nonces client-side; concurrent callers cannot be
+   * safely coordinated without durable shared state. Query this endpoint immediately
+   * before signing/submitting to reduce staleness risk. However, `stale_nonce` errors
+   * can still occur; if rejected, re-query and re-sign.
+   */
+  getWithdrawNonce(account: `0x${string}`): Promise<WithdrawNonceResponse>;
 }
 
 /** The only gateway capability required by direct data-access payment flows. */
@@ -657,6 +690,21 @@ export function createEscrowGatewayClient(
       await throwOnWithdrawError(res);
       return res.json() as Promise<EscrowWithdrawalResult>;
     },
+
+    async getWithdrawNonce(account) {
+      const res = await fetch(
+        `${base}/v1/escrow/withdraw/nonce?account=${encodeURIComponent(account)}`,
+        { cache: "no-store" },
+      );
+      await throwOnError(res, "GET /v1/escrow/withdraw/nonce");
+      const body = (await res.json()) as unknown;
+      if (!isWithdrawNonceResponse(body, account)) {
+        throw new Error(
+          "GET /v1/escrow/withdraw/nonce: invalid response structure",
+        );
+      }
+      return body;
+    },
   };
 }
 
@@ -759,4 +807,42 @@ function isUint256Decimal(value: unknown): value is string {
 
 function isBlockNumber(value: unknown): value is string | null {
   return value === null || isUint256Decimal(value);
+}
+
+function isWithdrawNonceResponse(
+  body: unknown,
+  requestedAccount: `0x${string}`,
+): body is WithdrawNonceResponse {
+  if (typeof body !== "object" || body === null) return false;
+  const value = body as Record<string, unknown>;
+
+  if (value.success !== true) return false;
+
+  if (!isAddressHex(value.account)) return false;
+  if (value.account.toLowerCase() !== requestedAccount.toLowerCase())
+    return false;
+  if (typeof value.chainId !== "string") return false;
+  if (!/^(0|[1-9]\d*)$/.test(value.chainId)) return false;
+
+  const isLastNull = value.lastWithdrawNonce === null;
+  const lastNonceValid =
+    isLastNull || isUint256Decimal(value.lastWithdrawNonce);
+  if (!lastNonceValid) return false;
+
+  if (!isUint256Decimal(value.nextWithdrawNonce)) return false;
+
+  // Validate nonce pair consistency: nextWithdrawNonce must be exactly lastWithdrawNonce + 1
+  // or exactly 1 if lastWithdrawNonce is null
+  if (isLastNull) {
+    return value.nextWithdrawNonce === "1";
+  }
+
+  const lastNonce = BigInt(value.lastWithdrawNonce as string);
+  const nextNonce = BigInt(value.nextWithdrawNonce as string);
+  const expectedNextNonce = lastNonce + 1n;
+
+  // Ensure no overflow (nextNonce must still be within uint256)
+  if (expectedNextNonce > 2n ** 256n - 1n) return false;
+
+  return nextNonce === expectedNextNonce;
 }

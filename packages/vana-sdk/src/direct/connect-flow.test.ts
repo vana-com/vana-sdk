@@ -137,16 +137,17 @@ describe("createDirectConnectFlow", () => {
 
       await flow.start();
 
-      expect(win.close).toHaveBeenCalledOnce();
-      expect(navigateInstalledApp).toHaveBeenCalledWith(
+      expect(win.navigate).toHaveBeenCalledWith(
         "vana-dev://continue?id=dcrcont_ipad",
       );
+      expect(win.close).toHaveBeenCalledOnce();
+      expect(navigateInstalledApp).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("closes the speculative tab and navigates the initiating page for installed-app handoff", async () => {
+  it("dispatches installed-app handoff through the activated tab and then closes it", async () => {
     const h = makeHarness();
     const win = makeWindow();
     const navigateInstalledApp = vi.fn();
@@ -171,9 +172,9 @@ describe("createDirectConnectFlow", () => {
 
     await flow.start();
 
+    expect(win.navigate).toHaveBeenCalledWith(installedAppUrl);
     expect(win.close).toHaveBeenCalledOnce();
-    expect(win.navigate).not.toHaveBeenCalled();
-    expect(navigateInstalledApp).toHaveBeenCalledWith(installedAppUrl);
+    expect(navigateInstalledApp).not.toHaveBeenCalled();
     expect(flow.getState()).toMatchObject({
       type: "awaiting_approval",
       popupBlocked: false,

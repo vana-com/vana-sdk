@@ -82,10 +82,8 @@ export interface DirectConnectOptions {
    */
   openApprovalWindow?: () => ConnectWindow | null;
   /**
-   * Navigate the initiating page to an installed-app destination. Defaults to
-   * `window.location.assign(url)`. Kept separate from the speculative approval
-   * tab because iOS Safari presents custom-scheme confirmation in the opener;
-   * navigating the blank tab can hide that prompt behind the active tab.
+   * Navigate the initiating page to an installed-app destination during an
+   * explicit retry gesture. Defaults to `window.location.assign(url)`.
    */
   navigateInstalledApp?: (url: string) => void;
   /** SDK-owned mobile/desktop policy. Injectable for deterministic tests. */
@@ -472,14 +470,19 @@ export function createDirectConnectFlow<T = unknown>(
         destination === request.installedAppUrl;
       let destinationBlocked = approvalWindow === null;
       if (usesInstalledApp) {
-        // iOS Safari shows the external-app confirmation in the initiating tab.
-        // Close the speculative blank tab first so it cannot hide that prompt.
-        closeUnnavigatedWindow();
-        try {
-          navigateInstalledApp(destination);
-          destinationBlocked = false;
-        } catch {
-          destinationBlocked = true;
+        if (approvalWindow) {
+          // The activated popup handle preserves Safari's transient permission
+          // across createRequest. Dispatch through it, then close it so the
+          // confirmation Safari presents in the opener is not hidden.
+          try {
+            approvalWindow.navigate(destination);
+            destinationBlocked = false;
+          } catch {
+            destinationBlocked = true;
+          } finally {
+            approvalWindow.close();
+            openedWindow = null;
+          }
         }
       } else if (approvalWindow) {
         approvalWindow.navigate(destination);

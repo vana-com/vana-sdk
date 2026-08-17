@@ -66,6 +66,16 @@ function normalizeStatus(value: unknown): AccessRequestStatusValue {
     : "pending";
 }
 
+function normalizeNetwork(value: unknown): AccessRequest["network"] {
+  return value === "mainnet" || value === "moksha" ? value : undefined;
+}
+
+function normalizeExpiresAt(value: unknown): string | undefined {
+  return typeof value === "string" && Number.isFinite(Date.parse(value))
+    ? value
+    : undefined;
+}
+
 function stripTrailingSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
@@ -184,6 +194,8 @@ export function createDefaultAccessRequestClient(
         id?: string;
         approvalUrl?: string;
         appAddress?: string;
+        network?: unknown;
+        expiresAt?: unknown;
       };
       const requestId = responseBody.requestId ?? responseBody.id;
       if (!requestId) {
@@ -195,6 +207,8 @@ export function createDefaultAccessRequestClient(
           responseBody.approvalUrl ??
           buildApprovalUrl(options.approvalBaseUrl, requestId),
         appAddress: responseBody.appAddress ?? input.appAddress,
+        network: normalizeNetwork(responseBody.network),
+        expiresAt: normalizeExpiresAt(responseBody.expiresAt),
       };
     },
 

@@ -65,6 +65,61 @@ describe("createDefaultAccessRequestClient", () => {
     expect(result.appAddress).toBe("0xabc");
   });
 
+  it("parses additive network and expiry metadata from a create response", async () => {
+    const expiresAt = "2026-08-17T18:00:00.000Z";
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          requestId: "dcr_9",
+          appAddress: "0xabc",
+          network: "moksha",
+          expiresAt,
+        },
+      })),
+    });
+
+    const result = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "moksha",
+    });
+
+    expect(result).toMatchObject({ network: "moksha", expiresAt });
+  });
+
+  it("omits invalid additive create-response metadata", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          requestId: "dcr_9",
+          network: "testnet",
+          expiresAt: "not-a-date",
+        },
+      })),
+    });
+
+    const result = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet",
+    });
+
+    expect(result.network).toBeUndefined();
+    expect(result.expiresAt).toBeUndefined();
+  });
+
   it("normalizes an unknown status to pending", async () => {
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",

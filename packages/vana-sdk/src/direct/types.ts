@@ -80,6 +80,10 @@ export interface AccessRequest {
   approvalUrl: string;
   /** On-chain address of the (registered or reused) app. */
   appAddress: string;
+  /** Protocol network echoed by the access-request service. */
+  network?: DirectNetwork;
+  /** Authoritative ISO-8601 expiry for the access request. */
+  expiresAt?: string;
 }
 
 /**

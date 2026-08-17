@@ -21,6 +21,7 @@ import {
   type DirectConnectState,
   type DirectConnectTransports,
 } from "./connect-flow";
+import type { AccessRequest } from "./types";
 
 /** Options for {@link useDirectVanaConnect}: transports plus flow tunables. */
 export type UseDirectVanaConnectOptions<T = unknown> =
@@ -32,6 +33,8 @@ export interface UseDirectVanaConnectResult<T = unknown> {
   state: DirectConnectState<T>;
   /** Begin the connect flow (create request, open Vana, poll, read). */
   start: () => void;
+  /** Resume a caller-persisted request without creating another request. */
+  resume: (request: AccessRequest) => void;
   /** Reset back to `idle` and cancel any in-flight polling. */
   reset: () => void;
 }
@@ -41,7 +44,7 @@ export interface UseDirectVanaConnectResult<T = unknown> {
  *
  * @param options - The `createRequest`/`getStatus`/`readResult` transports plus
  * optional polling/timeout tunables.
- * @returns `{ state, start, reset }`.
+ * @returns `{ state, start, resume, reset }`.
  *
  * @example
  * ```tsx
@@ -95,9 +98,16 @@ export function useDirectVanaConnect<T = unknown>(
     void flow.start();
   }, [flow]);
 
+  const resume = useCallback(
+    (request: AccessRequest) => {
+      void flow.resume(request);
+    },
+    [flow],
+  );
+
   const reset = useCallback(() => {
     flow.reset();
   }, [flow]);
 
-  return { state, start, reset };
+  return { state, start, resume, reset };
 }

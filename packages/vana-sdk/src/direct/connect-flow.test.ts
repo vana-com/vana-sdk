@@ -267,6 +267,135 @@ describe("createDirectConnectFlow", () => {
     }
   });
 
+  it("preserves the five-minute default when the request has no expiry", async () => {
+    const h = makeHarness();
+    const getStatus = vi.fn(async () => pendingStatus());
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => REQUEST,
+        getStatus,
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow: () => makeWindow().handle,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    h.advance(300_001);
+    await h.tick();
+
+    expect(flow.getState().type).toBe("error");
+    expect(getStatus).not.toHaveBeenCalled();
+  });
+
+  it("polls beyond five minutes when bounded by server expiry", async () => {
+    const h = makeHarness();
+    const request: AccessRequest = {
+      ...REQUEST,
+      expiresAt: new Date(3_600_000).toISOString(),
+    };
+    const result: ApprovedDataResult = {
+      scope: "icloud_notes.notes",
+      data: [],
+    };
+    const getStatus = vi
+      .fn<(id: string) => Promise<AccessRequestStatus>>()
+      .mockResolvedValueOnce(pendingStatus())
+      .mockResolvedValueOnce(approvedStatus());
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => request,
+        getStatus,
+        readResult: async () => result,
+      },
+      {
+        openApprovalWindow: () => makeWindow().handle,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    h.advance(300_001);
+    await h.tick();
+    expect(flow.getState().type).toBe("awaiting_approval");
+
+    await h.tick();
+    expect(flow.getState().type).toBe("done");
+  });
+
+  it("resumes the same caller-persisted request without creating another", async () => {
+    const h = makeHarness();
+    const createRequest = vi.fn(async () => REQUEST);
+    const getStatus = vi.fn(async () => pendingStatus());
+    const openApprovalWindow = vi.fn(() => makeWindow().handle);
+    const flow = createDirectConnectFlow(
+      { createRequest, getStatus, readResult: vi.fn() },
+      {
+        openApprovalWindow,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    const awaiting = flow.getState();
+    if (awaiting.type !== "awaiting_approval") {
+      throw new Error("expected a pending request");
+    }
+    const persistedRequest = JSON.parse(
+      JSON.stringify(awaiting.request),
+    ) as AccessRequest;
+
+    flow.reset();
+    await flow.resume(persistedRequest);
+    await h.tick();
+
+    expect(createRequest).toHaveBeenCalledTimes(1);
+    expect(openApprovalWindow).toHaveBeenCalledTimes(1);
+    expect(getStatus).toHaveBeenCalledWith(REQUEST.requestId);
+    const resumed = flow.getState();
+    expect(resumed.type).toBe("awaiting_approval");
+    if (resumed.type === "awaiting_approval") {
+      expect(resumed.request.requestId).toBe(REQUEST.requestId);
+      expect(resumed.popupBlocked).toBe(true);
+    }
+  });
+
+  it("rejects an already expired resumed request without polling", async () => {
+    const h = makeHarness();
+    const createRequest = vi.fn();
+    const getStatus = vi.fn();
+    const flow = createDirectConnectFlow(
+      { createRequest, getStatus, readResult: vi.fn() },
+      {
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.resume({
+      ...REQUEST,
+      expiresAt: new Date(-1).toISOString(),
+    });
+
+    const state = flow.getState();
+    expect(state.type).toBe("error");
+    if (state.type === "error") {
+      expect(state.error.message).toMatch(/expired/);
+    }
+    expect(createRequest).not.toHaveBeenCalled();
+    expect(getStatus).not.toHaveBeenCalled();
+    expect(h.hasPending()).toBe(false);
+  });
+
   it("reset returns to idle and cancels polling", async () => {
     const h = makeHarness();
     const flow = createDirectConnectFlow(

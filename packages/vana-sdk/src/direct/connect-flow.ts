@@ -52,7 +52,11 @@ export interface ConnectWindow {
 export interface DirectConnectOptions {
   /** Status poll interval in ms. Defaults to 1500. */
   pollIntervalMs?: number;
-  /** Overall timeout in ms before giving up. Defaults to 300000 (5 min). */
+  /**
+   * Overall timeout in ms before giving up. Defaults to 300000 (5 min).
+   * Used only when the access request does not carry an authoritative
+   * `expiresAt` value.
+   */
   timeoutMs?: number;
   /**
    * Synchronously open a blank tab under the click's transient activation and
@@ -108,6 +112,11 @@ export interface DirectConnectFlow<T = unknown> {
   subscribe(listener: () => void): () => void;
   /** Begin the flow. No-op if already running. */
   start(): Promise<void>;
+  /**
+   * Resume polling a caller-persisted request without creating a second one.
+   * The SDK does not persist the request or any credentials itself.
+   */
+  resume(request: AccessRequest): Promise<void>;
   /** Reset to `idle` and stop any in-flight polling. */
   reset(): void;
 }
@@ -257,6 +266,28 @@ export function createDirectConnectFlow<T = unknown>(
     }, pollIntervalMs);
   }
 
+  function requestDeadline(request: AccessRequest): number {
+    if (request.expiresAt !== undefined) {
+      const expiresAt = Date.parse(request.expiresAt);
+      if (Number.isFinite(expiresAt)) return expiresAt;
+    }
+    return now() + timeoutMs;
+  }
+
+  function beginPolling(request: AccessRequest, popupBlocked: boolean): void {
+    setState({ type: "awaiting_approval", request, popupBlocked });
+    const deadline = requestDeadline(request);
+    if (now() >= deadline) {
+      running = false;
+      setState({
+        type: "error",
+        error: new Error("Access request expired"),
+      });
+      return;
+    }
+    scheduleNextPoll(request, deadline);
+  }
+
   async function poll(request: AccessRequest, deadline: number): Promise<void> {
     if (!running) return;
     if (now() >= deadline) {
@@ -358,14 +389,18 @@ export function createDirectConnectFlow<T = unknown>(
       // the UI renders request.approvalUrl as a visible "Open approval" link
       // instead of hanging. We poll either way, so a manual open still
       // resolves the flow, and the timeout still bounds the wait.
-      setState({
-        type: "awaiting_approval",
-        request,
-        popupBlocked: approvalWindow === null,
-      });
+      beginPolling(request, approvalWindow === null);
+    },
 
-      const deadline = now() + timeoutMs;
-      scheduleNextPoll(request, deadline);
+    async resume(request: AccessRequest): Promise<void> {
+      if (running || isRunningPhase()) return;
+      running = true;
+      ++activeRunId;
+
+      // A resumed flow deliberately does not create a request, own storage, or
+      // open another approval tab. Treat the absent window like a blocked popup
+      // so existing UIs keep exposing the HTTPS approval URL as recovery.
+      beginPolling(request, true);
     },
 
     reset(): void {

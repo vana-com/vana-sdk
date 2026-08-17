@@ -36,7 +36,11 @@ import {
   getDirectEndpoints,
   getDirectNetworkChainId,
 } from "./endpoints";
-import { AccessNotApprovedError, DirectConfigError } from "./errors";
+import {
+  AccessNotApprovedError,
+  DirectConfigError,
+  ScopeNotApprovedError,
+} from "./errors";
 import {
   type EscrowPaymentConfig,
   type SignTypedDataFn,
@@ -58,6 +62,7 @@ import type {
   DirectNetwork,
   DirectPaymentResponseMetadata,
   DirectServiceEndpoints,
+  MultiScopeDataResult,
 } from "./types";
 
 /** Configuration for {@link createDirectDataController}. */
@@ -181,7 +186,7 @@ export interface DirectDataController {
    * Fetch the current status of an access request.
    *
    * @param requestId - The `dcr_*` id from {@link DirectDataController.createAccessRequest}.
-   * @returns `{ status, personalServerUrl?, grantId?, scope? }`.
+   * @returns `{ status, personalServerUrl?, grantId?, scope?, scopes? }`.
    */
   getAccessRequestStatus(requestId: string): Promise<AccessRequestStatus>;
 
@@ -197,14 +202,53 @@ export interface DirectDataController {
    * Server returns it. After a successful read, the controller acknowledges
    * the DCR so Vana Web can close/redirect the approval tab.
    *
-   * @param input - The `dcr_*` request id to read.
+   * A request can approve several scopes. This reads **one** of them — `scope`
+   * when given, otherwise the first approved scope. Use
+   * {@link DirectDataController.readAllApprovedData} to read them all.
+   *
+   * Acknowledging moves the DCR to `completed`, which is terminal and no longer
+   * read-ready. To read several scopes with your own loop, pass
+   * `acknowledge: false` on every call but the last.
+   *
+   * @param input - The `dcr_*` request id, the optional `scope` to read, and an
+   *   optional `acknowledge` flag (default `true`).
    * @returns `{ scope, data, payment? }`.
    * @throws {@link AccessNotApprovedError} if the request is not approved.
+   * @throws {@link ScopeNotApprovedError} if `scope` is not an approved scope.
    * @throws {@link PaymentRequiredError} if payment is required but unsettled.
    */
   readApprovedData<T = unknown>(input: {
     requestId: string;
+    scope?: string;
+    acknowledge?: boolean;
   }): Promise<ApprovedDataResult<T>>;
+
+  /**
+   * Read every scope the user approved on a request.
+   *
+   * @remarks
+   * Reads the scopes in approval order, then acknowledges the DCR **once**,
+   * after the last read — acknowledging earlier would move the request to
+   * `completed` and make the remaining scopes unreadable.
+   *
+   * Each scope is a separate Personal Server read that settles its own
+   * `data_access` fee from escrow, so reading N scopes costs N times a
+   * single-scope read. The one-off registration fee is charged per grant, not
+   * per scope.
+   *
+   * A scope that fails does not abort the rest: successes land in `results` and
+   * failures in `errors`, because the fees for earlier scopes are already spent.
+   * If any scope fails the request is left unacknowledged, so the scopes that
+   * failed stay retryable — read them with `readApprovedData({ scope })` and
+   * acknowledge on the last one.
+   *
+   * @param input - The `dcr_*` request id to read.
+   * @returns `{ results, errors }`, both keyed by scope.
+   * @throws {@link AccessNotApprovedError} if the request is not approved.
+   */
+  readAllApprovedData<T = unknown>(input: {
+    requestId: string;
+  }): Promise<MultiScopeDataResult<T>>;
 }
 
 function isHexPrivateKey(value: string): value is Hex {
@@ -330,49 +374,125 @@ export function createDirectDataController(
 
     async readApprovedData<T = unknown>(input: {
       requestId: string;
+      scope?: string;
+      acknowledge?: boolean;
     }): Promise<ApprovedDataResult<T>> {
-      const status = await accessRequestClient.getAccessRequestStatus(
-        input.requestId,
-      );
-      if (
-        !isReadReadyStatus(status.status) ||
-        !status.personalServerUrl ||
-        !status.grantId ||
-        !status.scope
-      ) {
-        throw new AccessNotApprovedError(
-          "Request is not approved or is missing grantId/scope/personalServerUrl",
-          {
-            requestId: input.requestId,
-            status: status.status,
-            hasPersonalServerUrl: Boolean(status.personalServerUrl),
-            hasGrantId: Boolean(status.grantId),
-            hasScope: Boolean(status.scope),
-          },
-        );
+      const status = await requireReadReady(input.requestId);
+      const scope = resolveRequestedScope(status, input.scope);
+
+      const result = await readScope<T>(status, scope);
+      if (input.acknowledge !== false) {
+        await acknowledgeQuietly(input.requestId);
+      }
+      return result;
+    },
+
+    async readAllApprovedData<T = unknown>(input: {
+      requestId: string;
+    }): Promise<MultiScopeDataResult<T>> {
+      const status = await requireReadReady(input.requestId);
+      const scopes = approvedScopes(status);
+
+      const results: Record<string, ApprovedDataResult<T>> = {};
+      const errors: Record<string, Error> = {};
+      // Sequential, not parallel: each read settles its own escrow payment and
+      // the default nonce source is process-local, so concurrent reads would
+      // race on the payment nonce.
+      for (const scope of scopes) {
+        try {
+          results[scope] = await readScope<T>(status, scope);
+        } catch (error) {
+          errors[scope] =
+            error instanceof Error ? error : new Error(String(error));
+        }
       }
 
-      const result = await readPersonalServerData({
-        personalServerUrl: status.personalServerUrl,
-        scope: status.scope,
-        grantId: status.grantId,
-        payerAddress: account.address,
-        signMessage,
-        escrow,
-        fetchFn: config.personalServerFetch,
-        transportRetry: config.personalServerTransportRetry,
-      });
-      try {
-        await accessRequestClient.acknowledgeRead?.(input.requestId);
-      } catch {
-        // The read already succeeded; ack only drives Vana Web completion UX.
+      // Acknowledge only after the last read, and only if every scope read —
+      // acking moves the DCR to `completed`, which is terminal and no longer
+      // read-ready, so acking on a partial failure would make the scope that
+      // failed impossible to retry.
+      if (Object.keys(errors).length === 0) {
+        await acknowledgeQuietly(input.requestId);
       }
 
-      return {
-        scope: status.scope,
-        data: result.data as T,
-        payment: result.payment,
-      };
+      return { results, errors };
     },
   };
+
+  async function requireReadReady(
+    requestId: string,
+  ): Promise<AccessRequestStatus> {
+    const status = await accessRequestClient.getAccessRequestStatus(requestId);
+    // `scope` and `scopes` are both optional on the public status type, and a
+    // client may return either one — require at least one approved scope rather
+    // than the singular field specifically.
+    if (
+      !isReadReadyStatus(status.status) ||
+      !status.personalServerUrl ||
+      !status.grantId ||
+      approvedScopes(status).length === 0
+    ) {
+      throw new AccessNotApprovedError(
+        "Request is not approved or is missing grantId/scope/personalServerUrl",
+        {
+          requestId,
+          status: status.status,
+          hasPersonalServerUrl: Boolean(status.personalServerUrl),
+          hasGrantId: Boolean(status.grantId),
+          hasScope: approvedScopes(status).length > 0,
+        },
+      );
+    }
+    return status;
+  }
+
+  /** Approved scopes in approval order, falling back to the single `scope`. */
+  function approvedScopes(status: AccessRequestStatus): string[] {
+    if (status.scopes && status.scopes.length > 0) return status.scopes;
+    return status.scope ? [status.scope] : [];
+  }
+
+  /**
+   * Resolve which scope to read. Rejects an unapproved scope up front so it
+   * never reaches the Personal Server and never settles a fee.
+   */
+  function resolveRequestedScope(
+    status: AccessRequestStatus,
+    requested?: string,
+  ): string {
+    const scopes = approvedScopes(status);
+    if (requested === undefined) return scopes[0];
+    if (!scopes.includes(requested)) {
+      throw new ScopeNotApprovedError(
+        `Scope "${requested}" is not approved on this request`,
+        { requestedScope: requested, approvedScopes: scopes },
+      );
+    }
+    return requested;
+  }
+
+  async function readScope<T>(
+    status: AccessRequestStatus,
+    scope: string,
+  ): Promise<ApprovedDataResult<T>> {
+    const result = await readPersonalServerData({
+      personalServerUrl: status.personalServerUrl as string,
+      scope,
+      grantId: status.grantId as string,
+      payerAddress: account.address,
+      signMessage,
+      escrow,
+      fetchFn: config.personalServerFetch,
+      transportRetry: config.personalServerTransportRetry,
+    });
+    return { scope, data: result.data as T, payment: result.payment };
+  }
+
+  async function acknowledgeQuietly(requestId: string): Promise<void> {
+    try {
+      await accessRequestClient.acknowledgeRead?.(requestId);
+    } catch {
+      // The read already succeeded; ack only drives Vana Web completion UX.
+    }
+  }
 }

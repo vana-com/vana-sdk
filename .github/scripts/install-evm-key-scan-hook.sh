@@ -33,7 +33,7 @@ validate_policy() {
     exit 2
   }
   [[ -d "$policy_dir/.git" ]] || return 1
-  origin=$(git -C "$policy_dir" remote get-url origin) || {
+  origin=$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$policy_dir" remote get-url origin) || {
     printf 'Refusing unreadable policy cache: %s\n' "$policy_dir" >&2
     exit 2
   }
@@ -44,11 +44,11 @@ validate_policy() {
       exit 2
       ;;
   esac
-  [[ "$(git -C "$policy_dir" rev-parse HEAD)" == "$CENTRAL_POLICY_SHA" ]] || {
+  [[ "$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$policy_dir" rev-parse HEAD)" == "$CENTRAL_POLICY_SHA" ]] || {
     printf 'Refusing stale policy cache: %s\n' "$policy_dir" >&2
     exit 2
   }
-  [[ -z "$(git -C "$policy_dir" status --porcelain --untracked-files=all -- ':!/.tools')" ]] || {
+  [[ -z "$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$policy_dir" status --porcelain --untracked-files=all -- ':!/.tools')" ]] || {
     printf 'Refusing modified policy cache: %s\n' "$policy_dir" >&2
     exit 2
   }
@@ -102,6 +102,8 @@ if [[ "$action" == run ]]; then
     exit 2
   }
   exec env \
+    -u GIT_DIR \
+    -u GIT_WORK_TREE \
     VANA_SECRET_SCAN_HOME="$policy_dir" \
     VANA_SECRET_SCAN_EXPECTED_SHA="$CENTRAL_POLICY_SHA" \
     "$policy_dir/hooks/pre-push" "$@"

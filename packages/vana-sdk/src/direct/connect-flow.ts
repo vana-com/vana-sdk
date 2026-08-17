@@ -81,6 +81,13 @@ export interface DirectConnectOptions {
    * handle.
    */
   openApprovalWindow?: () => ConnectWindow | null;
+  /**
+   * Navigate the initiating page to an installed-app destination. Defaults to
+   * `window.location.assign(url)`. Kept separate from the speculative approval
+   * tab because iOS Safari presents custom-scheme confirmation in the opener;
+   * navigating the blank tab can hide that prompt behind the active tab.
+   */
+  navigateInstalledApp?: (url: string) => void;
   /** SDK-owned mobile/desktop policy. Injectable for deterministic tests. */
   browserPlatformPolicy?: DirectBrowserPlatformPolicy;
   /** `setTimeout`. Injectable for tests. Defaults to `globalThis.setTimeout`. */
@@ -229,6 +236,11 @@ function defaultOpenApprovalWindow(): ConnectWindow | null {
   };
 }
 
+function defaultNavigateInstalledApp(url: string): void {
+  if (typeof window === "undefined") return;
+  window.location.assign(url);
+}
+
 /**
  * Create a connect-flow store.
  *
@@ -256,6 +268,8 @@ export function createDirectConnectFlow<T = unknown>(
   const now = options.now ?? (() => Date.now());
   const browserPlatformPolicy =
     options.browserPlatformPolicy ?? defaultBrowserPlatformPolicy();
+  const navigateInstalledApp =
+    options.navigateInstalledApp ?? defaultNavigateInstalledApp;
 
   let state: DirectConnectState<T> = { type: "idle" };
   const listeners = new Set<() => void>();
@@ -448,10 +462,27 @@ export function createDirectConnectFlow<T = unknown>(
         return;
       }
 
-      if (approvalWindow) {
-        approvalWindow.navigate(
-          selectDirectAccessRequestUrl(request, browserPlatformPolicy, now),
-        );
+      const destination = selectDirectAccessRequestUrl(
+        request,
+        browserPlatformPolicy,
+        now,
+      );
+      const usesInstalledApp =
+        request.installedAppUrl !== undefined &&
+        destination === request.installedAppUrl;
+      let destinationBlocked = approvalWindow === null;
+      if (usesInstalledApp) {
+        // iOS Safari shows the external-app confirmation in the initiating tab.
+        // Close the speculative blank tab first so it cannot hide that prompt.
+        closeUnnavigatedWindow();
+        try {
+          navigateInstalledApp(destination);
+          destinationBlocked = false;
+        } catch {
+          destinationBlocked = true;
+        }
+      } else if (approvalWindow) {
+        approvalWindow.navigate(destination);
         // Hand the tab off to the user; we no longer own/close it.
         openedWindow = null;
       }
@@ -459,7 +490,7 @@ export function createDirectConnectFlow<T = unknown>(
       // the UI renders request.approvalUrl as a visible "Open approval" link
       // instead of hanging. We poll either way, so a manual open still
       // resolves the flow, and the timeout still bounds the wait.
-      beginPolling(request, approvalWindow === null);
+      beginPolling(request, destinationBlocked);
     },
 
     async resume(request: ResumableAccessRequest): Promise<void> {
@@ -476,6 +507,26 @@ export function createDirectConnectFlow<T = unknown>(
     retryOpen(): boolean {
       if (state.type !== "awaiting_approval") return false;
       const awaiting = state;
+      const destination = selectDirectAccessRequestUrl(
+        awaiting.request,
+        browserPlatformPolicy,
+        now,
+      );
+      if (
+        awaiting.request.installedAppUrl !== undefined &&
+        destination === awaiting.request.installedAppUrl
+      ) {
+        try {
+          navigateInstalledApp(destination);
+          setState({ ...awaiting, popupBlocked: false });
+          return true;
+        } catch {
+          if (!awaiting.popupBlocked) {
+            setState({ ...awaiting, popupBlocked: true });
+          }
+          return false;
+        }
+      }
       const openApprovalWindow =
         options.openApprovalWindow ?? defaultOpenApprovalWindow;
       const approvalWindow = openApprovalWindow();
@@ -485,13 +536,7 @@ export function createDirectConnectFlow<T = unknown>(
         }
         return false;
       }
-      approvalWindow.navigate(
-        selectDirectAccessRequestUrl(
-          awaiting.request,
-          browserPlatformPolicy,
-          now,
-        ),
-      );
+      approvalWindow.navigate(destination);
       setState({ ...awaiting, popupBlocked: false });
       return true;
     },

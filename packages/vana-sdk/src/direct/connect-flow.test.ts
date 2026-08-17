@@ -108,6 +108,7 @@ describe("createDirectConnectFlow", () => {
   it("treats touch-capable MacIntel Safari as mobile by default", async () => {
     const h = makeHarness();
     const win = makeWindow();
+    const navigateInstalledApp = vi.fn();
     vi.stubGlobal("navigator", {
       userAgent:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Safari/605.1.15",
@@ -127,6 +128,7 @@ describe("createDirectConnectFlow", () => {
         },
         {
           openApprovalWindow: () => win.handle,
+          navigateInstalledApp,
           now: h.now,
           setTimeoutFn: h.setTimeoutFn,
           clearTimeoutFn: h.clearTimeoutFn,
@@ -135,12 +137,47 @@ describe("createDirectConnectFlow", () => {
 
       await flow.start();
 
-      expect(win.navigate).toHaveBeenCalledWith(
+      expect(win.close).toHaveBeenCalledOnce();
+      expect(navigateInstalledApp).toHaveBeenCalledWith(
         "vana-dev://continue?id=dcrcont_ipad",
       );
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("closes the speculative tab and navigates the initiating page for installed-app handoff", async () => {
+    const h = makeHarness();
+    const win = makeWindow();
+    const navigateInstalledApp = vi.fn();
+    const options: DirectConnectOptions = {
+      openApprovalWindow: () => win.handle,
+      browserPlatformPolicy: { current: () => "mobile" as const },
+      navigateInstalledApp,
+      now: h.now,
+      setTimeoutFn: h.setTimeoutFn,
+      clearTimeoutFn: h.clearTimeoutFn,
+    };
+    const installedAppUrl = "vana-dev://continue?id=dcrcont_native";
+
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => ({ ...REQUEST, installedAppUrl }),
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      options,
+    );
+
+    await flow.start();
+
+    expect(win.close).toHaveBeenCalledOnce();
+    expect(win.navigate).not.toHaveBeenCalled();
+    expect(navigateInstalledApp).toHaveBeenCalledWith(installedAppUrl);
+    expect(flow.getState()).toMatchObject({
+      type: "awaiting_approval",
+      popupBlocked: false,
+    });
   });
 
   it("projects resumable metadata without persisting the installed-app capability", () => {
@@ -610,11 +647,8 @@ describe("createDirectConnectFlow", () => {
 
   it("uses a refreshed pending capability for explicit mobile retry", async () => {
     const h = makeHarness();
-    const retryWindow = makeWindow();
-    const openApprovalWindow = vi
-      .fn<() => ReturnType<typeof makeWindow>["handle"] | null>()
-      .mockReturnValueOnce(null)
-      .mockReturnValueOnce(retryWindow.handle);
+    const openApprovalWindow = vi.fn(() => null);
+    const navigateInstalledApp = vi.fn();
     const refreshedUrl = "vana-dev://continue?id=dcrcont_fresh";
     const flow = createDirectConnectFlow(
       {
@@ -633,6 +667,7 @@ describe("createDirectConnectFlow", () => {
       {
         openApprovalWindow,
         browserPlatformPolicy: { current: () => "mobile" },
+        navigateInstalledApp,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -642,7 +677,8 @@ describe("createDirectConnectFlow", () => {
     await flow.start();
     await h.tick();
     expect(flow.retryOpen()).toBe(true);
-    expect(retryWindow.navigate).toHaveBeenCalledWith(refreshedUrl);
+    expect(navigateInstalledApp).toHaveBeenCalledWith(refreshedUrl);
+    expect(openApprovalWindow).toHaveBeenCalledOnce();
     const state = flow.getState();
     expect(state.type).toBe("awaiting_approval");
     if (state.type === "awaiting_approval") {

@@ -104,9 +104,6 @@ function payResultFixture(opId: string) {
 function mockEscrow(payForOp = vi.fn()): EscrowPaymentConfig {
   return {
     client: {
-      submitDeposit: vi.fn(),
-      getEscrowBalance: vi.fn(),
-      syncEscrowBalance: vi.fn(),
       payForOp,
     },
     escrowContract: "0x000000000000000000000000000000000000dEaD",

@@ -110,9 +110,9 @@ export type DirectConnectState<T = unknown> =
       type: "awaiting_approval";
       request: AccessRequest;
       /**
-       * `true` when the browser blocked the approval popup. The UI should
-       * offer `retryOpen()` and the universal HTTPS `request.approvalUrl`
-       * fallback instead of silently hanging.
+       * `true` when the destination still needs an explicit user gesture.
+       * The UI should offer `retryOpen()` for an installed-app destination,
+       * or the universal HTTPS `request.approvalUrl` fallback otherwise.
        */
       popupBlocked: boolean;
     }
@@ -470,20 +470,15 @@ export function createDirectConnectFlow<T = unknown>(
         destination === request.installedAppUrl;
       let destinationBlocked = approvalWindow === null;
       if (usesInstalledApp) {
-        if (approvalWindow) {
-          // The activated popup handle preserves Safari's transient permission
-          // across createRequest. Dispatch through it, then close it so the
-          // confirmation Safari presents in the opener is not hidden.
-          try {
-            approvalWindow.navigate(destination);
-            destinationBlocked = false;
-          } catch {
-            destinationBlocked = true;
-          } finally {
-            approvalWindow.close();
-            openedWindow = null;
-          }
-        }
+        // The capability arrives only after createRequest, outside the
+        // initiating click's transient activation. Physical iOS Safari proof
+        // showed both async initiating-page navigation and a navigated blank
+        // tab are unreliable: the former is suppressed and the latter hides
+        // or cancels Safari's confirmation prompt. Close the unused tab and
+        // require one explicit retryOpen() gesture with the minted URL.
+        approvalWindow?.close();
+        openedWindow = null;
+        destinationBlocked = true;
       } else if (approvalWindow) {
         approvalWindow.navigate(destination);
         // Hand the tab off to the user; we no longer own/close it.

@@ -105,7 +105,7 @@ describe("createDirectConnectFlow", () => {
     ).toBe(request.approvalUrl);
   });
 
-  it("treats touch-capable MacIntel Safari as mobile by default", async () => {
+  it("treats touch-capable MacIntel Safari as mobile and requests a user gesture", async () => {
     const h = makeHarness();
     const win = makeWindow();
     const navigateInstalledApp = vi.fn();
@@ -137,17 +137,19 @@ describe("createDirectConnectFlow", () => {
 
       await flow.start();
 
-      expect(win.navigate).toHaveBeenCalledWith(
-        "vana-dev://continue?id=dcrcont_ipad",
-      );
+      expect(win.navigate).not.toHaveBeenCalled();
       expect(win.close).toHaveBeenCalledOnce();
       expect(navigateInstalledApp).not.toHaveBeenCalled();
+      expect(flow.getState()).toMatchObject({
+        type: "awaiting_approval",
+        popupBlocked: true,
+      });
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("dispatches installed-app handoff through the activated tab and then closes it", async () => {
+  it("defers installed-app handoff to an explicit retry gesture", async () => {
     const h = makeHarness();
     const win = makeWindow();
     const navigateInstalledApp = vi.fn();
@@ -172,13 +174,16 @@ describe("createDirectConnectFlow", () => {
 
     await flow.start();
 
-    expect(win.navigate).toHaveBeenCalledWith(installedAppUrl);
+    expect(win.navigate).not.toHaveBeenCalled();
     expect(win.close).toHaveBeenCalledOnce();
     expect(navigateInstalledApp).not.toHaveBeenCalled();
     expect(flow.getState()).toMatchObject({
       type: "awaiting_approval",
-      popupBlocked: false,
+      popupBlocked: true,
     });
+
+    expect(flow.retryOpen()).toBe(true);
+    expect(navigateInstalledApp).toHaveBeenCalledWith(installedAppUrl);
   });
 
   it("projects resumable metadata without persisting the installed-app capability", () => {

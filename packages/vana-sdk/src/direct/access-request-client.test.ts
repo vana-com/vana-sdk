@@ -93,9 +93,10 @@ describe("createDefaultAccessRequestClient", () => {
     expect(result).toMatchObject({ network: "moksha", expiresAt });
   });
 
-  it("parses optional installed-app capability metadata from create and status", async () => {
+  it("parses optional installed-app routing metadata from create and status", async () => {
     const installedAppUrl = "vana-dev://continue?id=dcrcont_9";
     const installedAppExpiresAt = "2026-08-17T18:05:00.000Z";
+    const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
       approvalBaseUrl: "https://app.vana.org",
@@ -103,11 +104,17 @@ describe("createDefaultAccessRequestClient", () => {
       fetchFn: fakeFetch((url) => ({
         status: 200,
         body: url.endsWith("/dcr_9")
-          ? { status: "pending", installedAppUrl, installedAppExpiresAt }
+          ? {
+              status: "pending",
+              installedAppUrl,
+              installedAppExpiresAt,
+              installedAppFallbackUrl,
+            }
           : {
               requestId: "dcr_9",
               installedAppUrl,
               installedAppExpiresAt,
+              installedAppFallbackUrl,
             },
       })),
     });
@@ -122,9 +129,52 @@ describe("createDefaultAccessRequestClient", () => {
     });
     const status = await client.getAccessRequestStatus("dcr_9");
 
-    expect(request).toMatchObject({ installedAppUrl, installedAppExpiresAt });
-    expect(status).toMatchObject({ installedAppUrl, installedAppExpiresAt });
+    expect(request).toMatchObject({
+      installedAppUrl,
+      installedAppExpiresAt,
+      installedAppFallbackUrl,
+    });
+    expect(status).toMatchObject({
+      installedAppUrl,
+      installedAppExpiresAt,
+      installedAppFallbackUrl,
+    });
   });
+
+  it.each([
+    "/mobile/install",
+    "https:app.vana.org/mobile/install",
+    "http://app.vana.org/mobile/install",
+    "vana://install",
+  ])(
+    "omits non-HTTPS installed-app fallback %s",
+    async (installedAppFallbackUrl) => {
+      const client = createDefaultAccessRequestClient({
+        baseUrl: "https://app.vana.org",
+        approvalBaseUrl: "https://app.vana.org",
+        createIdempotencyKey: () => "idem-invalid-fallback",
+        fetchFn: fakeFetch((url) => ({
+          status: 200,
+          body: url.endsWith("/dcr_9")
+            ? { status: "pending", installedAppFallbackUrl }
+            : { requestId: "dcr_9", installedAppFallbackUrl },
+        })),
+      });
+
+      const request = await client.createAccessRequest({
+        appAddress: "0xabc",
+        app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+        source: "icloud_notes",
+        scopes: ["icloud_notes.notes"],
+        returnUrl: "https://a.example/return",
+        network: "mainnet",
+      });
+      const status = await client.getAccessRequestStatus("dcr_9");
+
+      expect(request.installedAppFallbackUrl).toBeUndefined();
+      expect(status.installedAppFallbackUrl).toBeUndefined();
+    },
+  );
 
   it("omits invalid additive create-response metadata", async () => {
     const client = createDefaultAccessRequestClient({
@@ -138,6 +188,7 @@ describe("createDefaultAccessRequestClient", () => {
           expiresAt: "not-a-date",
           installedAppUrl: "not a url",
           installedAppExpiresAt: "also-not-a-date",
+          installedAppFallbackUrl: "javascript:alert(1)",
         },
       })),
     });
@@ -155,6 +206,7 @@ describe("createDefaultAccessRequestClient", () => {
     expect(result.expiresAt).toBeUndefined();
     expect(result.installedAppUrl).toBeUndefined();
     expect(result.installedAppExpiresAt).toBeUndefined();
+    expect(result.installedAppFallbackUrl).toBeUndefined();
   });
 
   it("normalizes an unknown status to pending", async () => {

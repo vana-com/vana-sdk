@@ -219,13 +219,15 @@ describe("createDirectConnectFlow", () => {
   });
 
   it("projects resumable metadata without persisting the installed-app capability", () => {
+    const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
     const resumable = toResumableAccessRequest({
       ...REQUEST,
       installedAppUrl: "vana-dev://continue?id=secret",
       installedAppExpiresAt: new Date(10_000).toISOString(),
+      installedAppFallbackUrl,
     });
 
-    expect(resumable).toEqual(REQUEST);
+    expect(resumable).toEqual({ ...REQUEST, installedAppFallbackUrl });
     expect(JSON.stringify(resumable)).not.toContain("vana-dev");
   });
 
@@ -688,6 +690,7 @@ describe("createDirectConnectFlow", () => {
     const openApprovalWindow = vi.fn(() => null);
     const navigateInstalledApp = vi.fn();
     const refreshedUrl = "vana-dev://continue?id=dcrcont_fresh";
+    const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
     const flow = createDirectConnectFlow(
       {
         createRequest: async () => ({
@@ -699,6 +702,7 @@ describe("createDirectConnectFlow", () => {
           status: "pending",
           installedAppUrl: refreshedUrl,
           installedAppExpiresAt: new Date(60_000).toISOString(),
+          installedAppFallbackUrl,
         }),
         readResult: vi.fn(),
       },
@@ -721,6 +725,9 @@ describe("createDirectConnectFlow", () => {
     expect(state.type).toBe("awaiting_approval");
     if (state.type === "awaiting_approval") {
       expect(state.request.approvalUrl).toBe(REQUEST.approvalUrl);
+      expect(state.request.installedAppFallbackUrl).toBe(
+        installedAppFallbackUrl,
+      );
       expect(state.popupBlocked).toBe(true);
     }
   });

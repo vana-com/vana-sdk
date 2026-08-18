@@ -378,11 +378,21 @@ export function createDirectConnectFlow<T = unknown>(
     }
     if (!running) return;
 
-    if (status.status === "pending" && status.installedAppUrl) {
+    if (
+      status.status === "pending" &&
+      (status.installedAppUrl || status.installedAppFallbackUrl)
+    ) {
       request = {
         ...request,
-        installedAppUrl: status.installedAppUrl,
-        installedAppExpiresAt: status.installedAppExpiresAt,
+        ...(status.installedAppUrl
+          ? {
+              installedAppUrl: status.installedAppUrl,
+              installedAppExpiresAt: status.installedAppExpiresAt,
+            }
+          : {}),
+        ...(status.installedAppFallbackUrl
+          ? { installedAppFallbackUrl: status.installedAppFallbackUrl }
+          : {}),
       };
       const popupBlocked =
         state.type === "awaiting_approval" ? state.popupBlocked : true;

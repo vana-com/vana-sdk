@@ -87,6 +87,18 @@ function normalizeUrl(value: unknown): string | undefined {
   }
 }
 
+function normalizeAbsoluteHttpsUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !/^https:\/\//i.test(value)) {
+    return undefined;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function defaultCreateIdempotencyKey(): string {
   if (typeof globalThis.crypto?.randomUUID !== "function") {
     throw new Error(
@@ -228,6 +240,7 @@ export function createDefaultAccessRequestClient(
         expiresAt?: unknown;
         installedAppUrl?: unknown;
         installedAppExpiresAt?: unknown;
+        installedAppFallbackUrl?: unknown;
       };
       const requestId = responseBody.requestId ?? responseBody.id;
       if (!requestId) {
@@ -245,6 +258,9 @@ export function createDefaultAccessRequestClient(
         installedAppUrl: normalizeUrl(responseBody.installedAppUrl),
         installedAppExpiresAt: normalizeExpiresAt(
           responseBody.installedAppExpiresAt,
+        ),
+        installedAppFallbackUrl: normalizeAbsoluteHttpsUrl(
+          responseBody.installedAppFallbackUrl,
         ),
       };
     },
@@ -273,6 +289,7 @@ export function createDefaultAccessRequestClient(
         scope?: string;
         installedAppUrl?: unknown;
         installedAppExpiresAt?: unknown;
+        installedAppFallbackUrl?: unknown;
       };
       return {
         status: normalizeStatus(body.status),
@@ -281,6 +298,9 @@ export function createDefaultAccessRequestClient(
         scope: body.scope,
         installedAppUrl: normalizeUrl(body.installedAppUrl),
         installedAppExpiresAt: normalizeExpiresAt(body.installedAppExpiresAt),
+        installedAppFallbackUrl: normalizeAbsoluteHttpsUrl(
+          body.installedAppFallbackUrl,
+        ),
       };
     },
 

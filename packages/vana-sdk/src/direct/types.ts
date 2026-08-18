@@ -88,6 +88,8 @@ export interface AccessRequest {
   installedAppUrl?: string;
   /** ISO-8601 expiry of `installedAppUrl`, independent of the DCR expiry. */
   installedAppExpiresAt?: string;
+  /** Absolute HTTPS recovery URL for installing or reopening the native app. */
+  installedAppFallbackUrl?: string;
 }
 
 /** Safe metadata a caller may persist to resume an access request. */
@@ -147,6 +149,8 @@ export interface AccessRequestStatus {
   installedAppUrl?: string;
   /** ISO-8601 expiry of the refreshed installed-app destination. */
   installedAppExpiresAt?: string;
+  /** Absolute HTTPS recovery URL for installing or reopening the native app. */
+  installedAppFallbackUrl?: string;
 }
 
 /** Result of {@link DirectDataController.readApprovedData}. */

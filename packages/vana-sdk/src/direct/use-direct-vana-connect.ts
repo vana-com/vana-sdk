@@ -87,6 +87,9 @@ export function useDirectVanaConnect<T = unknown>(
           get browserPlatformPolicy() {
             return optionsRef.current.browserPlatformPolicy;
           },
+          get navigateInstalledApp() {
+            return optionsRef.current.navigateInstalledApp;
+          },
         },
       ),
     // Created once per component instance; callbacks are read via optionsRef.

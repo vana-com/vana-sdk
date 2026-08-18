@@ -98,6 +98,18 @@ export type ResumableAccessRequest = Omit<
   "installedAppUrl" | "installedAppExpiresAt"
 >;
 
+function normalizeInstalledAppFallbackUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !/^https:\/\//i.test(value)) {
+    return undefined;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Remove short-lived bearer capabilities before a caller persists resume data.
  *
@@ -112,6 +124,14 @@ export function toResumableAccessRequest(
   const safe = { ...request };
   delete safe.installedAppUrl;
   delete safe.installedAppExpiresAt;
+  const fallbackUrl = normalizeInstalledAppFallbackUrl(
+    safe.installedAppFallbackUrl,
+  );
+  if (fallbackUrl === undefined) {
+    delete safe.installedAppFallbackUrl;
+  } else {
+    safe.installedAppFallbackUrl = fallbackUrl;
+  }
   return safe;
 }
 

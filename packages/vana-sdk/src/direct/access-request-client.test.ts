@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   buildApprovalUrl,
   buildDirectAccessRequestAuthMessage,
@@ -452,6 +452,70 @@ describe("createDefaultAccessRequestClient", () => {
 
     expect(JSON.parse(bodies[0] ?? "{}").idempotencyKey).toBe("generated-key");
     expect(bodies[1]).toBe(bodies[0]);
+  });
+
+  it("retains a shared key when one concurrent create has an uncertain failure", async () => {
+    const bodies: string[] = [];
+    const createIdempotencyKey = vi.fn(() => "concurrent-key");
+    let resolveFirst!: (response: Awaited<ReturnType<FetchLike>>) => void;
+    let rejectSecond!: (error: Error) => void;
+    let attempt = 0;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      createIdempotencyKey,
+      fetchFn: async (_url, init) => {
+        bodies.push(init?.body ?? "");
+        attempt++;
+        if (attempt === 1) {
+          return new Promise((resolve) => {
+            resolveFirst = resolve;
+          });
+        }
+        if (attempt === 2) {
+          return new Promise((_resolve, reject) => {
+            rejectSecond = reject;
+          });
+        }
+        return {
+          ok: true,
+          status: 201,
+          statusText: "HTTP 201",
+          json: async () => ({ requestId: "dcr_9" }),
+          text: async () => "",
+        };
+      },
+    });
+    const input = {
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet" as const,
+    };
+
+    const first = client.createAccessRequest(input);
+    const second = client.createAccessRequest(input);
+    await vi.waitFor(() => {
+      expect(bodies).toHaveLength(2);
+    });
+    resolveFirst({
+      ok: true,
+      status: 201,
+      statusText: "HTTP 201",
+      json: async () => ({ requestId: "dcr_9" }),
+      text: async () => "",
+    });
+    await first;
+    rejectSecond(new Error("response lost"));
+    await expect(second).rejects.toThrow("response lost");
+    await client.createAccessRequest(input);
+
+    expect(createIdempotencyKey).toHaveBeenCalledOnce();
+    expect(bodies).toHaveLength(3);
+    expect(bodies[1]).toBe(bodies[0]);
+    expect(bodies[2]).toBe(bodies[0]);
   });
 
   it("throws on a non-ok acknowledge response", async () => {

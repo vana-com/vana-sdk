@@ -192,16 +192,29 @@ export function createDefaultAccessRequestClient(
     );
   }
   const base = stripTrailingSlash(options.baseUrl);
-  const createKeysByInput = new Map<string, string>();
+  const createKeysByInput = new Map<
+    string,
+    { key: string; inFlight: number; failedInBatch: boolean }
+  >();
 
   return {
     async createAccessRequest(input): Promise<AccessRequest> {
       const path = "/api/data-connection-requests";
       const retryIdentity = JSON.stringify(input);
-      const idempotencyKey =
-        input.idempotencyKey ??
-        createKeysByInput.get(retryIdentity) ??
-        (options.createIdempotencyKey ?? defaultCreateIdempotencyKey)();
+      let generatedKeyState = createKeysByInput.get(retryIdentity);
+      if (input.idempotencyKey === undefined && !generatedKeyState) {
+        generatedKeyState = {
+          key: (options.createIdempotencyKey ?? defaultCreateIdempotencyKey)(),
+          inFlight: 0,
+          failedInBatch: false,
+        };
+        createKeysByInput.set(retryIdentity, generatedKeyState);
+      }
+      if (generatedKeyState?.inFlight === 0) {
+        generatedKeyState.failedInBatch = false;
+      }
+      if (generatedKeyState) generatedKeyState.inFlight++;
+      const idempotencyKey = input.idempotencyKey ?? generatedKeyState?.key;
       const body = JSON.stringify({
         appAddress: input.appAddress,
         app: input.app,
@@ -211,58 +224,70 @@ export function createDefaultAccessRequestClient(
         network: input.network,
         idempotencyKey,
       });
-      // Retain the key until a complete success response is parsed. This covers
-      // concurrent calls, transport failures, and responses lost after create.
-      createKeysByInput.set(retryIdentity, idempotencyKey);
-      const res = await fetchFn(`${base}${path}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await buildDirectAccessRequestHeaders(options, {
-            body,
-            method: "POST",
-            path,
-          })),
-        },
-        body,
-      });
-      if (!res.ok) {
-        throw new Error(
-          `Access request service error: ${res.status} ${res.statusText}`,
-        );
+      try {
+        const res = await fetchFn(`${base}${path}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(await buildDirectAccessRequestHeaders(options, {
+              body,
+              method: "POST",
+              path,
+            })),
+          },
+          body,
+        });
+        if (!res.ok) {
+          throw new Error(
+            `Access request service error: ${res.status} ${res.statusText}`,
+          );
+        }
+        const responseBody = (await res.json()) as {
+          requestId?: string;
+          id?: string;
+          approvalUrl?: string;
+          appAddress?: string;
+          network?: unknown;
+          expiresAt?: unknown;
+          installedAppUrl?: unknown;
+          installedAppExpiresAt?: unknown;
+          installedAppFallbackUrl?: unknown;
+        };
+        const requestId = responseBody.requestId ?? responseBody.id;
+        if (!requestId) {
+          throw new Error("Access request service returned no requestId");
+        }
+        return {
+          requestId,
+          approvalUrl:
+            responseBody.approvalUrl ??
+            buildApprovalUrl(options.approvalBaseUrl, requestId),
+          appAddress: responseBody.appAddress ?? input.appAddress,
+          network: normalizeNetwork(responseBody.network),
+          expiresAt: normalizeExpiresAt(responseBody.expiresAt),
+          installedAppUrl: normalizeUrl(responseBody.installedAppUrl),
+          installedAppExpiresAt: normalizeExpiresAt(
+            responseBody.installedAppExpiresAt,
+          ),
+          installedAppFallbackUrl: normalizeAbsoluteHttpsUrl(
+            responseBody.installedAppFallbackUrl,
+          ),
+        };
+      } catch (error) {
+        if (generatedKeyState) generatedKeyState.failedInBatch = true;
+        throw error;
+      } finally {
+        if (generatedKeyState) {
+          generatedKeyState.inFlight--;
+          if (
+            generatedKeyState.inFlight === 0 &&
+            !generatedKeyState.failedInBatch &&
+            createKeysByInput.get(retryIdentity) === generatedKeyState
+          ) {
+            createKeysByInput.delete(retryIdentity);
+          }
+        }
       }
-      const responseBody = (await res.json()) as {
-        requestId?: string;
-        id?: string;
-        approvalUrl?: string;
-        appAddress?: string;
-        network?: unknown;
-        expiresAt?: unknown;
-        installedAppUrl?: unknown;
-        installedAppExpiresAt?: unknown;
-        installedAppFallbackUrl?: unknown;
-      };
-      const requestId = responseBody.requestId ?? responseBody.id;
-      if (!requestId) {
-        throw new Error("Access request service returned no requestId");
-      }
-      createKeysByInput.delete(retryIdentity);
-      return {
-        requestId,
-        approvalUrl:
-          responseBody.approvalUrl ??
-          buildApprovalUrl(options.approvalBaseUrl, requestId),
-        appAddress: responseBody.appAddress ?? input.appAddress,
-        network: normalizeNetwork(responseBody.network),
-        expiresAt: normalizeExpiresAt(responseBody.expiresAt),
-        installedAppUrl: normalizeUrl(responseBody.installedAppUrl),
-        installedAppExpiresAt: normalizeExpiresAt(
-          responseBody.installedAppExpiresAt,
-        ),
-        installedAppFallbackUrl: normalizeAbsoluteHttpsUrl(
-          responseBody.installedAppFallbackUrl,
-        ),
-      };
     },
 
     async getAccessRequestStatus(

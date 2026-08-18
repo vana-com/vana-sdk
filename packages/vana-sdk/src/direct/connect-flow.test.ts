@@ -528,6 +528,52 @@ describe("createDirectConnectFlow", () => {
     }
   });
 
+  it.each([
+    [
+      "https://app.vana.org/mobile/install",
+      "https://app.vana.org/mobile/install",
+    ],
+    ["javascript:alert(1)", undefined],
+    ["http://app.vana.org/mobile/install", undefined],
+    ["https:app.vana.org/mobile/install", undefined],
+  ])(
+    "sanitizes fallback %s at projection and runtime resume boundaries",
+    async (installedAppFallbackUrl, expectedFallbackUrl) => {
+      const h = makeHarness();
+      const flow = createDirectConnectFlow(
+        {
+          createRequest: vi.fn(),
+          getStatus: async () => pendingStatus(),
+          readResult: vi.fn(),
+        },
+        {
+          now: h.now,
+          setTimeoutFn: h.setTimeoutFn,
+          clearTimeoutFn: h.clearTimeoutFn,
+        },
+      );
+
+      const unsafeRequest: AccessRequest = {
+        ...REQUEST,
+        installedAppUrl: "vana-dev://continue?id=secret",
+        installedAppExpiresAt: new Date(10_000).toISOString(),
+        installedAppFallbackUrl,
+      };
+      expect(
+        toResumableAccessRequest(unsafeRequest).installedAppFallbackUrl,
+      ).toBe(expectedFallbackUrl);
+      await flow.resume(unsafeRequest);
+
+      const state = flow.getState();
+      expect(state.type).toBe("awaiting_approval");
+      if (state.type === "awaiting_approval") {
+        expect(state.request.installedAppUrl).toBeUndefined();
+        expect(state.request.installedAppExpiresAt).toBeUndefined();
+        expect(state.request.installedAppFallbackUrl).toBe(expectedFallbackUrl);
+      }
+    },
+  );
+
   it("rejects an already expired resumed request without polling", async () => {
     const h = makeHarness();
     const createRequest = vi.fn();

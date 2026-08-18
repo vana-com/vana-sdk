@@ -20,6 +20,7 @@ import type {
   ApprovedDataResult,
   ResumableAccessRequest,
 } from "./types";
+import { toResumableAccessRequest } from "./types";
 
 /**
  * Caller-supplied transports. These typically `fetch` the app's own backend
@@ -509,7 +510,10 @@ export function createDirectConnectFlow<T = unknown>(
       // A resumed flow deliberately does not create a request, own storage, or
       // open another approval tab. Treat the absent window like a blocked popup
       // so existing UIs keep exposing the HTTPS approval URL as recovery.
-      beginPolling(request, true);
+      // Types alone cannot stop JavaScript callers (or structurally compatible
+      // AccessRequest values) from passing short-lived bearer capabilities.
+      // Enforce the persistence boundary again at runtime before polling.
+      beginPolling(toResumableAccessRequest(request), true);
     },
 
     retryOpen(): boolean {

@@ -62,7 +62,7 @@ export const CONTRACTS: Record<string, ContractConfig> = {
   },
   DataPortabilityServers: {
     addresses: {
-      14800: "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c",
+      14800: "0xCae2CE0e9caa6643ed28186cF57bd40Bd9E17Eab",
       1480: "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c",
     },
   },

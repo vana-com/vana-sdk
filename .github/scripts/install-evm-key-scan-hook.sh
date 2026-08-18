@@ -3,7 +3,7 @@
 set -euo pipefail
 
 readonly CENTRAL_REPOSITORY='https://github.com/vana-com/.github.git'
-readonly CENTRAL_POLICY_SHA='5f1b4b1019af6e3a528dd36d471f94be7dd83632'
+readonly CENTRAL_POLICY_SHA='99904520ef5b18f1fceb0331b4d0b0fb182d0b62'
 
 action=${1:-prepare}
 case "$action" in
@@ -35,10 +35,29 @@ lock_dir="$cache_root/.${CENTRAL_POLICY_SHA}.lock"
 # checkout GIT_DIR is the relative ".git", which happens to resolve correctly
 # under -C, which is why this only bites worktrees.) Scrub the inherited
 # repository environment for every command that must target the cache.
+#
+# The scrub list comes from git itself rather than a hardcoded set: it covers
+# the directory variables plus GIT_CONFIG_PARAMETERS / GIT_CONFIG_COUNT (which
+# `git -c foo=bar push` exports into hooks) and the repository-local variables
+# GIT_SHALLOW_FILE / GIT_GRAFT_FILE / GIT_REPLACE_REF_BASE /
+# GIT_IMPLICIT_WORK_TREE. The GIT_CONFIG_* FILE overrides are not in that list,
+# so they are added explicitly — without GIT_CONFIG_GLOBAL a caller can point
+# `remote.origin.url` at vana-com/.github from its own environment and satisfy
+# the origin check below against a cache whose real origin is something else.
+# A hardcoded fallback covers a git too old to answer.
 policy_git() {
-  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY \
-    -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR \
-    git "$@"
+  local scrub=()
+  local v
+  while IFS= read -r v; do
+    [[ -n "$v" ]] && scrub+=(-u "$v")
+  done < <(git rev-parse --local-env-vars 2>/dev/null || printf '%s\n' \
+    GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+    GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR \
+    GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT)
+  for v in GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM; do
+    scrub+=(-u "$v")
+  done
+  env "${scrub[@]}" git "$@"
 }
 
 validate_policy() {

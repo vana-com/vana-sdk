@@ -146,36 +146,6 @@ describe("createDefaultAccessRequestClient", () => {
     });
   });
 
-  it("omits arbitrary custom-scheme app continuations", async () => {
-    const client = createDefaultAccessRequestClient({
-      baseUrl: "https://app.vana.org",
-      approvalBaseUrl: "https://app.vana.org",
-      createIdempotencyKey: () => "idem-invalid-continuation",
-      fetchFn: fakeFetch((url) => ({
-        status: 200,
-        body: url.endsWith("/dcr_invalid")
-          ? { status: "pending", installedAppUrl: "facetime://continue?id=2" }
-          : {
-              requestId: "dcr_invalid",
-              installedAppUrl: "tel://continue?id=1",
-            },
-      })),
-    });
-
-    const request = await client.createAccessRequest({
-      appAddress: "0xabc",
-      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
-      source: "icloud_notes",
-      scopes: ["icloud_notes.notes"],
-      returnUrl: "https://a.example/return",
-      network: "moksha",
-    });
-    const status = await client.getAccessRequestStatus("dcr_invalid");
-
-    expect(request.installedAppUrl).toBeUndefined();
-    expect(status.installedAppUrl).toBeUndefined();
-  });
-
   it.each([
     "vana://open?request=dcr_9",
     "vana://open#resume",

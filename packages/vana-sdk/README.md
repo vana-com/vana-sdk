@@ -264,10 +264,10 @@ export function ConnectSpotifyButton() {
 
 The hook calls `createRequest`, opens the Vana destination, polls `getStatus`
 until the request is approved, then calls `readResult`. Destination choice stays
-inside the SDK: browsers use a fresh `installedAppUrl` when Vana returns
-one, while requests without that server-issued destination keep using the
-HTTPS `approvalUrl`. Builders should not add user-agent branches, app-install
-checks, deep-link construction, or store-link logic.
+inside the SDK: mobile browsers use a fresh `installedAppUrl` when Vana returns
+one, while desktop browsers and light requests keep using the HTTPS
+`approvalUrl`. Builders should not add user-agent branches, app-install checks,
+deep-link construction, or store-link logic.
 
 If a popup is blocked, render the HTTPS `state.request.approvalUrl` as the
 universal manual fallback or call `retryOpen()` directly from a later user

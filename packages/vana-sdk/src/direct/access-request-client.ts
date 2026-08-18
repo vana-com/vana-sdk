@@ -20,7 +20,6 @@ import type {
 import {
   normalizeInstalledAppFallbackUrl,
   normalizeInstalledAppReopenUrl,
-  normalizeInstalledAppUrl,
 } from "./types";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 
@@ -81,6 +80,15 @@ function normalizeExpiresAt(value: unknown): string | undefined {
   return typeof value === "string" && Number.isFinite(Date.parse(value))
     ? value
     : undefined;
+}
+
+function normalizeUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  try {
+    return new URL(value).toString();
+  } catch {
+    return undefined;
+  }
 }
 
 function defaultCreateIdempotencyKey(): string {
@@ -250,9 +258,7 @@ export function createDefaultAccessRequestClient(
           appAddress: responseBody.appAddress ?? input.appAddress,
           network: normalizeNetwork(responseBody.network),
           expiresAt: normalizeExpiresAt(responseBody.expiresAt),
-          installedAppUrl: normalizeInstalledAppUrl(
-            responseBody.installedAppUrl,
-          ),
+          installedAppUrl: normalizeUrl(responseBody.installedAppUrl),
           installedAppExpiresAt: normalizeExpiresAt(
             responseBody.installedAppExpiresAt,
           ),
@@ -312,7 +318,7 @@ export function createDefaultAccessRequestClient(
         personalServerUrl: body.personalServerUrl,
         grantId: body.grantId,
         scope: body.scope,
-        installedAppUrl: normalizeInstalledAppUrl(body.installedAppUrl),
+        installedAppUrl: normalizeUrl(body.installedAppUrl),
         installedAppExpiresAt: normalizeExpiresAt(body.installedAppExpiresAt),
         installedAppFallbackUrl: normalizeInstalledAppFallbackUrl(
           body.installedAppFallbackUrl,

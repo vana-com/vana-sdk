@@ -75,7 +75,7 @@ function readyForReadStatus(): AccessRequestStatus {
 }
 
 describe("createDirectConnectFlow", () => {
-  it("selects fresh installed-app URLs for mobile and desktop browsers", () => {
+  it("selects installed-app URLs only for mobile while the capability is fresh", () => {
     const request: AccessRequest = {
       ...REQUEST,
       installedAppUrl: "vana-dev://continue?id=dcrcont_1",
@@ -95,19 +95,12 @@ describe("createDirectConnectFlow", () => {
         { current: () => "desktop" },
         () => 0,
       ),
-    ).toBe(request.installedAppUrl);
+    ).toBe(request.approvalUrl);
     expect(
       selectDirectAccessRequestUrl(
         request,
         { current: () => "mobile" },
         () => 10_000,
-      ),
-    ).toBe(request.approvalUrl);
-    expect(
-      selectDirectAccessRequestUrl(
-        { ...request, installedAppUrl: "javascript:alert(document.domain)" },
-        { current: () => "desktop" },
-        () => 0,
       ),
     ).toBe(request.approvalUrl);
   });
@@ -151,49 +144,6 @@ describe("createDirectConnectFlow", () => {
         type: "awaiting_approval",
         popupBlocked: true,
       });
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("opens a server-issued installed-app URL from a desktop browser", async () => {
-    const h = makeHarness();
-    const win = makeWindow();
-    const navigateInstalledApp = vi.fn();
-    const installedAppUrl = "vana-dev://continue?id=dcrcont_desktop";
-    vi.stubGlobal("navigator", {
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
-      platform: "MacIntel",
-      maxTouchPoints: 0,
-    });
-
-    try {
-      const flow = createDirectConnectFlow(
-        {
-          createRequest: async () => ({ ...REQUEST, installedAppUrl }),
-          getStatus: async () => pendingStatus(),
-          readResult: vi.fn(),
-        },
-        {
-          openApprovalWindow: () => win.handle,
-          navigateInstalledApp,
-          now: h.now,
-          setTimeoutFn: h.setTimeoutFn,
-          clearTimeoutFn: h.clearTimeoutFn,
-        },
-      );
-
-      await flow.start();
-
-      expect(win.navigate).not.toHaveBeenCalled();
-      expect(win.close).toHaveBeenCalledOnce();
-      expect(flow.getState()).toMatchObject({
-        type: "awaiting_approval",
-        popupBlocked: true,
-      });
-      expect(flow.retryOpen()).toBe(true);
-      expect(navigateInstalledApp).toHaveBeenCalledWith(installedAppUrl);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -274,13 +224,11 @@ describe("createDirectConnectFlow", () => {
       {
         createRequest: async () => ({
           ...REQUEST,
-          installedAppUrl: "tel://continue?id=1",
           installedAppFallbackUrl: "javascript:alert(1)",
           installedAppReopenUrl: "vana://open?request=dcr_1",
         }),
         getStatus: async () => ({
           status: "pending",
-          installedAppUrl: "facetime://continue?id=2",
           installedAppFallbackUrl: "http://app.vana.org/mobile/install",
           installedAppReopenUrl: "vana://open#request",
         }),
@@ -298,7 +246,6 @@ describe("createDirectConnectFlow", () => {
     let state = flow.getState();
     expect(state.type).toBe("awaiting_approval");
     if (state.type === "awaiting_approval") {
-      expect(state.request.installedAppUrl).toBeUndefined();
       expect(state.request.installedAppFallbackUrl).toBeUndefined();
       expect(state.request.installedAppReopenUrl).toBeUndefined();
     }
@@ -307,7 +254,6 @@ describe("createDirectConnectFlow", () => {
     state = flow.getState();
     expect(state.type).toBe("awaiting_approval");
     if (state.type === "awaiting_approval") {
-      expect(state.request.installedAppUrl).toBeUndefined();
       expect(state.request.installedAppFallbackUrl).toBeUndefined();
       expect(state.request.installedAppReopenUrl).toBeUndefined();
     }

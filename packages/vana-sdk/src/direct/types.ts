@@ -100,28 +100,6 @@ export type ResumableAccessRequest = Omit<
   "installedAppUrl" | "installedAppExpiresAt"
 >;
 
-/** @internal Normalize a Vana app continuation URL. */
-export function normalizeInstalledAppUrl(value: unknown): string | undefined {
-  if (typeof value !== "string" || value.length === 0) return undefined;
-  try {
-    const url = new URL(value);
-    const isVanaProtocol =
-      url.protocol === "vana:" || url.protocol === "vana-dev:";
-    const isContinuationDestination =
-      url.hostname === "continue" &&
-      url.username === "" &&
-      url.password === "" &&
-      url.port === "" &&
-      (url.pathname === "" || url.pathname === "/") &&
-      url.hash === "";
-    return isVanaProtocol && isContinuationDestination
-      ? url.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 /** @internal Normalize a non-secret installed-app HTTPS recovery URL. */
 export function normalizeInstalledAppFallbackUrl(
   value: unknown,

@@ -79,6 +79,9 @@ export function useDirectVanaConnect<T = unknown>(
           get openApprovalWindow() {
             return optionsRef.current.openApprovalWindow;
           },
+          get browserPlatformPolicy() {
+            return optionsRef.current.browserPlatformPolicy;
+          },
         },
       ),
     // Created once per component instance; callbacks are read via optionsRef.

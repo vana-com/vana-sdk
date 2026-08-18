@@ -195,7 +195,14 @@ private key, and handles `402 Payment Required`:
 const request = await vana.createAccessRequest({
   returnUrl: `${process.env.VANA_APP_URL}/connect/return`,
 });
-// -> { requestId: "dcr_...", approvalUrl: "https://app.vana.org/...", appAddress: "0x..." }
+// -> {
+//   requestId: "dcr_...",
+//   approvalUrl: "https://app.vana.org/...",
+//   appAddress: "0x...",
+//   network: "mainnet",
+//   expiresAt: "...",
+//   mobileContinuationUrl?: "https://open.vana.org/continue#<ticket>",
+// }
 
 // GET /api/vana/status?requestId=...
 const status = await vana.getAccessRequestStatus(requestId);
@@ -252,10 +259,50 @@ export function ConnectSpotifyButton() {
 }
 ```
 
-The hook calls `createRequest`, opens the Vana approval URL, polls `getStatus`
-until the request is approved, then calls `readResult`. `react` is an optional
-peer dependency. The underlying `createDirectConnectFlow` store is also exported
-for non-React frontends.
+The hook calls `createRequest`, opens the Vana destination, polls `getStatus`
+until the request is approved, then calls `readResult`. Destination choice stays
+inside the SDK, and it owns only the small mobile-versus-desktop split — it never
+infers whether Vana is installed. Desktop browsers and light requests open the
+HTTPS `approvalUrl` in a popup (`state.type === "awaiting_approval"`). Builders
+should not add user-agent branches, app-install checks, deep-link construction,
+or store-link logic.
+
+If the popup is blocked, `state.popupBlocked` is `true`; render the HTTPS
+`state.request.approvalUrl` as the universal manual "Open approval" link. Polling
+continues either way, so a manual open still drives the flow to completion.
+
+A deep Direct request on a mobile browser instead enters
+`state.type === "ready_to_open"` and exposes a plain HTTPS
+`state.mobileContinuationUrl` (`https://open[-dev].vana.org/continue#<ticket>`).
+Because DCR creation is asynchronous, the SDK does **not** launch it
+automatically — the original tap can no longer be trusted to retain iOS user
+activation. Render it as an ordinary primary link the user taps themselves:
+
+```tsx
+<a href={state.mobileContinuationUrl} target="_blank" rel="noreferrer">
+  Open Vana
+</a>
+```
+
+Verified links (iOS Universal Links / Android App Links) deliver this URL to
+Vana Mobile; if Vana is absent the same URL loads its web install/recovery
+fallback. Polling continues in the originating tab, and the URL's short-lived
+ticket may rotate to a fresh value between polls. This is capability routing, not
+an assertion that the native app is installed.
+
+The SDK owns no persistence. If the originating mobile tab is reloaded, evicted,
+or replaced, the flow does not recover: the user restarts and creates a new DCR,
+and the abandoned DCR expires. This restart-on-tab-loss behavior is an accepted
+first-release tradeoff — do not build caller-side resume storage against it.
+
+Server-side create calls accept an optional `idempotencyKey`. The default HTTP
+client generates a fresh key for every create, because one shared controller
+serves many users and identical-looking creates are still independent requests.
+Retrying a create whose response was lost is therefore the caller's decision:
+pass the same explicit `idempotencyKey` on the retry to avoid a duplicate DCR.
+
+`react` is an optional peer dependency. The underlying
+`createDirectConnectFlow` store is also exported for non-React frontends.
 
 ### Test with large sample data
 

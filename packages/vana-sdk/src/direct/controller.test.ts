@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { verifyTypedData } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createDirectDataController } from "./controller";
 import {
   AccessNotApprovedError,
@@ -23,8 +23,7 @@ import { CONTRACTS } from "../generated/addresses";
 const ESCROW_CONTRACT_MOKSHA = CONTRACTS.DataPortabilityEscrow.addresses[14800];
 const ESCROW_CONTRACT_MAINNET = CONTRACTS.DataPortabilityEscrow.addresses[1480];
 
-const APP_KEY =
-  "0x0000000000000000000000000000000000000000000000000000000000000001";
+const APP_KEY = generatePrivateKey();
 const APP_ADDRESS = privateKeyToAccount(APP_KEY).address;
 
 // A valid 32-byte grant id (the escrow opId must be bytes32 for EIP-712 signing).
@@ -131,8 +130,7 @@ describe("createDirectDataController — config validation", () => {
     const vana = createDirectDataController({
       appPrivateKey: APP_KEY,
       // A different (also-valid) key as the deprecated alias; appPrivateKey wins.
-      builderPrivateKey:
-        "0x0000000000000000000000000000000000000000000000000000000000000002",
+      builderPrivateKey: generatePrivateKey(),
       app: APP,
       source: "icloud_notes",
       scopes: ["icloud_notes.notes"],
@@ -205,6 +203,10 @@ describe("createDirectDataController — createAccessRequest", () => {
 
     const result = await vana.createAccessRequest({
       returnUrl: "https://notes-lens.example/connect/return",
+      foregroundDelivery: {
+        url: "https://notes-lens.example/api/vana/delivery",
+        token: "a".repeat(43),
+      },
     });
 
     expect(result.requestId).toBe("dcr_123");
@@ -215,6 +217,10 @@ describe("createDirectDataController — createAccessRequest", () => {
       scopes: ["icloud_notes.notes"],
       returnUrl: "https://notes-lens.example/connect/return",
       network: "mainnet",
+      foregroundDelivery: {
+        url: "https://notes-lens.example/api/vana/delivery",
+        token: "a".repeat(43),
+      },
     });
   });
 

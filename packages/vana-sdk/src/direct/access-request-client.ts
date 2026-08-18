@@ -16,7 +16,9 @@ import type {
   AccessRequestClient,
   AccessRequestStatus,
   AccessRequestStatusValue,
+  DirectEnv,
 } from "./types";
+import { normalizeMobileContinuationUrl } from "./types";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 
 /** Minimal `fetch` signature so the client is testable without a global fetch. */
@@ -41,6 +43,12 @@ export interface DefaultAccessRequestClientOptions {
   baseUrl: string;
   /** Base URL the user is sent to for approval. */
   approvalBaseUrl: string;
+  /**
+   * Target environment. Pins the allowed mobile continuation link host
+   * (`open.vana.org` for production, `open-dev.vana.org` for dev). When omitted,
+   * both canonical hosts pass the structural continuation-URL check.
+   */
+  env?: DirectEnv;
   /** `fetch` implementation. Defaults to the global `fetch`. */
   fetchFn?: FetchLike;
   /** App identity address used for direct access-request authentication. */
@@ -49,6 +57,11 @@ export interface DefaultAccessRequestClientOptions {
   signMessage?: Web3SignedSignFn;
   /** Clock source used for signed request timestamps. */
   now?: () => number;
+  /**
+   * Create the signed DCR idempotency key used when a create call omits one.
+   * Called once per create. Injectable for deterministic tests.
+   */
+  createIdempotencyKey?: () => string;
 }
 
 const VALID_STATUSES: readonly AccessRequestStatusValue[] = [
@@ -64,6 +77,25 @@ function normalizeStatus(value: unknown): AccessRequestStatusValue {
   return VALID_STATUSES.includes(value as AccessRequestStatusValue)
     ? (value as AccessRequestStatusValue)
     : "pending";
+}
+
+function normalizeNetwork(value: unknown): AccessRequest["network"] {
+  return value === "mainnet" || value === "moksha" ? value : undefined;
+}
+
+function normalizeExpiresAt(value: unknown): string | undefined {
+  return typeof value === "string" && Number.isFinite(Date.parse(value))
+    ? value
+    : undefined;
+}
+
+function defaultCreateIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID !== "function") {
+    throw new Error(
+      "Secure randomUUID is unavailable. Pass createIdempotencyKey to createDefaultAccessRequestClient.",
+    );
+  }
+  return globalThis.crypto.randomUUID();
 }
 
 function stripTrailingSlash(url: string): string {
@@ -154,6 +186,15 @@ export function createDefaultAccessRequestClient(
   return {
     async createAccessRequest(input): Promise<AccessRequest> {
       const path = "/api/data-connection-requests";
+      // Every call is an independent logical create, so it gets its own key.
+      // The client cannot tell two look-alike creates apart — one shared backend
+      // controller serves many users with the same app, scopes, and returnUrl —
+      // so deriving a key from the input would let the service deduplicate two
+      // users onto a single DCR. Retrying an uncertain create is the caller's
+      // decision: pass the same `idempotencyKey` back in.
+      const idempotencyKey =
+        input.idempotencyKey ??
+        (options.createIdempotencyKey ?? defaultCreateIdempotencyKey)();
       const body = JSON.stringify({
         appAddress: input.appAddress,
         app: input.app,
@@ -161,6 +202,10 @@ export function createDefaultAccessRequestClient(
         scopes: input.scopes,
         returnUrl: input.returnUrl,
         network: input.network,
+        ...(input.foregroundDelivery !== undefined
+          ? { foregroundDelivery: input.foregroundDelivery }
+          : {}),
+        idempotencyKey,
       });
       const res = await fetchFn(`${base}${path}`, {
         method: "POST",
@@ -184,6 +229,9 @@ export function createDefaultAccessRequestClient(
         id?: string;
         approvalUrl?: string;
         appAddress?: string;
+        network?: unknown;
+        expiresAt?: unknown;
+        mobileContinuationUrl?: unknown;
       };
       const requestId = responseBody.requestId ?? responseBody.id;
       if (!requestId) {
@@ -195,6 +243,12 @@ export function createDefaultAccessRequestClient(
           responseBody.approvalUrl ??
           buildApprovalUrl(options.approvalBaseUrl, requestId),
         appAddress: responseBody.appAddress ?? input.appAddress,
+        network: normalizeNetwork(responseBody.network),
+        expiresAt: normalizeExpiresAt(responseBody.expiresAt),
+        mobileContinuationUrl: normalizeMobileContinuationUrl(
+          responseBody.mobileContinuationUrl,
+          options.env,
+        ),
       };
     },
 
@@ -220,6 +274,7 @@ export function createDefaultAccessRequestClient(
         personalServerUrl?: string;
         grantId?: string;
         scope?: string;
+        mobileContinuationUrl?: unknown;
         scopes?: string[];
       };
       // `scopes` is the full approved set; `scope` is the first of them, kept
@@ -236,6 +291,10 @@ export function createDefaultAccessRequestClient(
         grantId: body.grantId,
         scope: body.scope ?? scopes?.[0],
         scopes,
+        mobileContinuationUrl: normalizeMobileContinuationUrl(
+          body.mobileContinuationUrl,
+          options.env,
+        ),
       };
     },
 

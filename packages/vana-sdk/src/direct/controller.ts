@@ -62,6 +62,7 @@ import type {
   DirectNetwork,
   DirectPaymentResponseMetadata,
   DirectServiceEndpoints,
+  ForegroundDelivery,
   MultiScopeDataResult,
 } from "./types";
 
@@ -177,10 +178,20 @@ export interface DirectDataController {
   /**
    * Create an access request the user can approve.
    *
-   * @param input - The post-approval return URL.
-   * @returns `{ requestId, approvalUrl, appAddress }`.
+   * @param input - The post-approval return URL and optional create retry key.
+   * @returns The request id, HTTPS approval URL, and — for a pending deep Direct
+   * request on mobile — an optional HTTPS `mobileContinuationUrl`.
    */
-  createAccessRequest(input: { returnUrl: string }): Promise<AccessRequest>;
+  createAccessRequest(input: {
+    returnUrl: string;
+    /** Optional foreground mobile delivery callback. */
+    foregroundDelivery?: ForegroundDelivery;
+    /**
+     * Stable retry key when the caller retries after an uncertain response.
+     * Each create without one gets its own generated key.
+     */
+    idempotencyKey?: string;
+  }): Promise<AccessRequest>;
 
   /**
    * Fetch the current status of an access request.
@@ -310,6 +321,7 @@ export function createDirectDataController(
     createDefaultAccessRequestClient({
       baseUrl: endpoints.accessRequestBaseUrl,
       approvalBaseUrl: endpoints.approvalAppBaseUrl,
+      env,
       fetchFn: config.fetchFn,
       appAddress: account.address,
       signMessage,
@@ -363,6 +375,12 @@ export function createDirectDataController(
         scopes: config.scopes,
         returnUrl: input.returnUrl,
         network,
+        ...(input.foregroundDelivery !== undefined
+          ? { foregroundDelivery: input.foregroundDelivery }
+          : {}),
+        ...(input.idempotencyKey !== undefined
+          ? { idempotencyKey: input.idempotencyKey }
+          : {}),
       });
     },
 

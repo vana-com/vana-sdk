@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   buildApprovalUrl,
   buildDirectAccessRequestAuthMessage,
@@ -40,12 +40,203 @@ function fakeFetch(
 
 describe("createDefaultAccessRequestClient", () => {
   it("creates a request and derives an approvalUrl when missing", async () => {
+    let createBody: Record<string, unknown> | undefined;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch((_url, init) => {
+        createBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return {
+          status: 200,
+          body: { requestId: "dcr_9", appAddress: "0xabc" },
+        };
+      }),
+    });
+
+    const result = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet",
+      foregroundDelivery: {
+        url: "https://a.example/api/vana/delivery",
+        token: "a".repeat(43),
+      },
+    });
+
+    expect(result.requestId).toBe("dcr_9");
+    expect(result.approvalUrl).toBe(
+      "https://app.vana.org/data-connection-requests/dcr_9?mode=page",
+    );
+    expect(result.appAddress).toBe("0xabc");
+    expect(createBody?.foregroundDelivery).toEqual({
+      url: "https://a.example/api/vana/delivery",
+      token: "a".repeat(43),
+    });
+  });
+
+  it("parses additive network and expiry metadata from a create response", async () => {
+    const expiresAt = "2026-08-17T18:00:00.000Z";
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
       approvalBaseUrl: "https://app.vana.org",
       fetchFn: fakeFetch(() => ({
         status: 200,
-        body: { requestId: "dcr_9", appAddress: "0xabc" },
+        body: {
+          requestId: "dcr_9",
+          appAddress: "0xabc",
+          network: "moksha",
+          expiresAt,
+        },
+      })),
+    });
+
+    const result = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "moksha",
+    });
+
+    expect(result).toMatchObject({ network: "moksha", expiresAt });
+  });
+
+  it("parses the mobile continuation URL from create and status", async () => {
+    const mobileContinuationUrl = "https://open-dev.vana.org/continue#ticket_9";
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      createIdempotencyKey: () => "idem-9",
+      fetchFn: fakeFetch((url) => ({
+        status: 200,
+        body: url.endsWith("/dcr_9")
+          ? { status: "pending", mobileContinuationUrl }
+          : { requestId: "dcr_9", mobileContinuationUrl },
+      })),
+    });
+
+    const request = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "moksha",
+    });
+    const status = await client.getAccessRequestStatus("dcr_9");
+
+    expect(request.mobileContinuationUrl).toBe(mobileContinuationUrl);
+    expect(status.mobileContinuationUrl).toBe(mobileContinuationUrl);
+  });
+
+  it("accepts the production continuation host too when env is unset", async () => {
+    const mobileContinuationUrl = "https://open.vana.org/continue#ticket_prod";
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: { requestId: "dcr_9", mobileContinuationUrl },
+      })),
+    });
+
+    const request = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet",
+    });
+
+    expect(request.mobileContinuationUrl).toBe(mobileContinuationUrl);
+  });
+
+  it("pins the allowed continuation host to the configured env", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      env: "dev",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          requestId: "dcr_9",
+          // A production host must be rejected under the dev environment.
+          mobileContinuationUrl: "https://open.vana.org/continue#ticket_prod",
+        },
+      })),
+    });
+
+    const request = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "moksha",
+    });
+
+    expect(request.mobileContinuationUrl).toBeUndefined();
+  });
+
+  it.each([
+    "http://open.vana.org/continue#ticket_9",
+    "https://open.vana.org/continue",
+    "https://open.vana.org/continue#",
+    "https://open.vana.org/other#ticket_9",
+    "https://app.vana.org/continue#ticket_9",
+    "https://open.vana.org:8443/continue#ticket_9",
+    "https://user@open.vana.org/continue#ticket_9",
+    "https://open.vana.org/continue?x=1#ticket_9",
+    "https://open.vana.org/continue#ticket_9&evil=1",
+    "javascript:alert(document.domain)",
+    "vana-dev://continue?id=1",
+  ])(
+    "omits an invalid mobile continuation URL %s from create and status",
+    async (mobileContinuationUrl) => {
+      const client = createDefaultAccessRequestClient({
+        baseUrl: "https://app.vana.org",
+        approvalBaseUrl: "https://app.vana.org",
+        createIdempotencyKey: () => "idem-invalid-continuation",
+        fetchFn: fakeFetch((url) => ({
+          status: 200,
+          body: url.endsWith("/dcr_9")
+            ? { status: "pending", mobileContinuationUrl }
+            : { requestId: "dcr_9", mobileContinuationUrl },
+        })),
+      });
+
+      const request = await client.createAccessRequest({
+        appAddress: "0xabc",
+        app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+        source: "icloud_notes",
+        scopes: ["icloud_notes.notes"],
+        returnUrl: "https://a.example/return",
+        network: "moksha",
+      });
+      const status = await client.getAccessRequestStatus("dcr_9");
+
+      expect(request.mobileContinuationUrl).toBeUndefined();
+      expect(status.mobileContinuationUrl).toBeUndefined();
+    },
+  );
+
+  it("omits invalid additive create-response metadata", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          requestId: "dcr_9",
+          network: "testnet",
+          expiresAt: "not-a-date",
+          mobileContinuationUrl: "not a url",
+        },
       })),
     });
 
@@ -58,11 +249,9 @@ describe("createDefaultAccessRequestClient", () => {
       network: "mainnet",
     });
 
-    expect(result.requestId).toBe("dcr_9");
-    expect(result.approvalUrl).toBe(
-      "https://app.vana.org/data-connection-requests/dcr_9?mode=page",
-    );
-    expect(result.appAddress).toBe("0xabc");
+    expect(result.network).toBeUndefined();
+    expect(result.expiresAt).toBeUndefined();
+    expect(result.mobileContinuationUrl).toBeUndefined();
   });
 
   it("normalizes an unknown status to pending", async () => {
@@ -313,6 +502,133 @@ describe("createDefaultAccessRequestClient", () => {
         network: "mainnet",
       }),
     ).rejects.toThrow(/Access request service error/);
+  });
+
+  it("gives each create its own generated idempotency key", async () => {
+    const bodies: string[] = [];
+    let issued = 0;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      appAddress: "0xabc",
+      signMessage: async () => "0xsig",
+      createIdempotencyKey: () => `generated-key-${++issued}`,
+      fetchFn: async (_url, init) => {
+        bodies.push(init?.body ?? "");
+        return {
+          ok: true,
+          status: 201,
+          statusText: "HTTP 201",
+          json: async () => ({ requestId: "dcr_9" }),
+          text: async () => "",
+        };
+      },
+    });
+    const input = {
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet" as const,
+    };
+
+    // Two users behind one shared controller send byte-identical creates; they
+    // must not collapse onto a single DCR at the service.
+    await Promise.all([
+      client.createAccessRequest(input),
+      client.createAccessRequest(input),
+    ]);
+    await client.createAccessRequest(input);
+
+    const keys = bodies.map((body) => JSON.parse(body).idempotencyKey);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("does not reuse a generated key after an uncertain create failure", async () => {
+    const bodies: string[] = [];
+    let issued = 0;
+    let attempt = 0;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      createIdempotencyKey: () => `generated-key-${++issued}`,
+      fetchFn: async (_url, init) => {
+        bodies.push(init?.body ?? "");
+        attempt++;
+        if (attempt === 1) throw new Error("response lost");
+        return {
+          ok: true,
+          status: 201,
+          statusText: "HTTP 201",
+          json: async () => ({ requestId: "dcr_9" }),
+          text: async () => "",
+        };
+      },
+    });
+    const input = {
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet" as const,
+    };
+
+    await expect(client.createAccessRequest(input)).rejects.toThrow(
+      /response lost/,
+    );
+    await client.createAccessRequest(input);
+
+    expect(JSON.parse(bodies[0] ?? "{}").idempotencyKey).toBe(
+      "generated-key-1",
+    );
+    expect(JSON.parse(bodies[1] ?? "{}").idempotencyKey).toBe(
+      "generated-key-2",
+    );
+  });
+
+  it("sends a caller-supplied idempotency key verbatim on retry", async () => {
+    const bodies: string[] = [];
+    const createIdempotencyKey = vi.fn(() => "generated-key");
+    let attempt = 0;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      appAddress: "0xabc",
+      signMessage: async () => "0xsig",
+      createIdempotencyKey,
+      fetchFn: async (_url, init) => {
+        bodies.push(init?.body ?? "");
+        attempt++;
+        if (attempt === 1) throw new Error("response lost");
+        return {
+          ok: true,
+          status: 201,
+          statusText: "HTTP 201",
+          json: async () => ({ requestId: "dcr_9" }),
+          text: async () => "",
+        };
+      },
+    });
+    const input = {
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet" as const,
+      idempotencyKey: "caller-key",
+    };
+
+    await expect(client.createAccessRequest(input)).rejects.toThrow(
+      /response lost/,
+    );
+    await client.createAccessRequest(input);
+
+    expect(createIdempotencyKey).not.toHaveBeenCalled();
+    expect(JSON.parse(bodies[0] ?? "{}").idempotencyKey).toBe("caller-key");
+    expect(bodies[1]).toBe(bodies[0]);
   });
 
   it("throws on a non-ok acknowledge response", async () => {

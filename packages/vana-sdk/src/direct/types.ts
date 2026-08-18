@@ -53,6 +53,14 @@ export interface AppIdentity extends DirectAppConfig {
   address: string;
 }
 
+/** One-time HTTPS callback used to deliver a foreground mobile Direct read. */
+export interface ForegroundDelivery {
+  /** Fixed, same-origin consumer callback URL. */
+  url: string;
+  /** High-entropy bearer capability, generated and retained by the consumer. */
+  token: string;
+}
+
 /**
  * Resolved service URLs and chain id for a given {@link DirectEnv}.
  *
@@ -80,6 +88,70 @@ export interface AccessRequest {
   approvalUrl: string;
   /** On-chain address of the (registered or reused) app. */
   appAddress: string;
+  /** Protocol network echoed by the access-request service. */
+  network?: DirectNetwork;
+  /** Authoritative ISO-8601 expiry for the access request. */
+  expiresAt?: string;
+  /**
+   * HTTPS continuation URL for a deep Direct request on a mobile browser.
+   *
+   * @remarks
+   * Present only for a server-classified deep Direct DCR while it remains
+   * pending, and only when Mobile continuation is enabled. It is an ordinary
+   * `https://open[-dev].vana.org/continue#<ticket>` link the mobile UI renders
+   * as a primary "Open Vana" tap — iOS Universal Links / Android App Links
+   * deliver it to Vana Mobile, and its web fallback recovers an absent app. The
+   * SDK never launches it automatically and owns no persistence.
+   */
+  mobileContinuationUrl?: string;
+}
+
+/** Canonical mobile continuation link host per {@link DirectEnv}. */
+const MOBILE_CONTINUATION_HOSTS: Record<DirectEnv, string> = {
+  production: "open.vana.org",
+  dev: "open-dev.vana.org",
+};
+
+/** URL-fragment-safe opaque ticket: no separators, query, or scheme chars. */
+const MOBILE_CONTINUATION_TICKET = /^[A-Za-z0-9._~-]+$/;
+
+/**
+ * @internal Strictly validate a mobile HTTPS continuation URL at the SDK
+ * boundary.
+ *
+ * @remarks
+ * Accepts only `https://open[-dev].vana.org/continue#<ticket>` with exactly one
+ * well-formed opaque fragment ticket and no user info, port, or query. When
+ * `env` is supplied only that environment's host is allowed; otherwise both
+ * canonical hosts are accepted for structural (defense-in-depth) validation.
+ *
+ * @param value - The candidate URL from a create or status response.
+ * @param env - Optional environment to pin the allowed host to.
+ * @returns The canonical URL string, or `undefined` when it fails validation.
+ */
+export function normalizeMobileContinuationUrl(
+  value: unknown,
+  env?: DirectEnv,
+): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== "https:") return undefined;
+  const allowedHosts = env
+    ? [MOBILE_CONTINUATION_HOSTS[env]]
+    : Object.values(MOBILE_CONTINUATION_HOSTS);
+  if (!allowedHosts.includes(url.hostname)) return undefined;
+  if (url.pathname !== "/continue") return undefined;
+  if (url.username !== "" || url.password !== "") return undefined;
+  if (url.port !== "") return undefined;
+  if (url.search !== "") return undefined;
+  const ticket = url.hash.startsWith("#") ? url.hash.slice(1) : "";
+  if (!MOBILE_CONTINUATION_TICKET.test(ticket)) return undefined;
+  return url.toString();
 }
 
 /**
@@ -118,6 +190,11 @@ export interface AccessRequestStatus {
    * {@link AccessRequestStatus.scopes} to see all of them.
    */
   scope?: string;
+  /**
+   * Fresh HTTPS mobile continuation URL, returned only while the deep Direct
+   * DCR is still pending. Its embedded ticket may rotate between polls.
+   */
+  mobileContinuationUrl?: string;
   /**
    * Every scope the user approved on this request — present once data is ready
    * to read.
@@ -184,6 +261,14 @@ export interface AccessRequestClient {
     returnUrl: string;
     /** Vana protocol network for this request (`"mainnet"` or `"moksha"`). */
     network: DirectNetwork;
+    /** Optional foreground mobile delivery callback. */
+    foregroundDelivery?: ForegroundDelivery;
+    /**
+     * Optional retry key. The default client generates a fresh key per call
+     * when omitted; pass a stable key to retry a create whose response was
+     * lost without risking a duplicate DCR.
+     */
+    idempotencyKey?: string;
   }): Promise<AccessRequest>;
 
   /**

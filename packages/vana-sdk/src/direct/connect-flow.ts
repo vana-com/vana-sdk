@@ -19,6 +19,7 @@ import type {
   AccessRequestStatusValue,
   ApprovedDataResult,
 } from "./types";
+import { normalizeMobileContinuationUrl } from "./types";
 
 /**
  * Caller-supplied transports. These typically `fetch` the app's own backend
@@ -48,11 +49,23 @@ export interface ConnectWindow {
   close(): void;
 }
 
+/** Browser class used only to choose the destination returned by Vana. */
+export type DirectBrowserPlatform = "desktop" | "mobile";
+
+/** Injectable browser-platform policy; it never asserts whether an app exists. */
+export interface DirectBrowserPlatformPolicy {
+  current(): DirectBrowserPlatform;
+}
+
 /** Tunables for the connect flow. */
 export interface DirectConnectOptions {
   /** Status poll interval in ms. Defaults to 1500. */
   pollIntervalMs?: number;
-  /** Overall timeout in ms before giving up. Defaults to 300000 (5 min). */
+  /**
+   * Overall timeout in ms before giving up. Defaults to 300000 (5 min).
+   * Used only when the access request does not carry an authoritative
+   * `expiresAt` value.
+   */
   timeoutMs?: number;
   /**
    * Synchronously open a blank tab under the click's transient activation and
@@ -68,6 +81,8 @@ export interface DirectConnectOptions {
    * handle.
    */
   openApprovalWindow?: () => ConnectWindow | null;
+  /** SDK-owned mobile/desktop policy. Injectable for deterministic tests. */
+  browserPlatformPolicy?: DirectBrowserPlatformPolicy;
   /** `setTimeout`. Injectable for tests. Defaults to `globalThis.setTimeout`. */
   setTimeoutFn?: (cb: () => void, ms: number) => unknown;
   /** `clearTimeout`. Injectable for tests. Defaults to `globalThis.clearTimeout`. */
@@ -82,6 +97,12 @@ export interface DirectConnectOptions {
  * @remarks
  * `type` matches the builder guide: it starts at `"idle"` and is non-idle while
  * connecting. The intermediate phases give richer UIs something to render.
+ *
+ * Desktop and light-data requests move through `"awaiting_approval"` (Vana Web
+ * opens in a popup). A deep Direct request on a mobile browser moves through
+ * `"ready_to_open"` instead: the SDK exposes a plain HTTPS
+ * `mobileContinuationUrl` for the UI to render as a primary "Open Vana" link,
+ * never launching it automatically, and keeps polling in memory.
  */
 export type DirectConnectState<T = unknown> =
   | { type: "idle" }
@@ -90,11 +111,20 @@ export type DirectConnectState<T = unknown> =
       type: "awaiting_approval";
       request: AccessRequest;
       /**
-       * `true` when the browser blocked the approval popup. The UI should
-       * render `request.approvalUrl` as a visible "Open approval" link so the
-       * user can open it manually instead of the flow silently hanging.
+       * `true` when the popup was blocked. The UI should render the universal
+       * HTTPS `request.approvalUrl` as a manual "Open approval" link.
        */
       popupBlocked: boolean;
+    }
+  | {
+      type: "ready_to_open";
+      request: AccessRequest;
+      /**
+       * Validated HTTPS continuation URL the mobile UI renders as the primary
+       * "Open Vana" tap. Polling continues while it is shown; its embedded
+       * ticket may rotate to a fresh URL between polls.
+       */
+      mobileContinuationUrl: string;
     }
   | { type: "reading"; request: AccessRequest }
   | { type: "done"; result: ApprovedDataResult<T> }
@@ -121,6 +151,22 @@ function toError(value: unknown): Error {
 
 function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
   return status === "approved" || status === "ready_for_read";
+}
+
+const MOBILE_USER_AGENT =
+  /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Opera Mini|IEMobile/i;
+
+function defaultBrowserPlatformPolicy(): DirectBrowserPlatformPolicy {
+  return {
+    current() {
+      if (typeof navigator === "undefined") return "desktop";
+      const isTouchCapableIpad =
+        navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+      return MOBILE_USER_AGENT.test(navigator.userAgent) || isTouchCapableIpad
+        ? "mobile"
+        : "desktop";
+    },
+  };
 }
 
 /**
@@ -178,9 +224,10 @@ export function createDirectConnectFlow<T = unknown>(
 ): DirectConnectFlow<T> {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  // Resolved lazily at start() (see below) so a custom opener swapped in after
-  // construction is still honoured — matching the latest-callback pattern the
-  // React hook uses for its transports.
+  // `openApprovalWindow` and `browserPlatformPolicy` are resolved lazily at
+  // start() (see below) so options swapped in after construction are still
+  // honoured — matching the latest-callback pattern the React hook uses for its
+  // transports.
   const setTimeoutFn =
     options.setTimeoutFn ??
     ((cb: () => void, ms: number) => globalThis.setTimeout(cb, ms));
@@ -190,7 +237,6 @@ export function createDirectConnectFlow<T = unknown>(
       globalThis.clearTimeout(handle as never);
     });
   const now = options.now ?? (() => Date.now());
-
   let state: DirectConnectState<T> = { type: "idle" };
   const listeners = new Set<() => void>();
   let pollHandle: unknown = null;
@@ -233,6 +279,7 @@ export function createDirectConnectFlow<T = unknown>(
     return (
       state.type === "creating" ||
       state.type === "awaiting_approval" ||
+      state.type === "ready_to_open" ||
       state.type === "reading"
     );
   }
@@ -257,6 +304,36 @@ export function createDirectConnectFlow<T = unknown>(
     }, pollIntervalMs);
   }
 
+  function requestDeadline(request: AccessRequest): number {
+    if (request.expiresAt !== undefined) {
+      const expiresAt = Date.parse(request.expiresAt);
+      if (Number.isFinite(expiresAt)) return expiresAt;
+    }
+    return now() + timeoutMs;
+  }
+
+  /**
+   * Enter the polling loop from the given initial state (either
+   * `awaiting_approval` for desktop/light or `ready_to_open` for mobile-deep).
+   * Errors out immediately if the request has already expired.
+   */
+  function startPolling(
+    request: AccessRequest,
+    initialState: DirectConnectState<T>,
+  ): void {
+    setState(initialState);
+    const deadline = requestDeadline(request);
+    if (now() >= deadline) {
+      running = false;
+      setState({
+        type: "error",
+        error: new Error("Access request expired"),
+      });
+      return;
+    }
+    scheduleNextPoll(request, deadline);
+  }
+
   async function poll(request: AccessRequest, deadline: number): Promise<void> {
     if (!running) return;
     if (now() >= deadline) {
@@ -277,6 +354,23 @@ export function createDirectConnectFlow<T = unknown>(
       return;
     }
     if (!running) return;
+
+    // A pending deep-mobile status may rotate the continuation ticket. Adopt a
+    // fresh, still-valid URL so the rendered "Open Vana" link always points at a
+    // live ticket; ignore it on the desktop/light path.
+    if (status.status === "pending" && state.type === "ready_to_open") {
+      const refreshed = normalizeMobileContinuationUrl(
+        status.mobileContinuationUrl,
+      );
+      if (refreshed && refreshed !== state.mobileContinuationUrl) {
+        request = { ...request, mobileContinuationUrl: refreshed };
+        setState({
+          type: "ready_to_open",
+          request,
+          mobileContinuationUrl: refreshed,
+        });
+      }
+    }
 
     if (isReadReadyStatus(status.status)) {
       clearPoll();
@@ -312,18 +406,24 @@ export function createDirectConnectFlow<T = unknown>(
       if (running || isRunningPhase()) return;
       running = true;
       const runId = ++activeRunId;
+      // Read the platform policy at start time, like openApprovalWindow below,
+      // so a policy swapped in after construction (a React rerender forwards
+      // options through a ref) still decides this run's destination.
+      const browserPlatform = (
+        options.browserPlatformPolicy ?? defaultBrowserPlatformPolicy()
+      ).current();
 
-      // Open the approval tab *synchronously*, while the click's transient
-      // activation is still live. The approval URL isn't known yet (it comes
-      // from createRequest below), so open a blank tab now and navigate it
-      // once the URL arrives. Opening *after* the await — as this flow used to
-      // — runs outside the gesture, so the browser suppresses it as an
-      // unsolicited popup and the flow stalls forever (BUI-622).
-      // Read the opener option *now* (not at construction) so a custom opener
-      // swapped in after the flow was created is still used.
-      const openApprovalWindow =
-        options.openApprovalWindow ?? defaultOpenApprovalWindow;
-      const approvalWindow = openApprovalWindow();
+      // Desktop preserves the pre-mobile synchronous popup contract: open a
+      // blank tab while the click's transient activation is live, then navigate
+      // it once createRequest returns the approval URL (BUI-622). Mobile never
+      // creates that transient tab; deep requests expose one explicit HTTPS
+      // link, while light requests retain the manual approvalUrl fallback.
+      // Read the opener option at start time so a swapped-in custom opener is
+      // still honored for desktop flows.
+      const approvalWindow =
+        browserPlatform === "desktop"
+          ? (options.openApprovalWindow ?? defaultOpenApprovalWindow)()
+          : null;
       openedWindow = approvalWindow;
 
       setState({ type: "creating" });
@@ -348,24 +448,52 @@ export function createDirectConnectFlow<T = unknown>(
         approvalWindow?.close();
         return;
       }
+      // Re-validate the continuation URL at the SDK boundary (defense in depth
+      // for custom transports that bypass the default client).
+      request = {
+        ...request,
+        mobileContinuationUrl: normalizeMobileContinuationUrl(
+          request.mobileContinuationUrl,
+        ),
+      };
 
+      // The SDK owns only the small mobile-versus-desktop destination choice.
+      // A deep Direct request on mobile carries a validated continuation URL;
+      // desktop keeps its popup contract, while mobile light exposes the HTTPS
+      // approval URL as the existing manual fallback without opening a tab.
+      const mobileContinuationUrl =
+        browserPlatform === "mobile"
+          ? request.mobileContinuationUrl
+          : undefined;
+
+      if (mobileContinuationUrl) {
+        // Do not auto-launch: DCR creation is async, so the original Connect
+        // gesture can no longer be trusted to retain iOS user activation. Let
+        // the UI render an explicit primary "Open Vana" link; polling continues
+        // in this tab.
+        startPolling(request, {
+          type: "ready_to_open",
+          request,
+          mobileContinuationUrl,
+        });
+        return;
+      }
+
+      // Desktop/light: navigate the synchronously-opened tab to the HTTPS
+      // approval URL. `approvalWindow === null` means the popup was blocked;
+      // surface it so the UI renders request.approvalUrl as a visible manual
+      // "Open approval" link instead of hanging. We poll either way, so a manual
+      // open still resolves the flow, and the timeout still bounds the wait.
       if (approvalWindow) {
         approvalWindow.navigate(request.approvalUrl);
         // Hand the tab off to the user; we no longer own/close it.
         openedWindow = null;
       }
-      // `approvalWindow === null` means the popup was blocked. Surface it so
-      // the UI renders request.approvalUrl as a visible "Open approval" link
-      // instead of hanging. We poll either way, so a manual open still
-      // resolves the flow, and the timeout still bounds the wait.
-      setState({
+      startPolling(request, {
         type: "awaiting_approval",
         request,
         popupBlocked: approvalWindow === null,
       });
-
-      const deadline = now() + timeoutMs;
-      scheduleNextPoll(request, deadline);
     },
 
     reset(): void {

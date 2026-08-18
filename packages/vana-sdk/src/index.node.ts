@@ -357,6 +357,7 @@ export {
   type FetchResponseLike,
 } from "./direct/personal-server-read";
 export type {
+  ForegroundDelivery,
   DirectPaymentResponseMetadata,
   PersonalServerDataAccessPaymentOperation,
   PersonalServerGrantPaymentOperation,

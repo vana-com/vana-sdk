@@ -30,6 +30,13 @@
  *           {state.popupBlocked ? "Popup blocked — open approval" : "Open approval"}
  *         </a>
  *       )}
+ *       {state.type === "ready_to_open" && (
+ *         // Mobile deep Direct: render the HTTPS continuation as a primary tap.
+ *         // The SDK keeps polling in this tab; if the tab is lost, restart.
+ *         <a href={state.mobileContinuationUrl} target="_blank" rel="noreferrer">
+ *           Open Vana
+ *         </a>
+ *       )}
  *     </div>
  *   );
  * }
@@ -49,6 +56,8 @@ export {
 export {
   createDirectConnectFlow,
   type ConnectWindow,
+  type DirectBrowserPlatform,
+  type DirectBrowserPlatformPolicy,
   type DirectConnectFlow,
   type DirectConnectState,
   type DirectConnectOptions,
@@ -57,6 +66,7 @@ export {
 
 // Shared types useful when typing the transports.
 export type {
+  ForegroundDelivery,
   AccessRequest,
   AccessRequestStatus,
   AccessRequestStatusValue,

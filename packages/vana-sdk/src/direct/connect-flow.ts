@@ -516,7 +516,10 @@ export function createDirectConnectFlow<T = unknown>(
       ) {
         try {
           navigateInstalledApp(destination);
-          setState({ ...awaiting, popupBlocked: false });
+          // Custom-scheme navigation has no browser success signal: assign()
+          // returns normally whether the app opened or is absent. Keep the
+          // recovery affordance visible until polling observes a real status
+          // transition, so the user can retry or choose the HTTPS fallback.
           return true;
         } catch {
           if (!awaiting.popupBlocked) {

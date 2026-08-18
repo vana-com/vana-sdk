@@ -186,6 +186,38 @@ describe("createDirectConnectFlow", () => {
     expect(navigateInstalledApp).toHaveBeenCalledWith(installedAppUrl);
   });
 
+  it("keeps absent-app recovery available after a custom-scheme retry", async () => {
+    const h = makeHarness();
+    const navigateInstalledApp = vi.fn();
+    const installedAppUrl = "vana-dev://continue?id=dcrcont_absent";
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => ({ ...REQUEST, installedAppUrl }),
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow: () => null,
+        browserPlatformPolicy: { current: () => "mobile" },
+        navigateInstalledApp,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    expect(flow.retryOpen()).toBe(true);
+    expect(flow.getState()).toMatchObject({
+      type: "awaiting_approval",
+      popupBlocked: true,
+      request: { approvalUrl: REQUEST.approvalUrl },
+    });
+
+    expect(flow.retryOpen()).toBe(true);
+    expect(navigateInstalledApp).toHaveBeenCalledTimes(2);
+  });
+
   it("projects resumable metadata without persisting the installed-app capability", () => {
     const resumable = toResumableAccessRequest({
       ...REQUEST,
@@ -689,7 +721,7 @@ describe("createDirectConnectFlow", () => {
     expect(state.type).toBe("awaiting_approval");
     if (state.type === "awaiting_approval") {
       expect(state.request.approvalUrl).toBe(REQUEST.approvalUrl);
-      expect(state.popupBlocked).toBe(false);
+      expect(state.popupBlocked).toBe(true);
     }
   });
 

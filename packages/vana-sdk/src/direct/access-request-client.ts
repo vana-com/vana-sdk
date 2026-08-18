@@ -298,12 +298,22 @@ export function createDefaultAccessRequestClient(
         grantId?: string;
         scope?: string;
         mobileContinuationUrl?: unknown;
+        scopes?: string[];
       };
+      // `scopes` is the full approved set; `scope` is the first of them, kept
+      // for callers (and deployments) that predate the array.
+      const scopes =
+        body.scopes && body.scopes.length > 0
+          ? body.scopes
+          : body.scope
+            ? [body.scope]
+            : undefined;
       return {
         status: normalizeStatus(body.status),
         personalServerUrl: body.personalServerUrl,
         grantId: body.grantId,
-        scope: body.scope,
+        scope: body.scope ?? scopes?.[0],
+        scopes,
         mobileContinuationUrl: normalizeMobileContinuationUrl(
           body.mobileContinuationUrl,
           options.env,

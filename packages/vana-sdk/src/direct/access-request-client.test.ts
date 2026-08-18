@@ -289,6 +289,7 @@ describe("createDefaultAccessRequestClient", () => {
       personalServerUrl: "https://ps.example.com",
       grantId: "0xgrant",
       scope: "icloud_notes.notes",
+      scopes: ["icloud_notes.notes"],
     });
   });
 
@@ -313,6 +314,7 @@ describe("createDefaultAccessRequestClient", () => {
       personalServerUrl: "https://ps.example.com",
       grantId: "0xgrant",
       scope: "icloud_notes.notes",
+      scopes: ["icloud_notes.notes"],
     });
   });
 
@@ -333,6 +335,49 @@ describe("createDefaultAccessRequestClient", () => {
 
     const status = await client.getAccessRequestStatus("dcr_10");
     expect(status.status).toBe("completed");
+  });
+
+  it("exposes every approved scope, not just the first", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          status: "approved",
+          personalServerUrl: "https://ps.example.com",
+          grantId: "0xgrant",
+          scope: "linkedin.profile",
+          scopes: ["linkedin.profile", "linkedin.skills", "linkedin.education"],
+        },
+      })),
+    });
+
+    const status = await client.getAccessRequestStatus("dcr_9");
+    expect(status.scopes).toEqual([
+      "linkedin.profile",
+      "linkedin.skills",
+      "linkedin.education",
+    ]);
+  });
+
+  it("falls back to the single scope when the service omits scopes", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          status: "approved",
+          personalServerUrl: "https://ps.example.com",
+          grantId: "0xgrant",
+          scope: "linkedin.profile",
+        },
+      })),
+    });
+
+    const status = await client.getAccessRequestStatus("dcr_9");
+    expect(status.scopes).toEqual(["linkedin.profile"]);
   });
 
   it("signs create, status, and acknowledge requests when app auth is configured", async () => {

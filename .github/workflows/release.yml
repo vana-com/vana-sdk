@@ -30,6 +30,10 @@ jobs:
         run: npm run build:sdk
       - name: Run semantic-release
         env:
+          # semantic-release's git plugin pushes tags/commits, which triggers the
+          # husky pre-push EVM key-scan hook. That hook is not prepared in CI and
+          # fails the push (and thus every release). Disable husky in CI here.
+          HUSKY: "0"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

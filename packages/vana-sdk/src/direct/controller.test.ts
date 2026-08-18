@@ -6,6 +6,7 @@ import {
   AccessNotApprovedError,
   DirectConfigError,
   PaymentRequiredError,
+  ScopeNotApprovedError,
 } from "./errors";
 import type { AccessRequestClient, AccessRequestStatus } from "./types";
 import type { FetchResponseLike } from "./personal-server-read";
@@ -713,5 +714,263 @@ describe("createDirectDataController — BUI-581 default escrow", () => {
     // Both are truthy (not undefined / empty)
     expect(ESCROW_CONTRACT_MOKSHA).toBeTruthy();
     expect(ESCROW_CONTRACT_MAINNET).toBeTruthy();
+  });
+});
+
+describe("createDirectDataController — multi-scope reads", () => {
+  const MULTI_SCOPES = [
+    "linkedin.profile",
+    "linkedin.skills",
+    "linkedin.education",
+  ];
+
+  function multiScopeStatus(): AccessRequestStatus {
+    return {
+      status: "approved",
+      personalServerUrl: "https://ps.example.com",
+      grantId: GRANT_ID,
+      scope: MULTI_SCOPES[0],
+      scopes: MULTI_SCOPES,
+    };
+  }
+
+  function makeMultiScopeController(
+    personalServerFetch: (
+      url: string,
+      init: { method: string; headers: Record<string, string> },
+    ) => Promise<FetchResponseLike>,
+    acknowledgeRead = vi.fn(async () => undefined),
+  ) {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(),
+      getAccessRequestStatus: vi.fn(async () => multiScopeStatus()),
+      acknowledgeRead,
+    };
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "linkedin",
+      scopes: MULTI_SCOPES,
+      accessRequestClient,
+      personalServerFetch,
+      escrow: mockEscrowConfig(),
+    });
+    return { vana, acknowledgeRead };
+  }
+
+  it("reads the named scope instead of the first approved one", async () => {
+    const seen: string[] = [];
+    const { vana } = makeMultiScopeController(async (url) => {
+      seen.push(url);
+      return jsonResponse({ skills: ["typescript"] });
+    });
+
+    const result = await vana.readApprovedData({
+      requestId: "dcr_1",
+      scope: "linkedin.skills",
+    });
+
+    expect(result.scope).toBe("linkedin.skills");
+    expect(result.data).toEqual({ skills: ["typescript"] });
+    expect(seen).toEqual(["https://ps.example.com/v1/data/linkedin.skills"]);
+  });
+
+  it("rejects a scope the user did not approve without contacting the Personal Server", async () => {
+    const personalServerFetch = vi.fn(async () => jsonResponse({ ok: true }));
+    const { vana } = makeMultiScopeController(personalServerFetch);
+
+    await expect(
+      vana.readApprovedData({ requestId: "dcr_1", scope: "spotify.profile" }),
+    ).rejects.toThrow(ScopeNotApprovedError);
+    expect(personalServerFetch).not.toHaveBeenCalled();
+  });
+
+  it("still reads the first approved scope when no scope is given", async () => {
+    const seen: string[] = [];
+    const { vana } = makeMultiScopeController(async (url) => {
+      seen.push(url);
+      return jsonResponse({ ok: true });
+    });
+
+    const result = await vana.readApprovedData({ requestId: "dcr_1" });
+
+    expect(result.scope).toBe("linkedin.profile");
+    expect(seen).toEqual(["https://ps.example.com/v1/data/linkedin.profile"]);
+  });
+
+  it("skips acknowledgement when acknowledge is false", async () => {
+    const { vana, acknowledgeRead } = makeMultiScopeController(async () =>
+      jsonResponse({ ok: true }),
+    );
+
+    await vana.readApprovedData({
+      requestId: "dcr_1",
+      scope: "linkedin.skills",
+      acknowledge: false,
+    });
+
+    expect(acknowledgeRead).not.toHaveBeenCalled();
+  });
+
+  it("reads every approved scope and keys the results by scope", async () => {
+    const { vana } = makeMultiScopeController(async (url) =>
+      jsonResponse({ from: url.split("/v1/data/")[1] }),
+    );
+
+    const result = await vana.readAllApprovedData({ requestId: "dcr_1" });
+
+    expect(Object.keys(result.results)).toEqual(MULTI_SCOPES);
+    expect(result.results["linkedin.education"].data).toEqual({
+      from: "linkedin.education",
+    });
+    expect(result.errors).toEqual({});
+  });
+
+  it("acknowledges once, after every scope has been read", async () => {
+    const readsBeforeAck: string[] = [];
+    const acknowledgeRead = vi.fn(async () => {
+      readsBeforeAck.push("ack");
+      return undefined;
+    });
+    const { vana } = makeMultiScopeController(async (url) => {
+      readsBeforeAck.push(url.split("/v1/data/")[1]);
+      return jsonResponse({ ok: true });
+    }, acknowledgeRead);
+
+    await vana.readAllApprovedData({ requestId: "dcr_1" });
+
+    expect(acknowledgeRead).toHaveBeenCalledOnce();
+    expect(readsBeforeAck).toEqual([...MULTI_SCOPES, "ack"]);
+  });
+
+  it("keeps the scopes that were paid for when a later scope fails", async () => {
+    const { vana } = makeMultiScopeController(async (url) => {
+      if (url.endsWith("linkedin.skills")) {
+        return jsonResponse({ error: "boom" }, { status: 500 });
+      }
+      return jsonResponse({ ok: true });
+    });
+
+    const result = await vana.readAllApprovedData({ requestId: "dcr_1" });
+
+    expect(Object.keys(result.results)).toEqual([
+      "linkedin.profile",
+      "linkedin.education",
+    ]);
+    expect(Object.keys(result.errors)).toEqual(["linkedin.skills"]);
+  });
+});
+
+describe("createDirectDataController — readAllApprovedData failure handling", () => {
+  it("does not acknowledge when every scope fails", async () => {
+    // Acknowledging moves the DCR to `completed`, which is terminal. Doing that
+    // after reading nothing would destroy a request the app could still retry.
+    const acknowledgeRead = vi.fn(async () => undefined);
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(),
+      getAccessRequestStatus: vi.fn(async () => ({
+        status: "approved" as const,
+        personalServerUrl: "https://ps.example.com",
+        grantId: GRANT_ID,
+        scope: "linkedin.profile",
+        scopes: ["linkedin.profile", "linkedin.skills"],
+      })),
+      acknowledgeRead,
+    };
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "linkedin",
+      scopes: ["linkedin.profile", "linkedin.skills"],
+      accessRequestClient,
+      personalServerFetch: async () =>
+        jsonResponse({ error: "down" }, { status: 500 }),
+      escrow: mockEscrowConfig(),
+    });
+
+    const result = await vana.readAllApprovedData({ requestId: "dcr_1" });
+
+    expect(result.results).toEqual({});
+    expect(Object.keys(result.errors)).toEqual([
+      "linkedin.profile",
+      "linkedin.skills",
+    ]);
+    expect(acknowledgeRead).not.toHaveBeenCalled();
+  });
+});
+
+describe("createDirectDataController — multi-scope read safety (codex review)", () => {
+  const SCOPES = ["linkedin.profile", "linkedin.skills"];
+
+  function makeController(
+    personalServerFetch: (
+      url: string,
+      init: { method: string; headers: Record<string, string> },
+    ) => Promise<FetchResponseLike>,
+    status: AccessRequestStatus,
+    acknowledgeRead = vi.fn(async () => undefined),
+  ) {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(),
+      getAccessRequestStatus: vi.fn(async () => status),
+      acknowledgeRead,
+    };
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "linkedin",
+      scopes: SCOPES,
+      accessRequestClient,
+      personalServerFetch,
+      escrow: mockEscrowConfig(),
+    });
+    return { vana, acknowledgeRead };
+  }
+
+  it("does not acknowledge when any scope failed, so the failed scope stays retryable", async () => {
+    // Acknowledging moves the DCR to `completed`, which is terminal. Acking on a
+    // partial success would make the scope that failed impossible to retry.
+    const { vana, acknowledgeRead } = makeController(
+      async (url) =>
+        url.endsWith("linkedin.skills")
+          ? jsonResponse({ error: "boom" }, { status: 500 })
+          : jsonResponse({ ok: true }),
+      {
+        status: "approved",
+        personalServerUrl: "https://ps.example.com",
+        grantId: GRANT_ID,
+        scope: "linkedin.profile",
+        scopes: SCOPES,
+      },
+    );
+
+    const result = await vana.readAllApprovedData({ requestId: "dcr_1" });
+
+    expect(Object.keys(result.results)).toEqual(["linkedin.profile"]);
+    expect(Object.keys(result.errors)).toEqual(["linkedin.skills"]);
+    expect(acknowledgeRead).not.toHaveBeenCalled();
+  });
+
+  it("reads a status that carries scopes but no singular scope", async () => {
+    // `scope` is optional on the public status type. A client that returns only
+    // the array is still read-ready.
+    const seen: string[] = [];
+    const { vana } = makeController(
+      async (url) => {
+        seen.push(url);
+        return jsonResponse({ ok: true });
+      },
+      {
+        status: "approved",
+        personalServerUrl: "https://ps.example.com",
+        grantId: GRANT_ID,
+        scopes: SCOPES,
+      },
+    );
+
+    const result = await vana.readApprovedData({ requestId: "dcr_1" });
+
+    expect(result.scope).toBe("linkedin.profile");
+    expect(seen).toEqual(["https://ps.example.com/v1/data/linkedin.profile"]);
   });
 });

@@ -182,13 +182,29 @@ export interface AccessRequestStatus {
   personalServerUrl?: string;
   /** Grant id covering the approved scope — present once data is ready to read. */
   grantId?: string;
-  /** The approved scope — present once data is ready to read. */
+  /**
+   * The first approved scope — present once data is ready to read.
+   *
+   * @remarks
+   * Kept for backwards compatibility. A request can approve many scopes; read
+   * {@link AccessRequestStatus.scopes} to see all of them.
+   */
   scope?: string;
   /**
    * Fresh HTTPS mobile continuation URL, returned only while the deep Direct
    * DCR is still pending. Its embedded ticket may rotate between polls.
    */
   mobileContinuationUrl?: string;
+  /**
+   * Every scope the user approved on this request — present once data is ready
+   * to read.
+   *
+   * @remarks
+   * A grant is keyed by `(user, app)` and carries a list of scopes, so a single
+   * approval can cover several. Against an older Vana Account deployment that
+   * only returns `scope`, this falls back to `[scope]`.
+   */
+  scopes?: string[];
 }
 
 /** Result of {@link DirectDataController.readApprovedData}. */
@@ -202,6 +218,23 @@ export interface ApprovedDataResult<T = unknown> {
    * Personal Server. Use for display/debugging, not accounting proof.
    */
   payment?: DirectPaymentResponseMetadata;
+}
+
+/**
+ * Result of {@link DirectDataController.readApprovedData} across every approved
+ * scope.
+ *
+ * @remarks
+ * Successes and failures are reported side by side rather than as a thrown
+ * error, because each scope read settles its own fee: throwing on the third
+ * scope would discard data the app has already paid for. Check `errors` before
+ * treating the read as complete.
+ */
+export interface MultiScopeDataResult<T = unknown> {
+  /** Scopes that read successfully, keyed by scope. */
+  results: Record<string, ApprovedDataResult<T>>;
+  /** Scopes that failed, keyed by scope. Empty when every scope read. */
+  errors: Record<string, Error>;
 }
 
 /**

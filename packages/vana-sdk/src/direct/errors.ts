@@ -35,6 +35,24 @@ export class AccessNotApprovedError extends VanaError {
   }
 }
 
+/**
+ * Thrown when a caller asks {@link DirectDataController.readApprovedData} for a
+ * scope the user did not approve on this request.
+ *
+ * @remarks
+ * Raised before any network call, so an unapproved scope never reaches the
+ * Personal Server and never settles a fee. `details` carries the requested
+ * scope and the scopes actually approved.
+ */
+export class ScopeNotApprovedError extends VanaError {
+  constructor(
+    message: string,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message, "DIRECT_SCOPE_NOT_APPROVED");
+  }
+}
+
 /** Thrown when the Personal Server cannot be reached or returns an error. */
 export class PersonalServerReadError extends VanaError {
   constructor(

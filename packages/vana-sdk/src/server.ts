@@ -75,6 +75,7 @@ export {
 export {
   DirectConfigError,
   AccessNotApprovedError,
+  ScopeNotApprovedError,
   PersonalServerReadError,
   PaymentRequiredError,
 } from "./direct/errors";
@@ -91,6 +92,7 @@ export type {
   AccessRequestStatus,
   AccessRequestStatusValue,
   ApprovedDataResult,
+  MultiScopeDataResult,
   AccessRequestClient,
   DirectOpTypeValue,
   PersonalServerDataAccessPaymentOperation,

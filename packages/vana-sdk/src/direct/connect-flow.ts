@@ -23,6 +23,7 @@ import type {
 import {
   normalizeInstalledAppFallbackUrl,
   normalizeInstalledAppReopenUrl,
+  normalizeInstalledAppUrl,
   toResumableAccessRequest,
 } from "./types";
 
@@ -54,7 +55,7 @@ export interface ConnectWindow {
   close(): void;
 }
 
-/** Browser class used only to choose the destination returned by Vana. */
+/** Browser class retained for caller policy compatibility and diagnostics. */
 export type DirectBrowserPlatform = "desktop" | "mobile";
 
 /** Injectable browser-platform policy; it never asserts whether an app exists. */
@@ -91,7 +92,7 @@ export interface DirectConnectOptions {
    * explicit retry gesture. Defaults to `window.location.assign(url)`.
    */
   navigateInstalledApp?: (url: string) => void;
-  /** SDK-owned mobile/desktop policy. Injectable for deterministic tests. */
+  /** SDK-owned mobile/desktop classifier. Injectable for deterministic tests. */
   browserPlatformPolicy?: DirectBrowserPlatformPolicy;
   /** `setTimeout`. Injectable for tests. Defaults to `globalThis.setTimeout`. */
   setTimeoutFn?: (cb: () => void, ms: number) => unknown;
@@ -172,20 +173,28 @@ function defaultBrowserPlatformPolicy(): DirectBrowserPlatformPolicy {
 }
 
 /**
- * Select Vana's installed-app destination only on mobile while it is fresh.
+ * Select Vana's installed-app destination while it is fresh.
+ *
+ * The server decides whether work requires an installed app by including the
+ * opaque destination. Both desktop and mobile browsers may have a matching
+ * Vana app installed, so browser classification must not override that choice.
  *
  * @param request - The access request containing Vana-provided destinations.
  * @param platformPolicy - The SDK browser classification policy.
  * @param now - Clock source used to enforce capability expiry.
- * @returns The installed-app URL for eligible mobile requests, otherwise the
- * HTTPS approval URL.
+ * @returns The installed-app URL for eligible requests, otherwise the HTTPS
+ * approval URL.
  */
 export function selectDirectAccessRequestUrl(
   request: AccessRequest,
   platformPolicy: DirectBrowserPlatformPolicy,
   now: () => number = Date.now,
 ): string {
-  if (platformPolicy.current() !== "mobile" || !request.installedAppUrl) {
+  // Keep evaluating the injectable policy for backwards-compatible observable
+  // behavior, but both supported browser classes can host a Vana app.
+  platformPolicy.current();
+  const installedAppUrl = normalizeInstalledAppUrl(request.installedAppUrl);
+  if (!installedAppUrl) {
     return request.approvalUrl;
   }
   if (request.installedAppExpiresAt !== undefined) {
@@ -194,7 +203,7 @@ export function selectDirectAccessRequestUrl(
       return request.approvalUrl;
     }
   }
-  return request.installedAppUrl;
+  return installedAppUrl;
 }
 
 /**
@@ -380,6 +389,7 @@ export function createDirectConnectFlow<T = unknown>(
     }
     if (!running) return;
 
+    const installedAppUrl = normalizeInstalledAppUrl(status.installedAppUrl);
     const installedAppFallbackUrl = normalizeInstalledAppFallbackUrl(
       status.installedAppFallbackUrl,
     );
@@ -388,15 +398,13 @@ export function createDirectConnectFlow<T = unknown>(
     );
     if (
       status.status === "pending" &&
-      (status.installedAppUrl ||
-        installedAppFallbackUrl ||
-        installedAppReopenUrl)
+      (installedAppUrl || installedAppFallbackUrl || installedAppReopenUrl)
     ) {
       request = {
         ...request,
-        ...(status.installedAppUrl
+        ...(installedAppUrl
           ? {
-              installedAppUrl: status.installedAppUrl,
+              installedAppUrl,
               installedAppExpiresAt: status.installedAppExpiresAt,
             }
           : {}),
@@ -480,6 +488,7 @@ export function createDirectConnectFlow<T = unknown>(
       }
       request = {
         ...request,
+        installedAppUrl: normalizeInstalledAppUrl(request.installedAppUrl),
         installedAppFallbackUrl: normalizeInstalledAppFallbackUrl(
           request.installedAppFallbackUrl,
         ),

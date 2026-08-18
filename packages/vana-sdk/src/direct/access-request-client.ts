@@ -17,6 +17,10 @@ import type {
   AccessRequestStatus,
   AccessRequestStatusValue,
 } from "./types";
+import {
+  normalizeInstalledAppFallbackUrl,
+  normalizeInstalledAppReopenUrl,
+} from "./types";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 
 /** Minimal `fetch` signature so the client is testable without a global fetch. */
@@ -85,24 +89,6 @@ function normalizeUrl(value: unknown): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function normalizeAbsoluteHttpsUrl(value: unknown): string | undefined {
-  if (typeof value !== "string" || !/^https:\/\//i.test(value)) {
-    return undefined;
-  }
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" ? url.toString() : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function normalizeInstalledAppReopenUrl(value: unknown): string | undefined {
-  return value === "vana://open" || value === "vana-dev://open"
-    ? value
-    : undefined;
 }
 
 function defaultCreateIdempotencyKey(): string {
@@ -276,7 +262,7 @@ export function createDefaultAccessRequestClient(
           installedAppExpiresAt: normalizeExpiresAt(
             responseBody.installedAppExpiresAt,
           ),
-          installedAppFallbackUrl: normalizeAbsoluteHttpsUrl(
+          installedAppFallbackUrl: normalizeInstalledAppFallbackUrl(
             responseBody.installedAppFallbackUrl,
           ),
           installedAppReopenUrl: normalizeInstalledAppReopenUrl(
@@ -334,7 +320,7 @@ export function createDefaultAccessRequestClient(
         scope: body.scope,
         installedAppUrl: normalizeUrl(body.installedAppUrl),
         installedAppExpiresAt: normalizeExpiresAt(body.installedAppExpiresAt),
-        installedAppFallbackUrl: normalizeAbsoluteHttpsUrl(
+        installedAppFallbackUrl: normalizeInstalledAppFallbackUrl(
           body.installedAppFallbackUrl,
         ),
         installedAppReopenUrl: normalizeInstalledAppReopenUrl(

@@ -218,6 +218,47 @@ describe("createDirectConnectFlow", () => {
     expect(navigateInstalledApp).toHaveBeenCalledTimes(2);
   });
 
+  it("sanitizes recovery URLs returned by custom create and status transports", async () => {
+    const h = makeHarness();
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => ({
+          ...REQUEST,
+          installedAppFallbackUrl: "javascript:alert(1)",
+          installedAppReopenUrl: "vana://open?request=dcr_1",
+        }),
+        getStatus: async () => ({
+          status: "pending",
+          installedAppFallbackUrl: "http://app.vana.org/mobile/install",
+          installedAppReopenUrl: "vana://open#request",
+        }),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow: () => null,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    let state = flow.getState();
+    expect(state.type).toBe("awaiting_approval");
+    if (state.type === "awaiting_approval") {
+      expect(state.request.installedAppFallbackUrl).toBeUndefined();
+      expect(state.request.installedAppReopenUrl).toBeUndefined();
+    }
+
+    await h.tick();
+    state = flow.getState();
+    expect(state.type).toBe("awaiting_approval");
+    if (state.type === "awaiting_approval") {
+      expect(state.request.installedAppFallbackUrl).toBeUndefined();
+      expect(state.request.installedAppReopenUrl).toBeUndefined();
+    }
+  });
+
   it("projects resumable metadata without persisting the installed-app capability", () => {
     const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
     const installedAppReopenUrl = "vana-dev://open";

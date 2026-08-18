@@ -100,7 +100,10 @@ export type ResumableAccessRequest = Omit<
   "installedAppUrl" | "installedAppExpiresAt"
 >;
 
-function normalizeInstalledAppFallbackUrl(value: unknown): string | undefined {
+/** @internal Normalize a non-secret installed-app HTTPS recovery URL. */
+export function normalizeInstalledAppFallbackUrl(
+  value: unknown,
+): string | undefined {
   if (typeof value !== "string" || !/^https:\/\//i.test(value)) {
     return undefined;
   }
@@ -112,7 +115,10 @@ function normalizeInstalledAppFallbackUrl(value: unknown): string | undefined {
   }
 }
 
-function normalizeInstalledAppReopenUrl(value: unknown): string | undefined {
+/** @internal Normalize the canonical non-secret native foreground URL. */
+export function normalizeInstalledAppReopenUrl(
+  value: unknown,
+): string | undefined {
   return value === "vana://open" || value === "vana-dev://open"
     ? value
     : undefined;

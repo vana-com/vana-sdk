@@ -20,7 +20,11 @@ import type {
   ApprovedDataResult,
   ResumableAccessRequest,
 } from "./types";
-import { toResumableAccessRequest } from "./types";
+import {
+  normalizeInstalledAppFallbackUrl,
+  normalizeInstalledAppReopenUrl,
+  toResumableAccessRequest,
+} from "./types";
 
 /**
  * Caller-supplied transports. These typically `fetch` the app's own backend
@@ -267,9 +271,6 @@ export function createDirectConnectFlow<T = unknown>(
   const now = options.now ?? (() => Date.now());
   const browserPlatformPolicy =
     options.browserPlatformPolicy ?? defaultBrowserPlatformPolicy();
-  const navigateInstalledApp =
-    options.navigateInstalledApp ?? defaultNavigateInstalledApp;
-
   let state: DirectConnectState<T> = { type: "idle" };
   const listeners = new Set<() => void>();
   let pollHandle: unknown = null;
@@ -379,11 +380,17 @@ export function createDirectConnectFlow<T = unknown>(
     }
     if (!running) return;
 
+    const installedAppFallbackUrl = normalizeInstalledAppFallbackUrl(
+      status.installedAppFallbackUrl,
+    );
+    const installedAppReopenUrl = normalizeInstalledAppReopenUrl(
+      status.installedAppReopenUrl,
+    );
     if (
       status.status === "pending" &&
       (status.installedAppUrl ||
-        status.installedAppFallbackUrl ||
-        status.installedAppReopenUrl)
+        installedAppFallbackUrl ||
+        installedAppReopenUrl)
     ) {
       request = {
         ...request,
@@ -393,12 +400,8 @@ export function createDirectConnectFlow<T = unknown>(
               installedAppExpiresAt: status.installedAppExpiresAt,
             }
           : {}),
-        ...(status.installedAppFallbackUrl
-          ? { installedAppFallbackUrl: status.installedAppFallbackUrl }
-          : {}),
-        ...(status.installedAppReopenUrl
-          ? { installedAppReopenUrl: status.installedAppReopenUrl }
-          : {}),
+        ...(installedAppFallbackUrl ? { installedAppFallbackUrl } : {}),
+        ...(installedAppReopenUrl ? { installedAppReopenUrl } : {}),
       };
       const popupBlocked =
         state.type === "awaiting_approval" ? state.popupBlocked : true;
@@ -475,6 +478,15 @@ export function createDirectConnectFlow<T = unknown>(
         approvalWindow?.close();
         return;
       }
+      request = {
+        ...request,
+        installedAppFallbackUrl: normalizeInstalledAppFallbackUrl(
+          request.installedAppFallbackUrl,
+        ),
+        installedAppReopenUrl: normalizeInstalledAppReopenUrl(
+          request.installedAppReopenUrl,
+        ),
+      };
 
       const destination = selectDirectAccessRequestUrl(
         request,
@@ -534,6 +546,8 @@ export function createDirectConnectFlow<T = unknown>(
         destination === awaiting.request.installedAppUrl
       ) {
         try {
+          const navigateInstalledApp =
+            options.navigateInstalledApp ?? defaultNavigateInstalledApp;
           navigateInstalledApp(destination);
           // Custom-scheme navigation has no browser success signal: assign()
           // returns normally whether the app opened or is absent. Keep the

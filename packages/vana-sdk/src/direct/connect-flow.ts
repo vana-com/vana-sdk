@@ -23,6 +23,7 @@ import type {
 import {
   normalizeInstalledAppFallbackUrl,
   normalizeInstalledAppReopenUrl,
+  normalizeInstalledAppUrl,
   toResumableAccessRequest,
 } from "./types";
 
@@ -185,7 +186,11 @@ export function selectDirectAccessRequestUrl(
   platformPolicy: DirectBrowserPlatformPolicy,
   now: () => number = Date.now,
 ): string {
-  if (platformPolicy.current() !== "mobile" || !request.installedAppUrl) {
+  if (platformPolicy.current() !== "mobile") {
+    return request.approvalUrl;
+  }
+  const installedAppUrl = normalizeInstalledAppUrl(request.installedAppUrl);
+  if (!installedAppUrl) {
     return request.approvalUrl;
   }
   if (request.installedAppExpiresAt !== undefined) {
@@ -194,7 +199,7 @@ export function selectDirectAccessRequestUrl(
       return request.approvalUrl;
     }
   }
-  return request.installedAppUrl;
+  return installedAppUrl;
 }
 
 /**
@@ -380,6 +385,7 @@ export function createDirectConnectFlow<T = unknown>(
     }
     if (!running) return;
 
+    const installedAppUrl = normalizeInstalledAppUrl(status.installedAppUrl);
     const installedAppFallbackUrl = normalizeInstalledAppFallbackUrl(
       status.installedAppFallbackUrl,
     );
@@ -388,15 +394,13 @@ export function createDirectConnectFlow<T = unknown>(
     );
     if (
       status.status === "pending" &&
-      (status.installedAppUrl ||
-        installedAppFallbackUrl ||
-        installedAppReopenUrl)
+      (installedAppUrl || installedAppFallbackUrl || installedAppReopenUrl)
     ) {
       request = {
         ...request,
-        ...(status.installedAppUrl
+        ...(installedAppUrl
           ? {
-              installedAppUrl: status.installedAppUrl,
+              installedAppUrl,
               installedAppExpiresAt: status.installedAppExpiresAt,
             }
           : {}),
@@ -480,6 +484,7 @@ export function createDirectConnectFlow<T = unknown>(
       }
       request = {
         ...request,
+        installedAppUrl: normalizeInstalledAppUrl(request.installedAppUrl),
         installedAppFallbackUrl: normalizeInstalledAppFallbackUrl(
           request.installedAppFallbackUrl,
         ),

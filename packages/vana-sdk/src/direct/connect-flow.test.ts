@@ -103,6 +103,20 @@ describe("createDirectConnectFlow", () => {
         () => 10_000,
       ),
     ).toBe(request.approvalUrl);
+    for (const installedAppUrl of [
+      "javascript:alert(document.domain)",
+      "tel://continue?id=1",
+      "facetime://continue?id=2",
+      "attacker-app://continue?id=3",
+    ]) {
+      expect(
+        selectDirectAccessRequestUrl(
+          { ...request, installedAppUrl },
+          { current: () => "mobile" },
+          () => 0,
+        ),
+      ).toBe(request.approvalUrl);
+    }
   });
 
   it("treats touch-capable MacIntel Safari as mobile and requests a user gesture", async () => {
@@ -224,11 +238,13 @@ describe("createDirectConnectFlow", () => {
       {
         createRequest: async () => ({
           ...REQUEST,
+          installedAppUrl: "facetime://continue?id=2",
           installedAppFallbackUrl: "javascript:alert(1)",
           installedAppReopenUrl: "vana://open?request=dcr_1",
         }),
         getStatus: async () => ({
           status: "pending",
+          installedAppUrl: "attacker-app://continue?id=3",
           installedAppFallbackUrl: "http://app.vana.org/mobile/install",
           installedAppReopenUrl: "vana://open#request",
         }),
@@ -246,6 +262,7 @@ describe("createDirectConnectFlow", () => {
     let state = flow.getState();
     expect(state.type).toBe("awaiting_approval");
     if (state.type === "awaiting_approval") {
+      expect(state.request.installedAppUrl).toBeUndefined();
       expect(state.request.installedAppFallbackUrl).toBeUndefined();
       expect(state.request.installedAppReopenUrl).toBeUndefined();
     }
@@ -254,6 +271,7 @@ describe("createDirectConnectFlow", () => {
     state = flow.getState();
     expect(state.type).toBe("awaiting_approval");
     if (state.type === "awaiting_approval") {
+      expect(state.request.installedAppUrl).toBeUndefined();
       expect(state.request.installedAppFallbackUrl).toBeUndefined();
       expect(state.request.installedAppReopenUrl).toBeUndefined();
     }

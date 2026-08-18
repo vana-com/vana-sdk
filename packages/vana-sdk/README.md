@@ -201,10 +201,7 @@ const request = await vana.createAccessRequest({
 //   appAddress: "0x...",
 //   network: "mainnet",
 //   expiresAt: "...",
-//   installedAppUrl?: "vana://continue?...",
-//   installedAppExpiresAt?: "...",
-//   installedAppFallbackUrl?: "https://app.vana.org/mobile/install",
-//   installedAppReopenUrl?: "vana://open",
+//   mobileContinuationUrl?: "https://open.vana.org/continue#<ticket>",
 // }
 
 // GET /api/vana/status?requestId=...
@@ -264,33 +261,39 @@ export function ConnectSpotifyButton() {
 
 The hook calls `createRequest`, opens the Vana destination, polls `getStatus`
 until the request is approved, then calls `readResult`. Destination choice stays
-inside the SDK: mobile browsers use a fresh `installedAppUrl` when Vana returns
-one, while desktop browsers and light requests keep using the HTTPS
-`approvalUrl`. Builders should not add user-agent branches, app-install checks,
-deep-link construction, or store-link logic.
+inside the SDK, and it owns only the small mobile-versus-desktop split — it never
+infers whether Vana is installed. Desktop browsers and light requests open the
+HTTPS `approvalUrl` in a popup (`state.type === "awaiting_approval"`). Builders
+should not add user-agent branches, app-install checks, deep-link construction,
+or store-link logic.
 
-If a popup is blocked, render the HTTPS `state.request.approvalUrl` as the
-universal manual fallback or call `retryOpen()` directly from a later user
-gesture. A pending status response may refresh the short-lived installed-app
-destination; `retryOpen()` automatically uses the latest fresh destination.
-This is capability routing, not an assertion that the native app is installed.
-When present, `state.request.installedAppFallbackUrl` is Vana's validated HTTPS
-install/reopen recovery destination; builders should render it instead of
-hardcoding app-store URLs.
-After installation, `state.request.installedAppReopenUrl` may be used from an
-explicit user gesture to foreground Vana without replaying a signed continuation
-capability. The SDK accepts only the exact non-secret values `vana://open` and
-`vana-dev://open`; parameters and alternate destinations are discarded.
+If the popup is blocked, `state.popupBlocked` is `true`; render the HTTPS
+`state.request.approvalUrl` as the universal manual "Open approval" link. Polling
+continues either way, so a manual open still drives the flow to completion.
 
-For long-running approval or first-install recovery, persist only
-`toResumableAccessRequest(state.request)` and pass that value to `resume()` after
-reload. The projection keeps the DCR id and authoritative DCR expiry while
-removing `installedAppUrl` and `installedAppExpiresAt`. The SDK owns no storage
-and never persists either request metadata or bearer capabilities itself. The
-projection retains `installedAppFallbackUrl` because it is a non-secret HTTPS
-recovery destination rather than a bearer capability. It likewise retains a
-validated `installedAppReopenUrl`; neither field contains request identity or a
-signed continuation capability.
+A deep Direct request on a mobile browser instead enters
+`state.type === "ready_to_open"` and exposes a plain HTTPS
+`state.mobileContinuationUrl` (`https://open[-dev].vana.org/continue#<ticket>`).
+Because DCR creation is asynchronous, the SDK does **not** launch it
+automatically — the original tap can no longer be trusted to retain iOS user
+activation. Render it as an ordinary primary link the user taps themselves:
+
+```tsx
+<a href={state.mobileContinuationUrl} target="_blank" rel="noreferrer">
+  Open Vana
+</a>
+```
+
+Verified links (iOS Universal Links / Android App Links) deliver this URL to
+Vana Mobile; if Vana is absent the same URL loads its web install/recovery
+fallback. Polling continues in the originating tab, and the URL's short-lived
+ticket may rotate to a fresh value between polls. This is capability routing, not
+an assertion that the native app is installed.
+
+The SDK owns no persistence. If the originating mobile tab is reloaded, evicted,
+or replaced, the flow does not recover: the user restarts and creates a new DCR,
+and the abandoned DCR expires. This restart-on-tab-loss behavior is an accepted
+first-release tradeoff — do not build caller-side resume storage against it.
 
 Server-side create calls accept an optional `idempotencyKey`. The default HTTP
 client generates a key and reuses it when the same create is retried after an

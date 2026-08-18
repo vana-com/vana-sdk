@@ -16,12 +16,9 @@ import type {
   AccessRequestClient,
   AccessRequestStatus,
   AccessRequestStatusValue,
+  DirectEnv,
 } from "./types";
-import {
-  normalizeInstalledAppFallbackUrl,
-  normalizeInstalledAppReopenUrl,
-  normalizeInstalledAppUrl,
-} from "./types";
+import { normalizeMobileContinuationUrl } from "./types";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 
 /** Minimal `fetch` signature so the client is testable without a global fetch. */
@@ -46,6 +43,12 @@ export interface DefaultAccessRequestClientOptions {
   baseUrl: string;
   /** Base URL the user is sent to for approval. */
   approvalBaseUrl: string;
+  /**
+   * Target environment. Pins the allowed mobile continuation link host
+   * (`open.vana.org` for production, `open-dev.vana.org` for dev). When omitted,
+   * both canonical hosts pass the structural continuation-URL check.
+   */
+  env?: DirectEnv;
   /** `fetch` implementation. Defaults to the global `fetch`. */
   fetchFn?: FetchLike;
   /** App identity address used for direct access-request authentication. */
@@ -233,10 +236,7 @@ export function createDefaultAccessRequestClient(
           appAddress?: string;
           network?: unknown;
           expiresAt?: unknown;
-          installedAppUrl?: unknown;
-          installedAppExpiresAt?: unknown;
-          installedAppFallbackUrl?: unknown;
-          installedAppReopenUrl?: unknown;
+          mobileContinuationUrl?: unknown;
         };
         const requestId = responseBody.requestId ?? responseBody.id;
         if (!requestId) {
@@ -250,17 +250,9 @@ export function createDefaultAccessRequestClient(
           appAddress: responseBody.appAddress ?? input.appAddress,
           network: normalizeNetwork(responseBody.network),
           expiresAt: normalizeExpiresAt(responseBody.expiresAt),
-          installedAppUrl: normalizeInstalledAppUrl(
-            responseBody.installedAppUrl,
-          ),
-          installedAppExpiresAt: normalizeExpiresAt(
-            responseBody.installedAppExpiresAt,
-          ),
-          installedAppFallbackUrl: normalizeInstalledAppFallbackUrl(
-            responseBody.installedAppFallbackUrl,
-          ),
-          installedAppReopenUrl: normalizeInstalledAppReopenUrl(
-            responseBody.installedAppReopenUrl,
+          mobileContinuationUrl: normalizeMobileContinuationUrl(
+            responseBody.mobileContinuationUrl,
+            options.env,
           ),
         };
       } catch (error) {
@@ -302,23 +294,16 @@ export function createDefaultAccessRequestClient(
         personalServerUrl?: string;
         grantId?: string;
         scope?: string;
-        installedAppUrl?: unknown;
-        installedAppExpiresAt?: unknown;
-        installedAppFallbackUrl?: unknown;
-        installedAppReopenUrl?: unknown;
+        mobileContinuationUrl?: unknown;
       };
       return {
         status: normalizeStatus(body.status),
         personalServerUrl: body.personalServerUrl,
         grantId: body.grantId,
         scope: body.scope,
-        installedAppUrl: normalizeInstalledAppUrl(body.installedAppUrl),
-        installedAppExpiresAt: normalizeExpiresAt(body.installedAppExpiresAt),
-        installedAppFallbackUrl: normalizeInstalledAppFallbackUrl(
-          body.installedAppFallbackUrl,
-        ),
-        installedAppReopenUrl: normalizeInstalledAppReopenUrl(
-          body.installedAppReopenUrl,
+        mobileContinuationUrl: normalizeMobileContinuationUrl(
+          body.mobileContinuationUrl,
+          options.env,
         ),
       };
     },

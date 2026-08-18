@@ -1,15 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-  createDirectConnectFlow,
-  selectDirectAccessRequestUrl,
-} from "./connect-flow";
-import { toResumableAccessRequest } from "./types";
+import { createDirectConnectFlow } from "./connect-flow";
+import { normalizeMobileContinuationUrl } from "./types";
 import type { DirectConnectOptions } from "./connect-flow";
 import type {
   AccessRequest,
   AccessRequestStatus,
   ApprovedDataResult,
 } from "./types";
+
+const MOBILE_CONTINUATION_URL = "https://open-dev.vana.org/continue#ticket_1";
 
 const REQUEST: AccessRequest = {
   requestId: "dcr_1",
@@ -75,54 +74,77 @@ function readyForReadStatus(): AccessRequestStatus {
 }
 
 describe("createDirectConnectFlow", () => {
-  it("selects installed-app URLs only for mobile while the capability is fresh", () => {
-    const request: AccessRequest = {
-      ...REQUEST,
-      installedAppUrl: "vana-dev://continue?id=dcrcont_1",
-      installedAppExpiresAt: new Date(10_000).toISOString(),
-    };
-
+  it("validates the mobile continuation URL strictly at the SDK boundary", () => {
+    expect(normalizeMobileContinuationUrl(MOBILE_CONTINUATION_URL)).toBe(
+      MOBILE_CONTINUATION_URL,
+    );
     expect(
-      selectDirectAccessRequestUrl(
-        request,
-        { current: () => "mobile" },
-        () => 0,
-      ),
-    ).toBe(request.installedAppUrl);
+      normalizeMobileContinuationUrl("https://open.vana.org/continue#t_prod"),
+    ).toBe("https://open.vana.org/continue#t_prod");
+    // Env pins the allowed host.
     expect(
-      selectDirectAccessRequestUrl(
-        request,
-        { current: () => "desktop" },
-        () => 0,
-      ),
-    ).toBe(request.approvalUrl);
-    expect(
-      selectDirectAccessRequestUrl(
-        request,
-        { current: () => "mobile" },
-        () => 10_000,
-      ),
-    ).toBe(request.approvalUrl);
-    for (const installedAppUrl of [
+      normalizeMobileContinuationUrl(MOBILE_CONTINUATION_URL, "production"),
+    ).toBeUndefined();
+    expect(normalizeMobileContinuationUrl(MOBILE_CONTINUATION_URL, "dev")).toBe(
+      MOBILE_CONTINUATION_URL,
+    );
+    for (const invalid of [
+      "http://open.vana.org/continue#ticket_1",
+      "https://open.vana.org/continue",
+      "https://open.vana.org/continue#",
+      "https://open.vana.org/other#ticket_1",
+      "https://app.vana.org/continue#ticket_1",
+      "https://open.vana.org:8443/continue#ticket_1",
+      "https://user@open.vana.org/continue#ticket_1",
+      "https://open.vana.org/continue?x=1#ticket_1",
+      "https://open.vana.org/continue#ticket_1/../evil",
       "javascript:alert(document.domain)",
-      "tel://continue?id=1",
-      "facetime://continue?id=2",
-      "attacker-app://continue?id=3",
+      "vana-dev://continue?id=1",
     ]) {
-      expect(
-        selectDirectAccessRequestUrl(
-          { ...request, installedAppUrl },
-          { current: () => "mobile" },
-          () => 0,
-        ),
-      ).toBe(request.approvalUrl);
+      expect(normalizeMobileContinuationUrl(invalid)).toBeUndefined();
     }
   });
 
-  it("treats touch-capable MacIntel Safari as mobile and requests a user gesture", async () => {
+  it("exposes ready_to_open with a plain URL on mobile-deep without opening the tab", async () => {
     const h = makeHarness();
     const win = makeWindow();
-    const navigateInstalledApp = vi.fn();
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => ({
+          ...REQUEST,
+          mobileContinuationUrl: MOBILE_CONTINUATION_URL,
+        }),
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow: () => win.handle,
+        browserPlatformPolicy: { current: () => "mobile" },
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+
+    // The synchronously-opened tab is closed (never navigated); the URL is not
+    // launched automatically — the UI renders it as a primary "Open Vana" link.
+    expect(win.navigate).not.toHaveBeenCalled();
+    expect(win.close).toHaveBeenCalledOnce();
+    const state = flow.getState();
+    expect(state.type).toBe("ready_to_open");
+    if (state.type === "ready_to_open") {
+      expect(state.mobileContinuationUrl).toBe(MOBILE_CONTINUATION_URL);
+      expect(state.request.approvalUrl).toBe(REQUEST.approvalUrl);
+    }
+    // Polling continues in memory.
+    expect(h.hasPending()).toBe(true);
+  });
+
+  it("treats touch-capable MacIntel Safari as mobile for the continuation URL", async () => {
+    const h = makeHarness();
+    const win = makeWindow();
     vi.stubGlobal("navigator", {
       userAgent:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Safari/605.1.15",
@@ -135,14 +157,13 @@ describe("createDirectConnectFlow", () => {
         {
           createRequest: async () => ({
             ...REQUEST,
-            installedAppUrl: "vana-dev://continue?id=dcrcont_ipad",
+            mobileContinuationUrl: MOBILE_CONTINUATION_URL,
           }),
           getStatus: async () => pendingStatus(),
           readResult: vi.fn(),
         },
         {
           openApprovalWindow: () => win.handle,
-          navigateInstalledApp,
           now: h.now,
           setTimeoutFn: h.setTimeoutFn,
           clearTimeoutFn: h.clearTimeoutFn,
@@ -153,67 +174,66 @@ describe("createDirectConnectFlow", () => {
 
       expect(win.navigate).not.toHaveBeenCalled();
       expect(win.close).toHaveBeenCalledOnce();
-      expect(navigateInstalledApp).not.toHaveBeenCalled();
       expect(flow.getState()).toMatchObject({
-        type: "awaiting_approval",
-        popupBlocked: true,
+        type: "ready_to_open",
+        mobileContinuationUrl: MOBILE_CONTINUATION_URL,
       });
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("defers installed-app handoff to an explicit retry gesture", async () => {
+  it("keeps the desktop popup contract when the request carries a continuation URL", async () => {
     const h = makeHarness();
     const win = makeWindow();
-    const navigateInstalledApp = vi.fn();
-    const options: DirectConnectOptions = {
-      openApprovalWindow: () => win.handle,
-      browserPlatformPolicy: { current: () => "mobile" as const },
-      navigateInstalledApp,
-      now: h.now,
-      setTimeoutFn: h.setTimeoutFn,
-      clearTimeoutFn: h.clearTimeoutFn,
-    };
-    const installedAppUrl = "vana-dev://continue?id=dcrcont_native";
-
     const flow = createDirectConnectFlow(
       {
-        createRequest: async () => ({ ...REQUEST, installedAppUrl }),
+        createRequest: async () => ({
+          ...REQUEST,
+          mobileContinuationUrl: MOBILE_CONTINUATION_URL,
+        }),
         getStatus: async () => pendingStatus(),
         readResult: vi.fn(),
       },
-      options,
+      {
+        openApprovalWindow: () => win.handle,
+        browserPlatformPolicy: { current: () => "desktop" },
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
     );
 
     await flow.start();
 
-    expect(win.navigate).not.toHaveBeenCalled();
-    expect(win.close).toHaveBeenCalledOnce();
-    expect(navigateInstalledApp).not.toHaveBeenCalled();
+    // Desktop never uses the continuation URL: the popup is navigated to the
+    // HTTPS approval URL exactly as in the pre-mobile contract.
+    expect(win.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
+    expect(win.close).not.toHaveBeenCalled();
     expect(flow.getState()).toMatchObject({
       type: "awaiting_approval",
-      popupBlocked: true,
+      popupBlocked: false,
     });
-
-    expect(flow.retryOpen()).toBe(true);
-    expect(navigateInstalledApp).toHaveBeenCalledWith(installedAppUrl);
   });
 
-  it("keeps absent-app recovery available after a custom-scheme retry", async () => {
+  it("adopts a rotated continuation ticket from a pending status poll", async () => {
     const h = makeHarness();
-    const navigateInstalledApp = vi.fn();
-    const installedAppUrl = "vana-dev://continue?id=dcrcont_absent";
+    const rotated = "https://open-dev.vana.org/continue#ticket_rotated";
     const flow = createDirectConnectFlow(
       {
-        createRequest: async () => ({ ...REQUEST, installedAppUrl }),
-        getStatus: async () => pendingStatus(),
+        createRequest: async () => ({
+          ...REQUEST,
+          mobileContinuationUrl: MOBILE_CONTINUATION_URL,
+        }),
+        getStatus: async () => ({
+          status: "pending",
+          mobileContinuationUrl: rotated,
+        }),
         readResult: vi.fn(),
       },
       {
         openApprovalWindow: () => null,
         browserPlatformPolicy: { current: () => "mobile" },
-        navigateInstalledApp,
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -221,37 +241,71 @@ describe("createDirectConnectFlow", () => {
     );
 
     await flow.start();
-    expect(flow.retryOpen()).toBe(true);
     expect(flow.getState()).toMatchObject({
-      type: "awaiting_approval",
-      popupBlocked: true,
-      request: { approvalUrl: REQUEST.approvalUrl },
+      type: "ready_to_open",
+      mobileContinuationUrl: MOBILE_CONTINUATION_URL,
     });
 
-    expect(flow.retryOpen()).toBe(true);
-    expect(navigateInstalledApp).toHaveBeenCalledTimes(2);
+    await h.tick();
+    expect(flow.getState()).toMatchObject({
+      type: "ready_to_open",
+      mobileContinuationUrl: rotated,
+    });
   });
 
-  it("sanitizes recovery URLs returned by custom create and status transports", async () => {
+  it("sanitizes a continuation URL from custom create and status transports", async () => {
     const h = makeHarness();
     const flow = createDirectConnectFlow(
       {
         createRequest: async () => ({
           ...REQUEST,
-          installedAppUrl: "facetime://continue?id=2",
-          installedAppFallbackUrl: "javascript:alert(1)",
-          installedAppReopenUrl: "vana://open?request=dcr_1",
+          mobileContinuationUrl: "vana-dev://continue?id=2",
         }),
         getStatus: async () => ({
           status: "pending",
-          installedAppUrl: "attacker-app://continue?id=3",
-          installedAppFallbackUrl: "http://app.vana.org/mobile/install",
-          installedAppReopenUrl: "vana://open#request",
+          mobileContinuationUrl: "http://open.vana.org/continue#ticket_x",
         }),
         readResult: vi.fn(),
       },
       {
         openApprovalWindow: () => null,
+        browserPlatformPolicy: { current: () => "mobile" },
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    // An invalid create URL means no mobile-deep destination: fall back to the
+    // desktop/light awaiting_approval path with the manual approval URL.
+    await flow.start();
+    let state = flow.getState();
+    expect(state.type).toBe("awaiting_approval");
+    if (state.type === "awaiting_approval") {
+      expect(state.request.mobileContinuationUrl).toBeUndefined();
+    }
+
+    // A subsequent invalid status URL is ignored; the flow keeps polling.
+    await h.tick();
+    expect(flow.getState().type).toBe("awaiting_approval");
+  });
+
+  it("errors on start when a mobile-deep request has already expired", async () => {
+    const h = makeHarness();
+    const getStatus = vi.fn(async () => pendingStatus());
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => ({
+          ...REQUEST,
+          mobileContinuationUrl: MOBILE_CONTINUATION_URL,
+          expiresAt: new Date(-1).toISOString(),
+        }),
+        getStatus,
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow: () => null,
+        browserPlatformPolicy: { current: () => "mobile" },
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
         clearTimeoutFn: h.clearTimeoutFn,
@@ -259,41 +313,13 @@ describe("createDirectConnectFlow", () => {
     );
 
     await flow.start();
-    let state = flow.getState();
-    expect(state.type).toBe("awaiting_approval");
-    if (state.type === "awaiting_approval") {
-      expect(state.request.installedAppUrl).toBeUndefined();
-      expect(state.request.installedAppFallbackUrl).toBeUndefined();
-      expect(state.request.installedAppReopenUrl).toBeUndefined();
+    const state = flow.getState();
+    expect(state.type).toBe("error");
+    if (state.type === "error") {
+      expect(state.error.message).toMatch(/expired/);
     }
-
-    await h.tick();
-    state = flow.getState();
-    expect(state.type).toBe("awaiting_approval");
-    if (state.type === "awaiting_approval") {
-      expect(state.request.installedAppUrl).toBeUndefined();
-      expect(state.request.installedAppFallbackUrl).toBeUndefined();
-      expect(state.request.installedAppReopenUrl).toBeUndefined();
-    }
-  });
-
-  it("projects resumable metadata without persisting the installed-app capability", () => {
-    const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
-    const installedAppReopenUrl = "vana-dev://open";
-    const resumable = toResumableAccessRequest({
-      ...REQUEST,
-      installedAppUrl: "vana-dev://continue?id=secret",
-      installedAppExpiresAt: new Date(10_000).toISOString(),
-      installedAppFallbackUrl,
-      installedAppReopenUrl,
-    });
-
-    expect(resumable).toEqual({
-      ...REQUEST,
-      installedAppFallbackUrl,
-      installedAppReopenUrl,
-    });
-    expect(JSON.stringify(resumable)).not.toContain("continue?id=secret");
+    expect(getStatus).not.toHaveBeenCalled();
+    expect(h.hasPending()).toBe(false);
   });
 
   it("starts idle", () => {
@@ -554,163 +580,6 @@ describe("createDirectConnectFlow", () => {
     expect(flow.getState().type).toBe("done");
   });
 
-  it("resumes the same caller-persisted request without creating another", async () => {
-    const h = makeHarness();
-    const createRequest = vi.fn(async () => REQUEST);
-    const getStatus = vi.fn(async () => pendingStatus());
-    const openApprovalWindow = vi.fn(() => makeWindow().handle);
-    const flow = createDirectConnectFlow(
-      { createRequest, getStatus, readResult: vi.fn() },
-      {
-        openApprovalWindow,
-        now: h.now,
-        setTimeoutFn: h.setTimeoutFn,
-        clearTimeoutFn: h.clearTimeoutFn,
-      },
-    );
-
-    await flow.start();
-    const awaiting = flow.getState();
-    if (awaiting.type !== "awaiting_approval") {
-      throw new Error("expected a pending request");
-    }
-    const persistedRequest = JSON.parse(
-      JSON.stringify(awaiting.request),
-    ) as AccessRequest;
-
-    flow.reset();
-    await flow.resume(persistedRequest);
-    await h.tick();
-
-    expect(createRequest).toHaveBeenCalledTimes(1);
-    expect(openApprovalWindow).toHaveBeenCalledTimes(1);
-    expect(getStatus).toHaveBeenCalledWith(REQUEST.requestId);
-    const resumed = flow.getState();
-    expect(resumed.type).toBe("awaiting_approval");
-    if (resumed.type === "awaiting_approval") {
-      expect(resumed.request.requestId).toBe(REQUEST.requestId);
-      expect(resumed.popupBlocked).toBe(true);
-    }
-  });
-
-  it.each([
-    [
-      "https://app.vana.org/mobile/install",
-      "https://app.vana.org/mobile/install",
-    ],
-    ["javascript:alert(1)", undefined],
-    ["http://app.vana.org/mobile/install", undefined],
-    ["https:app.vana.org/mobile/install", undefined],
-  ])(
-    "sanitizes fallback %s at projection and runtime resume boundaries",
-    async (installedAppFallbackUrl, expectedFallbackUrl) => {
-      const h = makeHarness();
-      const flow = createDirectConnectFlow(
-        {
-          createRequest: vi.fn(),
-          getStatus: async () => pendingStatus(),
-          readResult: vi.fn(),
-        },
-        {
-          now: h.now,
-          setTimeoutFn: h.setTimeoutFn,
-          clearTimeoutFn: h.clearTimeoutFn,
-        },
-      );
-
-      const unsafeRequest: AccessRequest = {
-        ...REQUEST,
-        installedAppUrl: "vana-dev://continue?id=secret",
-        installedAppExpiresAt: new Date(10_000).toISOString(),
-        installedAppFallbackUrl,
-      };
-      expect(
-        toResumableAccessRequest(unsafeRequest).installedAppFallbackUrl,
-      ).toBe(expectedFallbackUrl);
-      await flow.resume(unsafeRequest);
-
-      const state = flow.getState();
-      expect(state.type).toBe("awaiting_approval");
-      if (state.type === "awaiting_approval") {
-        expect(state.request.installedAppUrl).toBeUndefined();
-        expect(state.request.installedAppExpiresAt).toBeUndefined();
-        expect(state.request.installedAppFallbackUrl).toBe(expectedFallbackUrl);
-      }
-    },
-  );
-
-  it.each([
-    ["vana://open", "vana://open"],
-    ["vana-dev://open", "vana-dev://open"],
-    ["vana://open?request=dcr_1", undefined],
-    ["vana://open#resume", undefined],
-    ["vana://user@open", undefined],
-    ["vana://open:443", undefined],
-    ["vana://other", undefined],
-    ["vana://open/path", undefined],
-    ["vana-beta://open", undefined],
-  ])(
-    "sanitizes reopen URL %s at projection and runtime resume boundaries",
-    async (installedAppReopenUrl, expectedReopenUrl) => {
-      const h = makeHarness();
-      const flow = createDirectConnectFlow(
-        {
-          createRequest: vi.fn(),
-          getStatus: async () => pendingStatus(),
-          readResult: vi.fn(),
-        },
-        {
-          now: h.now,
-          setTimeoutFn: h.setTimeoutFn,
-          clearTimeoutFn: h.clearTimeoutFn,
-        },
-      );
-      const unsafeRequest: AccessRequest = {
-        ...REQUEST,
-        installedAppReopenUrl,
-      };
-
-      expect(
-        toResumableAccessRequest(unsafeRequest).installedAppReopenUrl,
-      ).toBe(expectedReopenUrl);
-      await flow.resume(unsafeRequest);
-
-      const state = flow.getState();
-      expect(state.type).toBe("awaiting_approval");
-      if (state.type === "awaiting_approval") {
-        expect(state.request.installedAppReopenUrl).toBe(expectedReopenUrl);
-      }
-    },
-  );
-
-  it("rejects an already expired resumed request without polling", async () => {
-    const h = makeHarness();
-    const createRequest = vi.fn();
-    const getStatus = vi.fn();
-    const flow = createDirectConnectFlow(
-      { createRequest, getStatus, readResult: vi.fn() },
-      {
-        now: h.now,
-        setTimeoutFn: h.setTimeoutFn,
-        clearTimeoutFn: h.clearTimeoutFn,
-      },
-    );
-
-    await flow.resume({
-      ...REQUEST,
-      expiresAt: new Date(-1).toISOString(),
-    });
-
-    const state = flow.getState();
-    expect(state.type).toBe("error");
-    if (state.type === "error") {
-      expect(state.error.message).toMatch(/expired/);
-    }
-    expect(createRequest).not.toHaveBeenCalled();
-    expect(getStatus).not.toHaveBeenCalled();
-    expect(h.hasPending()).toBe(false);
-  });
-
   it("reset returns to idle and cancels polling", async () => {
     const h = makeHarness();
     const flow = createDirectConnectFlow(
@@ -838,56 +707,6 @@ describe("createDirectConnectFlow", () => {
     await h.tick();
     await h.tick();
     expect(flow.getState().type).toBe("done");
-  });
-
-  it("uses a refreshed pending capability for explicit mobile retry", async () => {
-    const h = makeHarness();
-    const openApprovalWindow = vi.fn(() => null);
-    const navigateInstalledApp = vi.fn();
-    const refreshedUrl = "vana-dev://continue?id=dcrcont_fresh";
-    const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
-    const installedAppReopenUrl = "vana-dev://open";
-    const flow = createDirectConnectFlow(
-      {
-        createRequest: async () => ({
-          ...REQUEST,
-          installedAppUrl: "vana-dev://continue?id=dcrcont_stale",
-          installedAppExpiresAt: new Date(-1).toISOString(),
-        }),
-        getStatus: async () => ({
-          status: "pending",
-          installedAppUrl: refreshedUrl,
-          installedAppExpiresAt: new Date(60_000).toISOString(),
-          installedAppFallbackUrl,
-          installedAppReopenUrl,
-        }),
-        readResult: vi.fn(),
-      },
-      {
-        openApprovalWindow,
-        browserPlatformPolicy: { current: () => "mobile" },
-        navigateInstalledApp,
-        now: h.now,
-        setTimeoutFn: h.setTimeoutFn,
-        clearTimeoutFn: h.clearTimeoutFn,
-      },
-    );
-
-    await flow.start();
-    await h.tick();
-    expect(flow.retryOpen()).toBe(true);
-    expect(navigateInstalledApp).toHaveBeenCalledWith(refreshedUrl);
-    expect(openApprovalWindow).toHaveBeenCalledOnce();
-    const state = flow.getState();
-    expect(state.type).toBe("awaiting_approval");
-    if (state.type === "awaiting_approval") {
-      expect(state.request.approvalUrl).toBe(REQUEST.approvalUrl);
-      expect(state.request.installedAppFallbackUrl).toBe(
-        installedAppFallbackUrl,
-      );
-      expect(state.request.installedAppReopenUrl).toBe(installedAppReopenUrl);
-      expect(state.popupBlocked).toBe(true);
-    }
   });
 
   it("closes the un-navigated tab when createRequest fails", async () => {

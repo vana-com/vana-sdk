@@ -93,11 +93,8 @@ describe("createDefaultAccessRequestClient", () => {
     expect(result).toMatchObject({ network: "moksha", expiresAt });
   });
 
-  it("parses optional installed-app routing metadata from create and status", async () => {
-    const installedAppUrl = "vana-dev://continue?id=dcrcont_9";
-    const installedAppExpiresAt = "2026-08-17T18:05:00.000Z";
-    const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
-    const installedAppReopenUrl = "vana-dev://open";
+  it("parses the mobile continuation URL from create and status", async () => {
+    const mobileContinuationUrl = "https://open-dev.vana.org/continue#ticket_9";
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
       approvalBaseUrl: "https://app.vana.org",
@@ -105,20 +102,8 @@ describe("createDefaultAccessRequestClient", () => {
       fetchFn: fakeFetch((url) => ({
         status: 200,
         body: url.endsWith("/dcr_9")
-          ? {
-              status: "pending",
-              installedAppUrl,
-              installedAppExpiresAt,
-              installedAppFallbackUrl,
-              installedAppReopenUrl,
-            }
-          : {
-              requestId: "dcr_9",
-              installedAppUrl,
-              installedAppExpiresAt,
-              installedAppFallbackUrl,
-              installedAppReopenUrl,
-            },
+          ? { status: "pending", mobileContinuationUrl }
+          : { requestId: "dcr_9", mobileContinuationUrl },
       })),
     });
 
@@ -132,33 +117,45 @@ describe("createDefaultAccessRequestClient", () => {
     });
     const status = await client.getAccessRequestStatus("dcr_9");
 
-    expect(request).toMatchObject({
-      installedAppUrl,
-      installedAppExpiresAt,
-      installedAppFallbackUrl,
-      installedAppReopenUrl,
-    });
-    expect(status).toMatchObject({
-      installedAppUrl,
-      installedAppExpiresAt,
-      installedAppFallbackUrl,
-      installedAppReopenUrl,
-    });
+    expect(request.mobileContinuationUrl).toBe(mobileContinuationUrl);
+    expect(status.mobileContinuationUrl).toBe(mobileContinuationUrl);
   });
 
-  it("omits unsafe installed-app continuations from create and status", async () => {
+  it("accepts the production continuation host too when env is unset", async () => {
+    const mobileContinuationUrl = "https://open.vana.org/continue#ticket_prod";
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
       approvalBaseUrl: "https://app.vana.org",
-      createIdempotencyKey: () => "idem-invalid-continuation",
-      fetchFn: fakeFetch((url) => ({
+      fetchFn: fakeFetch(() => ({
         status: 200,
-        body: url.endsWith("/dcr_invalid")
-          ? { status: "pending", installedAppUrl: "tel://continue?id=1" }
-          : {
-              requestId: "dcr_invalid",
-              installedAppUrl: "javascript:alert(document.domain)",
-            },
+        body: { requestId: "dcr_9", mobileContinuationUrl },
+      })),
+    });
+
+    const request = await client.createAccessRequest({
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet",
+    });
+
+    expect(request.mobileContinuationUrl).toBe(mobileContinuationUrl);
+  });
+
+  it("pins the allowed continuation host to the configured env", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      env: "dev",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          requestId: "dcr_9",
+          // A production host must be rejected under the dev environment.
+          mobileContinuationUrl: "https://open.vana.org/continue#ticket_prod",
+        },
       })),
     });
 
@@ -170,33 +167,34 @@ describe("createDefaultAccessRequestClient", () => {
       returnUrl: "https://a.example/return",
       network: "moksha",
     });
-    const status = await client.getAccessRequestStatus("dcr_invalid");
 
-    expect(request.installedAppUrl).toBeUndefined();
-    expect(status.installedAppUrl).toBeUndefined();
+    expect(request.mobileContinuationUrl).toBeUndefined();
   });
 
   it.each([
-    "vana://open?request=dcr_9",
-    "vana://open#resume",
-    "vana://user@open",
-    "vana://open:443",
-    "vana://other",
-    "vana://open/path",
-    "vana-beta://open",
-    "https://open",
+    "http://open.vana.org/continue#ticket_9",
+    "https://open.vana.org/continue",
+    "https://open.vana.org/continue#",
+    "https://open.vana.org/other#ticket_9",
+    "https://app.vana.org/continue#ticket_9",
+    "https://open.vana.org:8443/continue#ticket_9",
+    "https://user@open.vana.org/continue#ticket_9",
+    "https://open.vana.org/continue?x=1#ticket_9",
+    "https://open.vana.org/continue#ticket_9&evil=1",
+    "javascript:alert(document.domain)",
+    "vana-dev://continue?id=1",
   ])(
-    "omits non-canonical installed-app reopen URL %s",
-    async (installedAppReopenUrl) => {
+    "omits an invalid mobile continuation URL %s from create and status",
+    async (mobileContinuationUrl) => {
       const client = createDefaultAccessRequestClient({
         baseUrl: "https://app.vana.org",
         approvalBaseUrl: "https://app.vana.org",
-        createIdempotencyKey: () => "idem-invalid-reopen",
+        createIdempotencyKey: () => "idem-invalid-continuation",
         fetchFn: fakeFetch((url) => ({
           status: 200,
           body: url.endsWith("/dcr_9")
-            ? { status: "pending", installedAppReopenUrl }
-            : { requestId: "dcr_9", installedAppReopenUrl },
+            ? { status: "pending", mobileContinuationUrl }
+            : { requestId: "dcr_9", mobileContinuationUrl },
         })),
       });
 
@@ -206,47 +204,12 @@ describe("createDefaultAccessRequestClient", () => {
         source: "icloud_notes",
         scopes: ["icloud_notes.notes"],
         returnUrl: "https://a.example/return",
-        network: "mainnet",
+        network: "moksha",
       });
       const status = await client.getAccessRequestStatus("dcr_9");
 
-      expect(request.installedAppReopenUrl).toBeUndefined();
-      expect(status.installedAppReopenUrl).toBeUndefined();
-    },
-  );
-
-  it.each([
-    "/mobile/install",
-    "https:app.vana.org/mobile/install",
-    "http://app.vana.org/mobile/install",
-    "vana://install",
-  ])(
-    "omits non-HTTPS installed-app fallback %s",
-    async (installedAppFallbackUrl) => {
-      const client = createDefaultAccessRequestClient({
-        baseUrl: "https://app.vana.org",
-        approvalBaseUrl: "https://app.vana.org",
-        createIdempotencyKey: () => "idem-invalid-fallback",
-        fetchFn: fakeFetch((url) => ({
-          status: 200,
-          body: url.endsWith("/dcr_9")
-            ? { status: "pending", installedAppFallbackUrl }
-            : { requestId: "dcr_9", installedAppFallbackUrl },
-        })),
-      });
-
-      const request = await client.createAccessRequest({
-        appAddress: "0xabc",
-        app: { id: "a", name: "A", homepageUrl: "https://a.example" },
-        source: "icloud_notes",
-        scopes: ["icloud_notes.notes"],
-        returnUrl: "https://a.example/return",
-        network: "mainnet",
-      });
-      const status = await client.getAccessRequestStatus("dcr_9");
-
-      expect(request.installedAppFallbackUrl).toBeUndefined();
-      expect(status.installedAppFallbackUrl).toBeUndefined();
+      expect(request.mobileContinuationUrl).toBeUndefined();
+      expect(status.mobileContinuationUrl).toBeUndefined();
     },
   );
 
@@ -260,10 +223,7 @@ describe("createDefaultAccessRequestClient", () => {
           requestId: "dcr_9",
           network: "testnet",
           expiresAt: "not-a-date",
-          installedAppUrl: "not a url",
-          installedAppExpiresAt: "also-not-a-date",
-          installedAppFallbackUrl: "javascript:alert(1)",
-          installedAppReopenUrl: "vana://open?request=dcr_9",
+          mobileContinuationUrl: "not a url",
         },
       })),
     });
@@ -279,10 +239,7 @@ describe("createDefaultAccessRequestClient", () => {
 
     expect(result.network).toBeUndefined();
     expect(result.expiresAt).toBeUndefined();
-    expect(result.installedAppUrl).toBeUndefined();
-    expect(result.installedAppExpiresAt).toBeUndefined();
-    expect(result.installedAppFallbackUrl).toBeUndefined();
-    expect(result.installedAppReopenUrl).toBeUndefined();
+    expect(result.mobileContinuationUrl).toBeUndefined();
   });
 
   it("normalizes an unknown status to pending", async () => {

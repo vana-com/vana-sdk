@@ -30,6 +30,13 @@
  *           {state.popupBlocked ? "Popup blocked — open approval" : "Open approval"}
  *         </a>
  *       )}
+ *       {state.type === "ready_to_open" && (
+ *         // Mobile deep Direct: render the HTTPS continuation as a primary tap.
+ *         // The SDK keeps polling in this tab; if the tab is lost, restart.
+ *         <a href={state.mobileContinuationUrl} target="_blank" rel="noreferrer">
+ *           Open Vana
+ *         </a>
+ *       )}
  *     </div>
  *   );
  * }
@@ -48,7 +55,6 @@ export {
 // Framework-agnostic store (usable without React).
 export {
   createDirectConnectFlow,
-  selectDirectAccessRequestUrl,
   type ConnectWindow,
   type DirectBrowserPlatform,
   type DirectBrowserPlatformPolicy,
@@ -61,9 +67,7 @@ export {
 // Shared types useful when typing the transports.
 export type {
   AccessRequest,
-  ResumableAccessRequest,
   AccessRequestStatus,
   AccessRequestStatusValue,
   ApprovedDataResult,
 } from "./direct/types";
-export { toResumableAccessRequest } from "./direct/types";

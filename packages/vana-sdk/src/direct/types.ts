@@ -84,97 +84,66 @@ export interface AccessRequest {
   network?: DirectNetwork;
   /** Authoritative ISO-8601 expiry for the access request. */
   expiresAt?: string;
-  /** Opaque installed-app destination for work that cannot finish on Web. */
-  installedAppUrl?: string;
-  /** ISO-8601 expiry of `installedAppUrl`, independent of the DCR expiry. */
-  installedAppExpiresAt?: string;
-  /** Absolute HTTPS recovery URL for installing or reopening the native app. */
-  installedAppFallbackUrl?: string;
-  /** Canonical non-secret URL that foregrounds the installed native app. */
-  installedAppReopenUrl?: string;
+  /**
+   * HTTPS continuation URL for a deep Direct request on a mobile browser.
+   *
+   * @remarks
+   * Present only for a server-classified deep Direct DCR while it remains
+   * pending, and only when Mobile continuation is enabled. It is an ordinary
+   * `https://open[-dev].vana.org/continue#<ticket>` link the mobile UI renders
+   * as a primary "Open Vana" tap — iOS Universal Links / Android App Links
+   * deliver it to Vana Mobile, and its web fallback recovers an absent app. The
+   * SDK never launches it automatically and owns no persistence.
+   */
+  mobileContinuationUrl?: string;
 }
 
-/** Safe metadata a caller may persist to resume an access request. */
-export type ResumableAccessRequest = Omit<
-  AccessRequest,
-  "installedAppUrl" | "installedAppExpiresAt"
->;
+/** Canonical mobile continuation link host per {@link DirectEnv}. */
+const MOBILE_CONTINUATION_HOSTS: Record<DirectEnv, string> = {
+  production: "open.vana.org",
+  dev: "open-dev.vana.org",
+};
 
-/** @internal Normalize a Vana app continuation URL. */
-export function normalizeInstalledAppUrl(value: unknown): string | undefined {
-  if (typeof value !== "string" || value.length === 0) return undefined;
-  try {
-    const url = new URL(value);
-    const isVanaProtocol =
-      url.protocol === "vana:" || url.protocol === "vana-dev:";
-    const isContinuationDestination =
-      url.hostname === "continue" &&
-      url.username === "" &&
-      url.password === "" &&
-      url.port === "" &&
-      (url.pathname === "" || url.pathname === "/") &&
-      url.hash === "";
-    return isVanaProtocol && isContinuationDestination
-      ? url.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** @internal Normalize a non-secret installed-app HTTPS recovery URL. */
-export function normalizeInstalledAppFallbackUrl(
-  value: unknown,
-): string | undefined {
-  if (typeof value !== "string" || !/^https:\/\//i.test(value)) {
-    return undefined;
-  }
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" ? url.toString() : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** @internal Normalize the canonical non-secret native foreground URL. */
-export function normalizeInstalledAppReopenUrl(
-  value: unknown,
-): string | undefined {
-  return value === "vana://open" || value === "vana-dev://open"
-    ? value
-    : undefined;
-}
+/** URL-fragment-safe opaque ticket: no separators, query, or scheme chars. */
+const MOBILE_CONTINUATION_TICKET = /^[A-Za-z0-9._~-]+$/;
 
 /**
- * Remove short-lived bearer capabilities before a caller persists resume data.
+ * @internal Strictly validate a mobile HTTPS continuation URL at the SDK
+ * boundary.
  *
- * The SDK itself never stores access-request state.
+ * @remarks
+ * Accepts only `https://open[-dev].vana.org/continue#<ticket>` with exactly one
+ * well-formed opaque fragment ticket and no user info, port, or query. When
+ * `env` is supplied only that environment's host is allowed; otherwise both
+ * canonical hosts are accepted for structural (defense-in-depth) validation.
  *
- * @param request - The live access request returned by Vana.
- * @returns Request metadata safe for caller-owned resume storage.
+ * @param value - The candidate URL from a create or status response.
+ * @param env - Optional environment to pin the allowed host to.
+ * @returns The canonical URL string, or `undefined` when it fails validation.
  */
-export function toResumableAccessRequest(
-  request: AccessRequest,
-): ResumableAccessRequest {
-  const safe = { ...request };
-  delete safe.installedAppUrl;
-  delete safe.installedAppExpiresAt;
-  const fallbackUrl = normalizeInstalledAppFallbackUrl(
-    safe.installedAppFallbackUrl,
-  );
-  if (fallbackUrl === undefined) {
-    delete safe.installedAppFallbackUrl;
-  } else {
-    safe.installedAppFallbackUrl = fallbackUrl;
+export function normalizeMobileContinuationUrl(
+  value: unknown,
+  env?: DirectEnv,
+): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
   }
-  const reopenUrl = normalizeInstalledAppReopenUrl(safe.installedAppReopenUrl);
-  if (reopenUrl === undefined) {
-    delete safe.installedAppReopenUrl;
-  } else {
-    safe.installedAppReopenUrl = reopenUrl;
-  }
-  return safe;
+  if (url.protocol !== "https:") return undefined;
+  const allowedHosts = env
+    ? [MOBILE_CONTINUATION_HOSTS[env]]
+    : Object.values(MOBILE_CONTINUATION_HOSTS);
+  if (!allowedHosts.includes(url.hostname)) return undefined;
+  if (url.pathname !== "/continue") return undefined;
+  if (url.username !== "" || url.password !== "") return undefined;
+  if (url.port !== "") return undefined;
+  if (url.search !== "") return undefined;
+  const ticket = url.hash.startsWith("#") ? url.hash.slice(1) : "";
+  if (!MOBILE_CONTINUATION_TICKET.test(ticket)) return undefined;
+  return url.toString();
 }
 
 /**
@@ -207,14 +176,11 @@ export interface AccessRequestStatus {
   grantId?: string;
   /** The approved scope — present once data is ready to read. */
   scope?: string;
-  /** Fresh installed-app destination, returned only while still pending. */
-  installedAppUrl?: string;
-  /** ISO-8601 expiry of the refreshed installed-app destination. */
-  installedAppExpiresAt?: string;
-  /** Absolute HTTPS recovery URL for installing or reopening the native app. */
-  installedAppFallbackUrl?: string;
-  /** Canonical non-secret URL that foregrounds the installed native app. */
-  installedAppReopenUrl?: string;
+  /**
+   * Fresh HTTPS mobile continuation URL, returned only while the deep Direct
+   * DCR is still pending. Its embedded ticket may rotate between polls.
+   */
+  mobileContinuationUrl?: string;
 }
 
 /** Result of {@link DirectDataController.readApprovedData}. */

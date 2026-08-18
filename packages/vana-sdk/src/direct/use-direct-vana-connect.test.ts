@@ -40,36 +40,55 @@ beforeEach(() => {
   beginRender();
 });
 
-it("uses the latest custom installed-app navigator after a rerender", async () => {
-  const installedAppUrl = "vana-dev://continue?id=dcrcont_hook";
-  const staleNavigator = vi.fn();
-  const latestNavigator = vi.fn();
+it("uses the latest transports after a rerender and exposes ready_to_open on mobile", async () => {
+  const mobileContinuationUrl =
+    "https://open-dev.vana.org/continue#ticket_hook";
+  const staleCreate = vi.fn(async () => ({
+    requestId: "dcr_stale",
+    approvalUrl: "https://app.vana.org/data-connection-requests/dcr_stale",
+    appAddress: "0xapp",
+    mobileContinuationUrl,
+  }));
+  const latestCreate = vi.fn(async () => ({
+    requestId: "dcr_hook",
+    approvalUrl: "https://app.vana.org/data-connection-requests/dcr_hook",
+    appAddress: "0xapp",
+    mobileContinuationUrl,
+  }));
   const options = {
-    createRequest: async () => ({
-      requestId: "dcr_hook",
-      approvalUrl: "https://app.vana.org/data-connection-requests/dcr_hook",
-      appAddress: "0xapp",
-      installedAppUrl,
-    }),
     getStatus: async () => ({ status: "pending" as const }),
     readResult: vi.fn(),
     openApprovalWindow: () => null,
     browserPlatformPolicy: { current: () => "mobile" as const },
   };
 
-  useDirectVanaConnect({ ...options, navigateInstalledApp: staleNavigator });
+  useDirectVanaConnect({ ...options, createRequest: staleCreate });
   beginRender();
   const connect = useDirectVanaConnect({
     ...options,
-    navigateInstalledApp: latestNavigator,
+    createRequest: latestCreate,
   });
+
+  // The hook returns only the smaller start/reset/state surface.
+  expect(Object.keys(connect).sort()).toEqual(["reset", "start", "state"]);
 
   connect.start();
+  // The mocked useSyncExternalStore snapshots state at render time, so re-render
+  // to observe the flow advancing to the mobile-deep ready_to_open state.
+  let rerendered = connect;
   await vi.waitFor(() => {
-    expect(connect.retryOpen()).toBe(true);
+    beginRender();
+    rerendered = useDirectVanaConnect({
+      ...options,
+      createRequest: latestCreate,
+    });
+    expect(rerendered.state.type).toBe("ready_to_open");
   });
 
-  expect(latestNavigator).toHaveBeenCalledWith(installedAppUrl);
-  expect(staleNavigator).not.toHaveBeenCalled();
-  connect.reset();
+  expect(latestCreate).toHaveBeenCalledTimes(1);
+  expect(staleCreate).not.toHaveBeenCalled();
+  if (rerendered.state.type === "ready_to_open") {
+    expect(rerendered.state.mobileContinuationUrl).toBe(mobileContinuationUrl);
+  }
+  rerendered.reset();
 });

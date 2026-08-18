@@ -173,7 +173,8 @@ export interface DirectDataController {
    * Create an access request the user can approve.
    *
    * @param input - The post-approval return URL and optional create retry key.
-   * @returns The request id, HTTPS fallback, and optional installed-app metadata.
+   * @returns The request id, HTTPS approval URL, and — for a pending deep Direct
+   * request on mobile — an optional HTTPS `mobileContinuationUrl`.
    */
   createAccessRequest(input: {
     returnUrl: string;
@@ -270,6 +271,7 @@ export function createDirectDataController(
     createDefaultAccessRequestClient({
       baseUrl: endpoints.accessRequestBaseUrl,
       approvalBaseUrl: endpoints.approvalAppBaseUrl,
+      env,
       fetchFn: config.fetchFn,
       appAddress: account.address,
       signMessage,

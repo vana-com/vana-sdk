@@ -21,7 +21,6 @@ import {
   type DirectConnectState,
   type DirectConnectTransports,
 } from "./connect-flow";
-import type { ResumableAccessRequest } from "./types";
 
 /** Options for {@link useDirectVanaConnect}: transports plus flow tunables. */
 export type UseDirectVanaConnectOptions<T = unknown> =
@@ -33,10 +32,6 @@ export interface UseDirectVanaConnectResult<T = unknown> {
   state: DirectConnectState<T>;
   /** Begin the connect flow (create request, open Vana, poll, read). */
   start: () => void;
-  /** Resume a caller-persisted request without creating another request. */
-  resume: (request: ResumableAccessRequest) => void;
-  /** Retry the current SDK-selected destination from a user gesture. */
-  retryOpen: () => boolean;
   /** Reset back to `idle` and cancel any in-flight polling. */
   reset: () => void;
 }
@@ -46,7 +41,7 @@ export interface UseDirectVanaConnectResult<T = unknown> {
  *
  * @param options - The `createRequest`/`getStatus`/`readResult` transports plus
  * optional polling/timeout tunables.
- * @returns `{ state, start, resume, retryOpen, reset }`.
+ * @returns `{ state, start, reset }`.
  *
  * @example
  * ```tsx
@@ -87,9 +82,6 @@ export function useDirectVanaConnect<T = unknown>(
           get browserPlatformPolicy() {
             return optionsRef.current.browserPlatformPolicy;
           },
-          get navigateInstalledApp() {
-            return optionsRef.current.navigateInstalledApp;
-          },
         },
       ),
     // Created once per component instance; callbacks are read via optionsRef.
@@ -106,18 +98,9 @@ export function useDirectVanaConnect<T = unknown>(
     void flow.start();
   }, [flow]);
 
-  const resume = useCallback(
-    (request: ResumableAccessRequest) => {
-      void flow.resume(request);
-    },
-    [flow],
-  );
-
-  const retryOpen = useCallback(() => flow.retryOpen(), [flow]);
-
   const reset = useCallback(() => {
     flow.reset();
   }, [flow]);
 
-  return { state, start, resume, retryOpen, reset };
+  return { state, start, reset };
 }

@@ -919,4 +919,39 @@ describe("createDirectConnectFlow", () => {
     await flow.start();
     expect(winLate.navigate).toHaveBeenCalledWith(REQUEST.approvalUrl);
   });
+
+  it("reads a browser platform policy swapped in after the flow was created", async () => {
+    const h = makeHarness();
+    const openApprovalWindow = vi.fn(() => makeWindow().handle);
+    const options: DirectConnectOptions = {
+      openApprovalWindow,
+      browserPlatformPolicy: { current: () => "desktop" },
+      now: h.now,
+      setTimeoutFn: h.setTimeoutFn,
+      clearTimeoutFn: h.clearTimeoutFn,
+    };
+
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => ({
+          ...REQUEST,
+          mobileContinuationUrl: MOBILE_CONTINUATION_URL,
+        }),
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      options,
+    );
+
+    // A rerender forwards a new policy AFTER construction (the React hook reads
+    // options through a ref); start() must take the mobile path, not the popup.
+    options.browserPlatformPolicy = { current: () => "mobile" };
+
+    await flow.start();
+    expect(openApprovalWindow).not.toHaveBeenCalled();
+    const state = flow.getState();
+    expect(state.type).toBe("ready_to_open");
+    if (state.type !== "ready_to_open") throw new Error("expected mobile path");
+    expect(state.mobileContinuationUrl).toBe(MOBILE_CONTINUATION_URL);
+  });
 });

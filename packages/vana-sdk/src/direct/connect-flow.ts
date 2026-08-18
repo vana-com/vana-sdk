@@ -224,9 +224,10 @@ export function createDirectConnectFlow<T = unknown>(
 ): DirectConnectFlow<T> {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  // Resolved lazily at start() (see below) so a custom opener swapped in after
-  // construction is still honoured — matching the latest-callback pattern the
-  // React hook uses for its transports.
+  // `openApprovalWindow` and `browserPlatformPolicy` are resolved lazily at
+  // start() (see below) so options swapped in after construction are still
+  // honoured — matching the latest-callback pattern the React hook uses for its
+  // transports.
   const setTimeoutFn =
     options.setTimeoutFn ??
     ((cb: () => void, ms: number) => globalThis.setTimeout(cb, ms));
@@ -236,8 +237,6 @@ export function createDirectConnectFlow<T = unknown>(
       globalThis.clearTimeout(handle as never);
     });
   const now = options.now ?? (() => Date.now());
-  const browserPlatformPolicy =
-    options.browserPlatformPolicy ?? defaultBrowserPlatformPolicy();
   let state: DirectConnectState<T> = { type: "idle" };
   const listeners = new Set<() => void>();
   let pollHandle: unknown = null;
@@ -407,7 +406,12 @@ export function createDirectConnectFlow<T = unknown>(
       if (running || isRunningPhase()) return;
       running = true;
       const runId = ++activeRunId;
-      const browserPlatform = browserPlatformPolicy.current();
+      // Read the platform policy at start time, like openApprovalWindow below,
+      // so a policy swapped in after construction (a React rerender forwards
+      // options through a ref) still decides this run's destination.
+      const browserPlatform = (
+        options.browserPlatformPolicy ?? defaultBrowserPlatformPolicy()
+      ).current();
 
       // Desktop preserves the pre-mobile synchronous popup contract: open a
       // blank tab while the click's transient activation is live, then navigate

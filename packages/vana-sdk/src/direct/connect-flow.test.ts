@@ -220,15 +220,21 @@ describe("createDirectConnectFlow", () => {
 
   it("projects resumable metadata without persisting the installed-app capability", () => {
     const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
+    const installedAppReopenUrl = "vana-dev://open";
     const resumable = toResumableAccessRequest({
       ...REQUEST,
       installedAppUrl: "vana-dev://continue?id=secret",
       installedAppExpiresAt: new Date(10_000).toISOString(),
       installedAppFallbackUrl,
+      installedAppReopenUrl,
     });
 
-    expect(resumable).toEqual({ ...REQUEST, installedAppFallbackUrl });
-    expect(JSON.stringify(resumable)).not.toContain("vana-dev");
+    expect(resumable).toEqual({
+      ...REQUEST,
+      installedAppFallbackUrl,
+      installedAppReopenUrl,
+    });
+    expect(JSON.stringify(resumable)).not.toContain("continue?id=secret");
   });
 
   it("starts idle", () => {
@@ -574,6 +580,50 @@ describe("createDirectConnectFlow", () => {
     },
   );
 
+  it.each([
+    ["vana://open", "vana://open"],
+    ["vana-dev://open", "vana-dev://open"],
+    ["vana://open?request=dcr_1", undefined],
+    ["vana://open#resume", undefined],
+    ["vana://user@open", undefined],
+    ["vana://open:443", undefined],
+    ["vana://other", undefined],
+    ["vana://open/path", undefined],
+    ["vana-beta://open", undefined],
+  ])(
+    "sanitizes reopen URL %s at projection and runtime resume boundaries",
+    async (installedAppReopenUrl, expectedReopenUrl) => {
+      const h = makeHarness();
+      const flow = createDirectConnectFlow(
+        {
+          createRequest: vi.fn(),
+          getStatus: async () => pendingStatus(),
+          readResult: vi.fn(),
+        },
+        {
+          now: h.now,
+          setTimeoutFn: h.setTimeoutFn,
+          clearTimeoutFn: h.clearTimeoutFn,
+        },
+      );
+      const unsafeRequest: AccessRequest = {
+        ...REQUEST,
+        installedAppReopenUrl,
+      };
+
+      expect(
+        toResumableAccessRequest(unsafeRequest).installedAppReopenUrl,
+      ).toBe(expectedReopenUrl);
+      await flow.resume(unsafeRequest);
+
+      const state = flow.getState();
+      expect(state.type).toBe("awaiting_approval");
+      if (state.type === "awaiting_approval") {
+        expect(state.request.installedAppReopenUrl).toBe(expectedReopenUrl);
+      }
+    },
+  );
+
   it("rejects an already expired resumed request without polling", async () => {
     const h = makeHarness();
     const createRequest = vi.fn();
@@ -737,6 +787,7 @@ describe("createDirectConnectFlow", () => {
     const navigateInstalledApp = vi.fn();
     const refreshedUrl = "vana-dev://continue?id=dcrcont_fresh";
     const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
+    const installedAppReopenUrl = "vana-dev://open";
     const flow = createDirectConnectFlow(
       {
         createRequest: async () => ({
@@ -749,6 +800,7 @@ describe("createDirectConnectFlow", () => {
           installedAppUrl: refreshedUrl,
           installedAppExpiresAt: new Date(60_000).toISOString(),
           installedAppFallbackUrl,
+          installedAppReopenUrl,
         }),
         readResult: vi.fn(),
       },
@@ -774,6 +826,7 @@ describe("createDirectConnectFlow", () => {
       expect(state.request.installedAppFallbackUrl).toBe(
         installedAppFallbackUrl,
       );
+      expect(state.request.installedAppReopenUrl).toBe(installedAppReopenUrl);
       expect(state.popupBlocked).toBe(true);
     }
   });

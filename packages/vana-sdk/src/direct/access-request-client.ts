@@ -99,6 +99,12 @@ function normalizeAbsoluteHttpsUrl(value: unknown): string | undefined {
   }
 }
 
+function normalizeInstalledAppReopenUrl(value: unknown): string | undefined {
+  return value === "vana://open" || value === "vana-dev://open"
+    ? value
+    : undefined;
+}
+
 function defaultCreateIdempotencyKey(): string {
   if (typeof globalThis.crypto?.randomUUID !== "function") {
     throw new Error(
@@ -252,6 +258,7 @@ export function createDefaultAccessRequestClient(
           installedAppUrl?: unknown;
           installedAppExpiresAt?: unknown;
           installedAppFallbackUrl?: unknown;
+          installedAppReopenUrl?: unknown;
         };
         const requestId = responseBody.requestId ?? responseBody.id;
         if (!requestId) {
@@ -271,6 +278,9 @@ export function createDefaultAccessRequestClient(
           ),
           installedAppFallbackUrl: normalizeAbsoluteHttpsUrl(
             responseBody.installedAppFallbackUrl,
+          ),
+          installedAppReopenUrl: normalizeInstalledAppReopenUrl(
+            responseBody.installedAppReopenUrl,
           ),
         };
       } catch (error) {
@@ -315,6 +325,7 @@ export function createDefaultAccessRequestClient(
         installedAppUrl?: unknown;
         installedAppExpiresAt?: unknown;
         installedAppFallbackUrl?: unknown;
+        installedAppReopenUrl?: unknown;
       };
       return {
         status: normalizeStatus(body.status),
@@ -325,6 +336,9 @@ export function createDefaultAccessRequestClient(
         installedAppExpiresAt: normalizeExpiresAt(body.installedAppExpiresAt),
         installedAppFallbackUrl: normalizeAbsoluteHttpsUrl(
           body.installedAppFallbackUrl,
+        ),
+        installedAppReopenUrl: normalizeInstalledAppReopenUrl(
+          body.installedAppReopenUrl,
         ),
       };
     },

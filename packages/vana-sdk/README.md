@@ -204,6 +204,7 @@ const request = await vana.createAccessRequest({
 //   installedAppUrl?: "vana://continue?...",
 //   installedAppExpiresAt?: "...",
 //   installedAppFallbackUrl?: "https://app.vana.org/mobile/install",
+//   installedAppReopenUrl?: "vana://open",
 // }
 
 // GET /api/vana/status?requestId=...
@@ -276,6 +277,10 @@ This is capability routing, not an assertion that the native app is installed.
 When present, `state.request.installedAppFallbackUrl` is Vana's validated HTTPS
 install/reopen recovery destination; builders should render it instead of
 hardcoding app-store URLs.
+After installation, `state.request.installedAppReopenUrl` may be used from an
+explicit user gesture to foreground Vana without replaying a signed continuation
+capability. The SDK accepts only the exact non-secret values `vana://open` and
+`vana-dev://open`; parameters and alternate destinations are discarded.
 
 For long-running approval or first-install recovery, persist only
 `toResumableAccessRequest(state.request)` and pass that value to `resume()` after
@@ -283,7 +288,9 @@ reload. The projection keeps the DCR id and authoritative DCR expiry while
 removing `installedAppUrl` and `installedAppExpiresAt`. The SDK owns no storage
 and never persists either request metadata or bearer capabilities itself. The
 projection retains `installedAppFallbackUrl` because it is a non-secret HTTPS
-recovery destination rather than a bearer capability.
+recovery destination rather than a bearer capability. It likewise retains a
+validated `installedAppReopenUrl`; neither field contains request identity or a
+signed continuation capability.
 
 Server-side create calls accept an optional `idempotencyKey`. The default HTTP
 client generates a key and reuses it when the same create is retried after an

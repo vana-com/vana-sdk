@@ -381,7 +381,9 @@ export function createDirectConnectFlow<T = unknown>(
 
     if (
       status.status === "pending" &&
-      (status.installedAppUrl || status.installedAppFallbackUrl)
+      (status.installedAppUrl ||
+        status.installedAppFallbackUrl ||
+        status.installedAppReopenUrl)
     ) {
       request = {
         ...request,
@@ -393,6 +395,9 @@ export function createDirectConnectFlow<T = unknown>(
           : {}),
         ...(status.installedAppFallbackUrl
           ? { installedAppFallbackUrl: status.installedAppFallbackUrl }
+          : {}),
+        ...(status.installedAppReopenUrl
+          ? { installedAppReopenUrl: status.installedAppReopenUrl }
           : {}),
       };
       const popupBlocked =

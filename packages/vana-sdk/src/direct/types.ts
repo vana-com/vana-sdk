@@ -90,6 +90,8 @@ export interface AccessRequest {
   installedAppExpiresAt?: string;
   /** Absolute HTTPS recovery URL for installing or reopening the native app. */
   installedAppFallbackUrl?: string;
+  /** Canonical non-secret URL that foregrounds the installed native app. */
+  installedAppReopenUrl?: string;
 }
 
 /** Safe metadata a caller may persist to resume an access request. */
@@ -108,6 +110,12 @@ function normalizeInstalledAppFallbackUrl(value: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function normalizeInstalledAppReopenUrl(value: unknown): string | undefined {
+  return value === "vana://open" || value === "vana-dev://open"
+    ? value
+    : undefined;
 }
 
 /**
@@ -131,6 +139,12 @@ export function toResumableAccessRequest(
     delete safe.installedAppFallbackUrl;
   } else {
     safe.installedAppFallbackUrl = fallbackUrl;
+  }
+  const reopenUrl = normalizeInstalledAppReopenUrl(safe.installedAppReopenUrl);
+  if (reopenUrl === undefined) {
+    delete safe.installedAppReopenUrl;
+  } else {
+    safe.installedAppReopenUrl = reopenUrl;
   }
   return safe;
 }
@@ -171,6 +185,8 @@ export interface AccessRequestStatus {
   installedAppExpiresAt?: string;
   /** Absolute HTTPS recovery URL for installing or reopening the native app. */
   installedAppFallbackUrl?: string;
+  /** Canonical non-secret URL that foregrounds the installed native app. */
+  installedAppReopenUrl?: string;
 }
 
 /** Result of {@link DirectDataController.readApprovedData}. */

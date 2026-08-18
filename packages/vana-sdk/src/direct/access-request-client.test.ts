@@ -97,6 +97,7 @@ describe("createDefaultAccessRequestClient", () => {
     const installedAppUrl = "vana-dev://continue?id=dcrcont_9";
     const installedAppExpiresAt = "2026-08-17T18:05:00.000Z";
     const installedAppFallbackUrl = "https://app.vana.org/mobile/install";
+    const installedAppReopenUrl = "vana-dev://open";
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
       approvalBaseUrl: "https://app.vana.org",
@@ -109,12 +110,14 @@ describe("createDefaultAccessRequestClient", () => {
               installedAppUrl,
               installedAppExpiresAt,
               installedAppFallbackUrl,
+              installedAppReopenUrl,
             }
           : {
               requestId: "dcr_9",
               installedAppUrl,
               installedAppExpiresAt,
               installedAppFallbackUrl,
+              installedAppReopenUrl,
             },
       })),
     });
@@ -133,13 +136,54 @@ describe("createDefaultAccessRequestClient", () => {
       installedAppUrl,
       installedAppExpiresAt,
       installedAppFallbackUrl,
+      installedAppReopenUrl,
     });
     expect(status).toMatchObject({
       installedAppUrl,
       installedAppExpiresAt,
       installedAppFallbackUrl,
+      installedAppReopenUrl,
     });
   });
+
+  it.each([
+    "vana://open?request=dcr_9",
+    "vana://open#resume",
+    "vana://user@open",
+    "vana://open:443",
+    "vana://other",
+    "vana://open/path",
+    "vana-beta://open",
+    "https://open",
+  ])(
+    "omits non-canonical installed-app reopen URL %s",
+    async (installedAppReopenUrl) => {
+      const client = createDefaultAccessRequestClient({
+        baseUrl: "https://app.vana.org",
+        approvalBaseUrl: "https://app.vana.org",
+        createIdempotencyKey: () => "idem-invalid-reopen",
+        fetchFn: fakeFetch((url) => ({
+          status: 200,
+          body: url.endsWith("/dcr_9")
+            ? { status: "pending", installedAppReopenUrl }
+            : { requestId: "dcr_9", installedAppReopenUrl },
+        })),
+      });
+
+      const request = await client.createAccessRequest({
+        appAddress: "0xabc",
+        app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+        source: "icloud_notes",
+        scopes: ["icloud_notes.notes"],
+        returnUrl: "https://a.example/return",
+        network: "mainnet",
+      });
+      const status = await client.getAccessRequestStatus("dcr_9");
+
+      expect(request.installedAppReopenUrl).toBeUndefined();
+      expect(status.installedAppReopenUrl).toBeUndefined();
+    },
+  );
 
   it.each([
     "/mobile/install",
@@ -189,6 +233,7 @@ describe("createDefaultAccessRequestClient", () => {
           installedAppUrl: "not a url",
           installedAppExpiresAt: "also-not-a-date",
           installedAppFallbackUrl: "javascript:alert(1)",
+          installedAppReopenUrl: "vana://open?request=dcr_9",
         },
       })),
     });
@@ -207,6 +252,7 @@ describe("createDefaultAccessRequestClient", () => {
     expect(result.installedAppUrl).toBeUndefined();
     expect(result.installedAppExpiresAt).toBeUndefined();
     expect(result.installedAppFallbackUrl).toBeUndefined();
+    expect(result.installedAppReopenUrl).toBeUndefined();
   });
 
   it("normalizes an unknown status to pending", async () => {

@@ -296,9 +296,10 @@ and the abandoned DCR expires. This restart-on-tab-loss behavior is an accepted
 first-release tradeoff — do not build caller-side resume storage against it.
 
 Server-side create calls accept an optional `idempotencyKey`. The default HTTP
-client generates a key and reuses it when the same create is retried after an
-uncertain failure; because the key is in the signed body, callers must reuse an
-explicit key when a retry creates a new controller/client instance.
+client generates a fresh key for every create, because one shared controller
+serves many users and identical-looking creates are still independent requests.
+Retrying a create whose response was lost is therefore the caller's decision:
+pass the same explicit `idempotencyKey` on the retry to avoid a duplicate DCR.
 
 `react` is an optional peer dependency. The underlying
 `createDirectConnectFlow` store is also exported for non-React frontends.

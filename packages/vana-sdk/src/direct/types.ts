@@ -264,8 +264,9 @@ export interface AccessRequestClient {
     /** Optional foreground mobile delivery callback. */
     foregroundDelivery?: ForegroundDelivery;
     /**
-     * Optional retry key. The default client generates and reuses one after a
-     * failed create attempt when omitted.
+     * Optional retry key. The default client generates a fresh key per call
+     * when omitted; pass a stable key to retry a create whose response was
+     * lost without risking a duplicate DCR.
      */
     idempotencyKey?: string;
   }): Promise<AccessRequest>;

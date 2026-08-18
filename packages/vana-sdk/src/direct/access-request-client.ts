@@ -57,7 +57,10 @@ export interface DefaultAccessRequestClientOptions {
   signMessage?: Web3SignedSignFn;
   /** Clock source used for signed request timestamps. */
   now?: () => number;
-  /** Create a signed DCR idempotency key. Injectable for deterministic tests. */
+  /**
+   * Create the signed DCR idempotency key used when a create call omits one.
+   * Called once per create. Injectable for deterministic tests.
+   */
   createIdempotencyKey?: () => string;
 }
 
@@ -179,29 +182,19 @@ export function createDefaultAccessRequestClient(
     );
   }
   const base = stripTrailingSlash(options.baseUrl);
-  const createKeysByInput = new Map<
-    string,
-    { key: string; inFlight: number; failedInBatch: boolean }
-  >();
 
   return {
     async createAccessRequest(input): Promise<AccessRequest> {
       const path = "/api/data-connection-requests";
-      const retryIdentity = JSON.stringify(input);
-      let generatedKeyState = createKeysByInput.get(retryIdentity);
-      if (input.idempotencyKey === undefined && !generatedKeyState) {
-        generatedKeyState = {
-          key: (options.createIdempotencyKey ?? defaultCreateIdempotencyKey)(),
-          inFlight: 0,
-          failedInBatch: false,
-        };
-        createKeysByInput.set(retryIdentity, generatedKeyState);
-      }
-      if (generatedKeyState?.inFlight === 0) {
-        generatedKeyState.failedInBatch = false;
-      }
-      if (generatedKeyState) generatedKeyState.inFlight++;
-      const idempotencyKey = input.idempotencyKey ?? generatedKeyState?.key;
+      // Every call is an independent logical create, so it gets its own key.
+      // The client cannot tell two look-alike creates apart — one shared backend
+      // controller serves many users with the same app, scopes, and returnUrl —
+      // so deriving a key from the input would let the service deduplicate two
+      // users onto a single DCR. Retrying an uncertain create is the caller's
+      // decision: pass the same `idempotencyKey` back in.
+      const idempotencyKey =
+        input.idempotencyKey ??
+        (options.createIdempotencyKey ?? defaultCreateIdempotencyKey)();
       const body = JSON.stringify({
         appAddress: input.appAddress,
         app: input.app,
@@ -214,65 +207,49 @@ export function createDefaultAccessRequestClient(
           : {}),
         idempotencyKey,
       });
-      try {
-        const res = await fetchFn(`${base}${path}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(await buildDirectAccessRequestHeaders(options, {
-              body,
-              method: "POST",
-              path,
-            })),
-          },
-          body,
-        });
-        if (!res.ok) {
-          throw new Error(
-            `Access request service error: ${res.status} ${res.statusText}`,
-          );
-        }
-        const responseBody = (await res.json()) as {
-          requestId?: string;
-          id?: string;
-          approvalUrl?: string;
-          appAddress?: string;
-          network?: unknown;
-          expiresAt?: unknown;
-          mobileContinuationUrl?: unknown;
-        };
-        const requestId = responseBody.requestId ?? responseBody.id;
-        if (!requestId) {
-          throw new Error("Access request service returned no requestId");
-        }
-        return {
-          requestId,
-          approvalUrl:
-            responseBody.approvalUrl ??
-            buildApprovalUrl(options.approvalBaseUrl, requestId),
-          appAddress: responseBody.appAddress ?? input.appAddress,
-          network: normalizeNetwork(responseBody.network),
-          expiresAt: normalizeExpiresAt(responseBody.expiresAt),
-          mobileContinuationUrl: normalizeMobileContinuationUrl(
-            responseBody.mobileContinuationUrl,
-            options.env,
-          ),
-        };
-      } catch (error) {
-        if (generatedKeyState) generatedKeyState.failedInBatch = true;
-        throw error;
-      } finally {
-        if (generatedKeyState) {
-          generatedKeyState.inFlight--;
-          if (
-            generatedKeyState.inFlight === 0 &&
-            !generatedKeyState.failedInBatch &&
-            createKeysByInput.get(retryIdentity) === generatedKeyState
-          ) {
-            createKeysByInput.delete(retryIdentity);
-          }
-        }
+      const res = await fetchFn(`${base}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await buildDirectAccessRequestHeaders(options, {
+            body,
+            method: "POST",
+            path,
+          })),
+        },
+        body,
+      });
+      if (!res.ok) {
+        throw new Error(
+          `Access request service error: ${res.status} ${res.statusText}`,
+        );
       }
+      const responseBody = (await res.json()) as {
+        requestId?: string;
+        id?: string;
+        approvalUrl?: string;
+        appAddress?: string;
+        network?: unknown;
+        expiresAt?: unknown;
+        mobileContinuationUrl?: unknown;
+      };
+      const requestId = responseBody.requestId ?? responseBody.id;
+      if (!requestId) {
+        throw new Error("Access request service returned no requestId");
+      }
+      return {
+        requestId,
+        approvalUrl:
+          responseBody.approvalUrl ??
+          buildApprovalUrl(options.approvalBaseUrl, requestId),
+        appAddress: responseBody.appAddress ?? input.appAddress,
+        network: normalizeNetwork(responseBody.network),
+        expiresAt: normalizeExpiresAt(responseBody.expiresAt),
+        mobileContinuationUrl: normalizeMobileContinuationUrl(
+          responseBody.mobileContinuationUrl,
+          options.env,
+        ),
+      };
     },
 
     async getAccessRequestStatus(

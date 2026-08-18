@@ -504,15 +504,55 @@ describe("createDefaultAccessRequestClient", () => {
     ).rejects.toThrow(/Access request service error/);
   });
 
-  it("reuses a generated signed idempotency key after an uncertain create failure", async () => {
+  it("gives each create its own generated idempotency key", async () => {
     const bodies: string[] = [];
-    let attempt = 0;
+    let issued = 0;
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
       approvalBaseUrl: "https://app.vana.org",
       appAddress: "0xabc",
       signMessage: async () => "0xsig",
-      createIdempotencyKey: () => "generated-key",
+      createIdempotencyKey: () => `generated-key-${++issued}`,
+      fetchFn: async (_url, init) => {
+        bodies.push(init?.body ?? "");
+        return {
+          ok: true,
+          status: 201,
+          statusText: "HTTP 201",
+          json: async () => ({ requestId: "dcr_9" }),
+          text: async () => "",
+        };
+      },
+    });
+    const input = {
+      appAddress: "0xabc",
+      app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+      source: "icloud_notes",
+      scopes: ["icloud_notes.notes"],
+      returnUrl: "https://a.example/return",
+      network: "mainnet" as const,
+    };
+
+    // Two users behind one shared controller send byte-identical creates; they
+    // must not collapse onto a single DCR at the service.
+    await Promise.all([
+      client.createAccessRequest(input),
+      client.createAccessRequest(input),
+    ]);
+    await client.createAccessRequest(input);
+
+    const keys = bodies.map((body) => JSON.parse(body).idempotencyKey);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("does not reuse a generated key after an uncertain create failure", async () => {
+    const bodies: string[] = [];
+    let issued = 0;
+    let attempt = 0;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      createIdempotencyKey: () => `generated-key-${++issued}`,
       fetchFn: async (_url, init) => {
         bodies.push(init?.body ?? "");
         attempt++;
@@ -540,33 +580,28 @@ describe("createDefaultAccessRequestClient", () => {
     );
     await client.createAccessRequest(input);
 
-    expect(JSON.parse(bodies[0] ?? "{}").idempotencyKey).toBe("generated-key");
-    expect(bodies[1]).toBe(bodies[0]);
+    expect(JSON.parse(bodies[0] ?? "{}").idempotencyKey).toBe(
+      "generated-key-1",
+    );
+    expect(JSON.parse(bodies[1] ?? "{}").idempotencyKey).toBe(
+      "generated-key-2",
+    );
   });
 
-  it("retains a shared key when one concurrent create has an uncertain failure", async () => {
+  it("sends a caller-supplied idempotency key verbatim on retry", async () => {
     const bodies: string[] = [];
-    const createIdempotencyKey = vi.fn(() => "concurrent-key");
-    let resolveFirst!: (response: Awaited<ReturnType<FetchLike>>) => void;
-    let rejectSecond!: (error: Error) => void;
+    const createIdempotencyKey = vi.fn(() => "generated-key");
     let attempt = 0;
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
       approvalBaseUrl: "https://app.vana.org",
+      appAddress: "0xabc",
+      signMessage: async () => "0xsig",
       createIdempotencyKey,
       fetchFn: async (_url, init) => {
         bodies.push(init?.body ?? "");
         attempt++;
-        if (attempt === 1) {
-          return new Promise((resolve) => {
-            resolveFirst = resolve;
-          });
-        }
-        if (attempt === 2) {
-          return new Promise((_resolve, reject) => {
-            rejectSecond = reject;
-          });
-        }
+        if (attempt === 1) throw new Error("response lost");
         return {
           ok: true,
           status: 201,
@@ -583,29 +618,17 @@ describe("createDefaultAccessRequestClient", () => {
       scopes: ["icloud_notes.notes"],
       returnUrl: "https://a.example/return",
       network: "mainnet" as const,
+      idempotencyKey: "caller-key",
     };
 
-    const first = client.createAccessRequest(input);
-    const second = client.createAccessRequest(input);
-    await vi.waitFor(() => {
-      expect(bodies).toHaveLength(2);
-    });
-    resolveFirst({
-      ok: true,
-      status: 201,
-      statusText: "HTTP 201",
-      json: async () => ({ requestId: "dcr_9" }),
-      text: async () => "",
-    });
-    await first;
-    rejectSecond(new Error("response lost"));
-    await expect(second).rejects.toThrow("response lost");
+    await expect(client.createAccessRequest(input)).rejects.toThrow(
+      /response lost/,
+    );
     await client.createAccessRequest(input);
 
-    expect(createIdempotencyKey).toHaveBeenCalledOnce();
-    expect(bodies).toHaveLength(3);
+    expect(createIdempotencyKey).not.toHaveBeenCalled();
+    expect(JSON.parse(bodies[0] ?? "{}").idempotencyKey).toBe("caller-key");
     expect(bodies[1]).toBe(bodies[0]);
-    expect(bodies[2]).toBe(bodies[0]);
   });
 
   it("throws on a non-ok acknowledge response", async () => {

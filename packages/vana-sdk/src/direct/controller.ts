@@ -186,7 +186,10 @@ export interface DirectDataController {
     returnUrl: string;
     /** Optional foreground mobile delivery callback. */
     foregroundDelivery?: ForegroundDelivery;
-    /** Stable retry key when the caller retries after an uncertain response. */
+    /**
+     * Stable retry key when the caller retries after an uncertain response.
+     * Each create without one gets its own generated key.
+     */
     idempotencyKey?: string;
   }): Promise<AccessRequest>;
 

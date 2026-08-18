@@ -84,6 +84,7 @@ export type {
   DirectEnv,
   DirectNetwork,
   DirectAppConfig,
+  ForegroundDelivery,
   AppIdentity,
   DirectServiceEndpoints,
   AccessRequest,

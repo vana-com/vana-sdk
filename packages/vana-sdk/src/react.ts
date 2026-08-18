@@ -66,6 +66,7 @@ export {
 
 // Shared types useful when typing the transports.
 export type {
+  ForegroundDelivery,
   AccessRequest,
   AccessRequestStatus,
   AccessRequestStatusValue,

@@ -53,6 +53,14 @@ export interface AppIdentity extends DirectAppConfig {
   address: string;
 }
 
+/** One-time HTTPS callback used to deliver a foreground mobile Direct read. */
+export interface ForegroundDelivery {
+  /** Fixed, same-origin consumer callback URL. */
+  url: string;
+  /** High-entropy bearer capability, generated and retained by the consumer. */
+  token: string;
+}
+
 /**
  * Resolved service URLs and chain id for a given {@link DirectEnv}.
  *
@@ -220,6 +228,8 @@ export interface AccessRequestClient {
     returnUrl: string;
     /** Vana protocol network for this request (`"mainnet"` or `"moksha"`). */
     network: DirectNetwork;
+    /** Optional foreground mobile delivery callback. */
+    foregroundDelivery?: ForegroundDelivery;
     /**
      * Optional retry key. The default client generates and reuses one after a
      * failed create attempt when omitted.

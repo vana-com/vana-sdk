@@ -407,18 +407,19 @@ export function createDirectConnectFlow<T = unknown>(
       if (running || isRunningPhase()) return;
       running = true;
       const runId = ++activeRunId;
+      const browserPlatform = browserPlatformPolicy.current();
 
-      // Open the approval tab *synchronously*, while the click's transient
-      // activation is still live. The approval URL isn't known yet (it comes
-      // from createRequest below), so open a blank tab now and navigate it
-      // once the URL arrives. Opening *after* the await — as this flow used to
-      // — runs outside the gesture, so the browser suppresses it as an
-      // unsolicited popup and the flow stalls forever (BUI-622).
-      // Read the opener option *now* (not at construction) so a custom opener
-      // swapped in after the flow was created is still used.
-      const openApprovalWindow =
-        options.openApprovalWindow ?? defaultOpenApprovalWindow;
-      const approvalWindow = openApprovalWindow();
+      // Desktop preserves the pre-mobile synchronous popup contract: open a
+      // blank tab while the click's transient activation is live, then navigate
+      // it once createRequest returns the approval URL (BUI-622). Mobile never
+      // creates that transient tab; deep requests expose one explicit HTTPS
+      // link, while light requests retain the manual approvalUrl fallback.
+      // Read the opener option at start time so a swapped-in custom opener is
+      // still honored for desktop flows.
+      const approvalWindow =
+        browserPlatform === "desktop"
+          ? (options.openApprovalWindow ?? defaultOpenApprovalWindow)()
+          : null;
       openedWindow = approvalWindow;
 
       setState({ type: "creating" });
@@ -454,19 +455,18 @@ export function createDirectConnectFlow<T = unknown>(
 
       // The SDK owns only the small mobile-versus-desktop destination choice.
       // A deep Direct request on mobile carries a validated continuation URL;
-      // everything else keeps the pre-mobile desktop/light popup contract.
+      // desktop keeps its popup contract, while mobile light exposes the HTTPS
+      // approval URL as the existing manual fallback without opening a tab.
       const mobileContinuationUrl =
-        browserPlatformPolicy.current() === "mobile"
+        browserPlatform === "mobile"
           ? request.mobileContinuationUrl
           : undefined;
 
       if (mobileContinuationUrl) {
         // Do not auto-launch: DCR creation is async, so the original Connect
-        // gesture can no longer be trusted to retain iOS user activation. Close
-        // the un-navigated tab and let the UI render an explicit primary "Open
-        // Vana" link. Polling continues in this tab.
-        approvalWindow?.close();
-        openedWindow = null;
+        // gesture can no longer be trusted to retain iOS user activation. Let
+        // the UI render an explicit primary "Open Vana" link; polling continues
+        // in this tab.
         startPolling(request, {
           type: "ready_to_open",
           request,

@@ -40,13 +40,17 @@ function fakeFetch(
 
 describe("createDefaultAccessRequestClient", () => {
   it("creates a request and derives an approvalUrl when missing", async () => {
+    let createBody: Record<string, unknown> | undefined;
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",
       approvalBaseUrl: "https://app.vana.org",
-      fetchFn: fakeFetch(() => ({
-        status: 200,
-        body: { requestId: "dcr_9", appAddress: "0xabc" },
-      })),
+      fetchFn: fakeFetch((_url, init) => {
+        createBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return {
+          status: 200,
+          body: { requestId: "dcr_9", appAddress: "0xabc" },
+        };
+      }),
     });
 
     const result = await client.createAccessRequest({
@@ -56,6 +60,10 @@ describe("createDefaultAccessRequestClient", () => {
       scopes: ["icloud_notes.notes"],
       returnUrl: "https://a.example/return",
       network: "mainnet",
+      foregroundDelivery: {
+        url: "https://a.example/api/vana/delivery",
+        token: "a".repeat(43),
+      },
     });
 
     expect(result.requestId).toBe("dcr_9");
@@ -63,6 +71,10 @@ describe("createDefaultAccessRequestClient", () => {
       "https://app.vana.org/data-connection-requests/dcr_9?mode=page",
     );
     expect(result.appAddress).toBe("0xabc");
+    expect(createBody?.foregroundDelivery).toEqual({
+      url: "https://a.example/api/vana/delivery",
+      token: "a".repeat(43),
+    });
   });
 
   it("parses additive network and expiry metadata from a create response", async () => {

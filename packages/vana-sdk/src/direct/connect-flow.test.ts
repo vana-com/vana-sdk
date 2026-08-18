@@ -107,18 +107,19 @@ describe("createDirectConnectFlow", () => {
 
   it("exposes ready_to_open with a plain URL on mobile-deep without opening the tab", async () => {
     const h = makeHarness();
-    const win = makeWindow();
+    const openApprovalWindow = vi.fn(() => makeWindow().handle);
+    let resolveCreate!: (request: AccessRequest) => void;
     const flow = createDirectConnectFlow(
       {
-        createRequest: async () => ({
-          ...REQUEST,
-          mobileContinuationUrl: MOBILE_CONTINUATION_URL,
-        }),
+        createRequest: () =>
+          new Promise<AccessRequest>((resolve) => {
+            resolveCreate = resolve;
+          }),
         getStatus: async () => pendingStatus(),
         readResult: vi.fn(),
       },
       {
-        openApprovalWindow: () => win.handle,
+        openApprovalWindow,
         browserPlatformPolicy: { current: () => "mobile" },
         now: h.now,
         setTimeoutFn: h.setTimeoutFn,
@@ -126,12 +127,20 @@ describe("createDirectConnectFlow", () => {
       },
     );
 
-    await flow.start();
+    const start = flow.start();
 
-    // The synchronously-opened tab is closed (never navigated); the URL is not
-    // launched automatically — the UI renders it as a primary "Open Vana" link.
-    expect(win.navigate).not.toHaveBeenCalled();
-    expect(win.close).toHaveBeenCalledOnce();
+    // Mobile must not create even a transient blank tab while DCR creation is
+    // pending (the simulator treats that as a competing launch surface).
+    expect(openApprovalWindow).not.toHaveBeenCalled();
+    resolveCreate({
+      ...REQUEST,
+      mobileContinuationUrl: MOBILE_CONTINUATION_URL,
+    });
+    await start;
+
+    // The URL is not launched automatically — the UI renders it as a primary
+    // "Open Vana" link.
+    expect(openApprovalWindow).not.toHaveBeenCalled();
     const state = flow.getState();
     expect(state.type).toBe("ready_to_open");
     if (state.type === "ready_to_open") {
@@ -144,7 +153,7 @@ describe("createDirectConnectFlow", () => {
 
   it("treats touch-capable MacIntel Safari as mobile for the continuation URL", async () => {
     const h = makeHarness();
-    const win = makeWindow();
+    const openApprovalWindow = vi.fn(() => makeWindow().handle);
     vi.stubGlobal("navigator", {
       userAgent:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Safari/605.1.15",
@@ -163,7 +172,7 @@ describe("createDirectConnectFlow", () => {
           readResult: vi.fn(),
         },
         {
-          openApprovalWindow: () => win.handle,
+          openApprovalWindow,
           now: h.now,
           setTimeoutFn: h.setTimeoutFn,
           clearTimeoutFn: h.clearTimeoutFn,
@@ -172,8 +181,7 @@ describe("createDirectConnectFlow", () => {
 
       await flow.start();
 
-      expect(win.navigate).not.toHaveBeenCalled();
-      expect(win.close).toHaveBeenCalledOnce();
+      expect(openApprovalWindow).not.toHaveBeenCalled();
       expect(flow.getState()).toMatchObject({
         type: "ready_to_open",
         mobileContinuationUrl: MOBILE_CONTINUATION_URL,
@@ -181,6 +189,34 @@ describe("createDirectConnectFlow", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("does not open a popup on mobile light requests", async () => {
+    const h = makeHarness();
+    const openApprovalWindow = vi.fn(() => makeWindow().handle);
+    const flow = createDirectConnectFlow(
+      {
+        createRequest: async () => REQUEST,
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow,
+        browserPlatformPolicy: { current: () => "mobile" },
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+
+    expect(openApprovalWindow).not.toHaveBeenCalled();
+    expect(flow.getState()).toMatchObject({
+      type: "awaiting_approval",
+      popupBlocked: true,
+      request: { approvalUrl: REQUEST.approvalUrl },
+    });
   });
 
   it("keeps the desktop popup contract when the request carries a continuation URL", async () => {

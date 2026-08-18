@@ -209,6 +209,9 @@ export function createDefaultAccessRequestClient(
         scopes: input.scopes,
         returnUrl: input.returnUrl,
         network: input.network,
+        ...(input.foregroundDelivery !== undefined
+          ? { foregroundDelivery: input.foregroundDelivery }
+          : {}),
         idempotencyKey,
       });
       try {

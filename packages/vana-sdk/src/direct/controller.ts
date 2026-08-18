@@ -58,6 +58,7 @@ import type {
   DirectNetwork,
   DirectPaymentResponseMetadata,
   DirectServiceEndpoints,
+  ForegroundDelivery,
 } from "./types";
 
 /** Configuration for {@link createDirectDataController}. */
@@ -178,6 +179,8 @@ export interface DirectDataController {
    */
   createAccessRequest(input: {
     returnUrl: string;
+    /** Optional foreground mobile delivery callback. */
+    foregroundDelivery?: ForegroundDelivery;
     /** Stable retry key when the caller retries after an uncertain response. */
     idempotencyKey?: string;
   }): Promise<AccessRequest>;
@@ -325,6 +328,9 @@ export function createDirectDataController(
         scopes: config.scopes,
         returnUrl: input.returnUrl,
         network,
+        ...(input.foregroundDelivery !== undefined
+          ? { foregroundDelivery: input.foregroundDelivery }
+          : {}),
         ...(input.idempotencyKey !== undefined
           ? { idempotencyKey: input.idempotencyKey }
           : {}),

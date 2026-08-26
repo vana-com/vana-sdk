@@ -12,6 +12,17 @@ import {
 } from "./data-point-deletion";
 import { deriveDataPointId } from "./lineage";
 
+// A response whose body is NOT a JSON object: empty (204), a JSON `null`,
+// an array, or an HTML error page from a proxy. Every parser must survive
+// these and still honour the status-code mapping.
+function oddBodyResponse(
+  body: string | null,
+  status: number,
+  statusText = "",
+): Response {
+  return new Response(body, { status, statusText });
+}
+
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(body), {
     status: init?.status ?? 200,
@@ -458,6 +469,68 @@ describe("createGatewayClient", () => {
         }),
       }),
     );
+  });
+
+  it("tolerates null, array, and non-JSON bodies on the other mutation endpoints", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(oddBodyResponse("null", 201))
+        .mockResolvedValueOnce(oddBodyResponse("[]", 409, "Conflict"))
+        .mockResolvedValueOnce(oddBodyResponse("<html>", 201))
+        .mockResolvedValueOnce(oddBodyResponse("null", 409, "Conflict"))
+        .mockResolvedValueOnce(oddBodyResponse(null, 204)),
+    );
+    const client = createGatewayClient("https://g");
+    const server = {
+      ownerAddress: "0xowner",
+      serverAddress: "0xserver",
+      publicKey: "0xpub",
+      serverUrl: "https://s",
+      signature: "0xsig",
+    };
+    const builder = {
+      ownerAddress: "0xowner",
+      granteeAddress: "0xgrantee",
+      publicKey: "0xpub",
+      appUrl: "https://a",
+      signature: "0xsig",
+    };
+    const dataPoint = {
+      ownerAddress: "0xowner",
+      scope: "a.b",
+      dataHash: "0xdata",
+      metadataHash: "0xmeta",
+      expectedVersion: "1",
+      signature: "0xsig",
+    };
+
+    await expect(client.registerServer(server)).resolves.toEqual({
+      serverId: undefined,
+      alreadyRegistered: false,
+    });
+    await expect(client.registerBuilder(builder)).resolves.toEqual({
+      builderId: undefined,
+      alreadyRegistered: true,
+    });
+    await expect(
+      client.createGrant({
+        grantorAddress: "0xowner",
+        granteeId: "1",
+        scopes: ["a.b"],
+        grantVersion: "1",
+        expiresAt: "0",
+        signature: "0xsig",
+      }),
+    ).resolves.toEqual({ grantId: undefined });
+    await expect(client.registerDataPoint(dataPoint)).rejects.toThrow(
+      "Gateway error: 409 Conflict",
+    );
+    await expect(client.registerDataPoint(dataPoint)).resolves.toEqual({
+      dataPointId: undefined,
+      expectedVersion: undefined,
+    });
   });
 
   it("registers a data point and surfaces the stale-version 409 as a thrown error", async () => {
@@ -1055,6 +1128,82 @@ describe("createGatewayClient data point deletion", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       `https://g/v1/data/${DATA_POINT_ID}`,
+    );
+  });
+
+  it("keeps the status-code mapping when a DELETE body is null, an array, empty, or not JSON", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(oddBodyResponse("null", 409, "Conflict"))
+      .mockResolvedValueOnce(oddBodyResponse("[]", 410, "Gone"))
+      .mockResolvedValueOnce(oddBodyResponse("<html>", 400, "Bad Request"))
+      .mockResolvedValueOnce(oddBodyResponse(null, 204, "No Content"))
+      .mockResolvedValueOnce(oddBodyResponse("null", 200, "OK"))
+      .mockResolvedValueOnce(oddBodyResponse('"ok"', 200, "OK"));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+    const params = {
+      ownerAddress: OWNER,
+      scope: SCOPE,
+      expectedVersion: "2",
+      signature: SIGNATURE,
+    };
+
+    const conflict = await client
+      .deleteDataPoint(params)
+      .catch((e: unknown) => e);
+    expect(conflict).toBeInstanceOf(DataPointVersionConflictError);
+    expect((conflict as Error).message).toBe("Gateway error: 409 Conflict");
+    expect(
+      (conflict as DataPointVersionConflictError).details
+        .currentExpectedVersion,
+    ).toBeUndefined();
+
+    const gone = await client.deleteDataPoint(params).catch((e: unknown) => e);
+    expect(gone).toBeInstanceOf(DataPointDeletedError);
+    expect((gone as DataPointDeletedError).details.deletedAt).toBeNull();
+
+    await expect(client.deleteDataPoint(params)).rejects.toThrow(
+      "Gateway error: 400 Bad Request",
+    );
+
+    // 2xx is the success signal; the body is informational.
+    const bareResult = {
+      dataPointId: DATA_POINT_ID,
+      ownerAddress: undefined,
+      scope: undefined,
+      dataHash: undefined,
+      metadataHash: undefined,
+      expectedVersion: undefined,
+      deletedAt: null,
+    };
+    await expect(client.deleteDataPoint(params)).resolves.toEqual(bareResult);
+    await expect(client.deleteDataPoint(params)).resolves.toEqual(bareResult);
+    await expect(client.deleteDataPoint(params)).resolves.toEqual(bareResult);
+  });
+
+  it("rejects a 2xx GET whose body is not a JSON envelope instead of returning undefined", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(oddBodyResponse("null", 200))
+        .mockResolvedValueOnce(oddBodyResponse("<html>", 200))
+        .mockResolvedValueOnce(jsonResponse({ proof: {} }))
+        .mockResolvedValueOnce(oddBodyResponse("[]", 200))
+        .mockResolvedValueOnce(jsonResponse(envelope({ dataPoints: null }))),
+    );
+    const client = createGatewayClient("https://g");
+    const malformed = /Gateway error: 200 malformed response body/;
+
+    await expect(client.getDataPoint(DATA_POINT_ID)).rejects.toThrow(malformed);
+    await expect(client.getDataPoint(DATA_POINT_ID)).rejects.toThrow(malformed);
+    await expect(client.getDataPoint(DATA_POINT_ID)).rejects.toThrow(malformed);
+    await expect(client.listDataPointsByOwner(OWNER, null)).rejects.toThrow(
+      malformed,
+    );
+    await expect(client.listDataPointsByOwner(OWNER, null)).rejects.toThrow(
+      malformed,
     );
   });
 

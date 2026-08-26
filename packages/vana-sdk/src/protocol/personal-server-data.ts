@@ -4,7 +4,11 @@ import {
 } from "../auth/web3-signed-builder";
 import { DataPointDeletedError } from "../errors";
 import { DataFileEnvelopeSchema, type DataFileEnvelope } from "./data-file";
-import { isDataPointTombstone } from "./data-point-deletion";
+import {
+  isDataPointTombstone,
+  tombstoneDeletedAt,
+} from "./data-point-deletion";
+import { readJsonValue } from "../utils/response-body";
 
 export interface BuildPersonalServerDataReadRequestParams {
   personalServerUrl: string;
@@ -64,7 +68,10 @@ export async function readPersonalServerData(
   if (response.status === 410) {
     throw new DataPointDeletedError(
       `Personal Server scope '${params.scope}' has been deleted`,
-      { scope: params.scope, deletedAt: await deletedAtFromBody(response) },
+      {
+        scope: params.scope,
+        deletedAt: tombstoneDeletedAt(await readJsonValue(response)),
+      },
     );
   }
 
@@ -80,20 +87,9 @@ export async function readPersonalServerData(
   if (isDataPointTombstone(body)) {
     throw new DataPointDeletedError(
       `Personal Server scope '${params.scope}' has been deleted`,
-      { scope: params.scope, deletedAt: deletedAtOf(body) },
+      { scope: params.scope, deletedAt: tombstoneDeletedAt(body) },
     );
   }
 
   return DataFileEnvelopeSchema.parse(body);
-}
-
-function deletedAtOf(body: unknown): string | null {
-  if (typeof body !== "object" || body === null) return null;
-  const value = (body as Record<string, unknown>)["deletedAt"];
-  return typeof value === "string" ? value : null;
-}
-
-async function deletedAtFromBody(response: Response): Promise<string | null> {
-  const body: unknown = await response.json().catch(() => null);
-  return deletedAtOf(body);
 }

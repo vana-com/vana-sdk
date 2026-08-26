@@ -15,6 +15,7 @@ import {
   isProtocolNetwork,
   type ProtocolNetwork,
 } from "../../protocol/networks";
+import { readJsonObject } from "../../utils/response-body";
 
 const DEFAULT_ENDPOINT = "https://storage.vana.org";
 const LEGACY_BLOB_PATH_PREFIX = "/v1/blobs";
@@ -400,14 +401,15 @@ export class VanaStorage implements StorageProvider {
       );
     }
 
-    const result = (await response
-      .json()
-      .catch(() => ({}))) as Partial<VanaStorageScopeDeleteResult>;
+    // A 2xx is the success signal; the body is informational. Tolerate an
+    // empty 204, a non-JSON body, or a JSON `null`/array, and only trust
+    // fields that carry the documented type.
+    const body = await readJsonObject(response);
     return {
-      deleted: result.deleted ?? true,
-      scope: result.scope ?? scope,
-      count: result.count ?? 0,
-      totalBytes: result.totalBytes ?? 0,
+      deleted: typeof body["deleted"] === "boolean" ? body["deleted"] : true,
+      scope: typeof body["scope"] === "string" ? body["scope"] : scope,
+      count: nonNegativeInteger(body["count"]) ?? 0,
+      totalBytes: nonNegativeInteger(body["totalBytes"]) ?? 0,
     };
   }
 
@@ -610,6 +612,12 @@ function encodeRelativePath(filename: string): string {
 
 function isTraversalSegment(segment: string): boolean {
   return segment === "." || segment === "..";
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 function describe(value: unknown): string {

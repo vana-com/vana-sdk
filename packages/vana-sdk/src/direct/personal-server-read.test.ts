@@ -1052,6 +1052,36 @@ describe("readPersonalServerData tombstones", () => {
     });
   });
 
+  it("still maps a 410 whose body is empty, null, an array, or not JSON", async () => {
+    const bodies: Array<() => FetchResponseLike> = [
+      () => ({ ...jsonRes(null, { status: 410 }), json: async () => null }),
+      () => jsonRes([], { status: 410 }),
+      () => ({
+        ...jsonRes(null, { status: 410 }),
+        json: async () => {
+          throw new SyntaxError("Unexpected end of JSON input");
+        },
+      }),
+      () => ({
+        ...jsonRes(null, { status: 410 }),
+        json: async () => {
+          throw new SyntaxError("Unexpected token <");
+        },
+      }),
+    ];
+    for (const fetchFn of bodies) {
+      const error = await readPersonalServerData({
+        ...base,
+        fetchFn: async () => fetchFn(),
+      }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(DataPointDeletedError);
+      expect((error as DataPointDeletedError).details).toEqual({
+        scope: "icloud_notes.notes",
+        deletedAt: null,
+      });
+    }
+  });
+
   it("refuses a 200 tombstone body (deletedAt or tombstone hash pair)", async () => {
     await expect(
       readPersonalServerData({

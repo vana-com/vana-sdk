@@ -152,6 +152,22 @@ describe("readPersonalServerData tombstones", () => {
     });
   });
 
+  it("still maps a 410 whose body is empty, null, an array, or not JSON", async () => {
+    for (const body of [null, "null", "[]", "<html>"]) {
+      const fetch = vi.fn(
+        async () => new Response(body, { status: 410, statusText: "Gone" }),
+      );
+      const error = await readPersonalServerData({ ...params, fetch }).catch(
+        (e: unknown) => e,
+      );
+      expect(error).toBeInstanceOf(DataPointDeletedError);
+      expect((error as DataPointDeletedError).details).toEqual({
+        scope: "instagram.profile",
+        deletedAt: null,
+      });
+    }
+  });
+
   it("refuses a 200 body that is a tombstone", async () => {
     const fetch = vi.fn(
       async () =>

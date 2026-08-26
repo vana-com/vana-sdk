@@ -21,6 +21,7 @@ import {
   deleteDataPoint,
   isDataPointTombstone,
   isTombstoneHashes,
+  tombstoneDeletedAt,
   type DataPointBlobStore,
   type DataPointDeletionSigner,
   type DataPointDeletionTypedData,
@@ -168,6 +169,21 @@ describe("tombstone constants", () => {
     expect(
       isDataPointTombstone({ version: "1.0", scope: SCOPE, data: {} }),
     ).toBe(false);
+  });
+});
+
+describe("tombstoneDeletedAt", () => {
+  it("returns the string deletedAt and null for every other shape", () => {
+    expect(tombstoneDeletedAt({ deletedAt: "2026-08-20T00:00:00Z" })).toBe(
+      "2026-08-20T00:00:00Z",
+    );
+    expect(tombstoneDeletedAt({ deletedAt: null })).toBeNull();
+    expect(tombstoneDeletedAt({ deletedAt: 1 })).toBeNull();
+    expect(tombstoneDeletedAt({})).toBeNull();
+    expect(tombstoneDeletedAt(null)).toBeNull();
+    expect(tombstoneDeletedAt(undefined)).toBeNull();
+    expect(tombstoneDeletedAt([{ deletedAt: "x" }])).toBeNull();
+    expect(tombstoneDeletedAt("2026-08-20T00:00:00Z")).toBeNull();
   });
 });
 
@@ -450,6 +466,23 @@ describe("deleteDataPoint", () => {
     );
     expect(input.gateway.getDataPoint).toHaveBeenCalledTimes(1);
     expect(calls).toEqual([]);
+  });
+
+  it("refuses to sign when the gateway's expectedVersion is not a decimal string", async () => {
+    for (const expectedVersion of ["", "abc", "1.5", "-1", "0x10", 3]) {
+      const { calls, input } = harness();
+      (
+        input.gateway.getDataPoint as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        ...liveRecord(),
+        expectedVersion: expectedVersion as string,
+      });
+
+      await expect(deleteDataPoint(input)).rejects.toThrow(
+        /malformed expectedVersion/,
+      );
+      expect(calls).toEqual([]);
+    }
   });
 
   it("propagates DataPointDeletedError from a 410 gateway read", async () => {

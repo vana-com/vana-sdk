@@ -817,6 +817,37 @@ describe("VanaStorage.deleteScope", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it("treats any 2xx as success even when the body is empty, null, an array, or mistyped", async () => {
+    const signer = makeSigner();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response("null", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("<html>", { status: 200 }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          deleted: "yes",
+          scope: 7,
+          count: "3",
+          totalBytes: -1,
+        }),
+      );
+    const storage = makeStorage(fetchImpl);
+    const fallback = {
+      deleted: true,
+      scope: "x.y",
+      count: 0,
+      totalBytes: 0,
+    };
+
+    for (let i = 0; i < 5; i += 1) {
+      await expect(storage.deleteScope(signer.address, "x.y")).resolves.toEqual(
+        fallback,
+      );
+    }
+  });
+
   it("wraps HTTP failures and network errors as StorageError", async () => {
     const signer = makeSigner();
 

@@ -262,6 +262,7 @@ export {
   computeTombstoneHash,
   isTombstoneHashes,
   isDataPointTombstone,
+  tombstoneDeletedAt,
   createViemDataPointDeletionSigner,
   buildDataPointDeletionTypedData,
   buildDataPointDeletionSignature,

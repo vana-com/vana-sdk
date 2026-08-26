@@ -25,6 +25,7 @@ import {
   type TypedDataDefinition,
 } from "viem";
 import { DataPointDeletedError, DataPointNotFoundError } from "../errors";
+import { isPlainObject } from "../utils/response-body";
 import {
   ADD_DATA_TYPES,
   dataRegistryDomain,
@@ -85,15 +86,26 @@ export function isTombstoneHashes(
  * helpers can run it on a raw JSON body before trusting the payload.
  */
 export function isDataPointTombstone(value: unknown): boolean {
-  if (typeof value !== "object" || value === null) return false;
-  const record = value as Record<string, unknown>;
-  if (typeof record["deletedAt"] === "string") return true;
+  if (!isPlainObject(value)) return false;
+  if (typeof value["deletedAt"] === "string") return true;
   return isTombstoneHashes(
-    typeof record["dataHash"] === "string" ? record["dataHash"] : undefined,
-    typeof record["metadataHash"] === "string"
-      ? record["metadataHash"]
+    typeof value["dataHash"] === "string" ? value["dataHash"] : undefined,
+    typeof value["metadataHash"] === "string"
+      ? value["metadataHash"]
       : undefined,
   );
+}
+
+/**
+ * Read `deletedAt` off any value a gateway or Personal Server might hand
+ * back (a record, an error body, `null`, an array, ...). Returns `null`
+ * unless it is a string, so every `DataPointDeletedError` carries the same
+ * `deletedAt` semantics regardless of which read path raised it.
+ */
+export function tombstoneDeletedAt(value: unknown): string | null {
+  if (!isPlainObject(value)) return null;
+  const deletedAt = value["deletedAt"];
+  return typeof deletedAt === "string" ? deletedAt : null;
 }
 
 export type DataPointDeletionTypedData = TypedDataDefinition<
@@ -317,6 +329,18 @@ function toError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
 }
 
+// The wire type says decimal-string uint256, but the type system cannot
+// enforce that at runtime: refuse anything else here rather than letting
+// `BigInt()` throw a bare SyntaxError (or, worse, sign for a bogus version).
+function parseExpectedVersion(value: unknown): bigint {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    throw new Error(
+      `Gateway returned a malformed expectedVersion: ${JSON.stringify(value)}`,
+    );
+  }
+  return BigInt(value);
+}
+
 /**
  * Delete a data point end to end. Symmetric with `registerDataPoint`.
  *
@@ -354,11 +378,11 @@ export async function deleteDataPoint(
           dataPointId,
           scope: input.scope,
           ownerAddress,
-          deletedAt: record.deletedAt ?? null,
+          deletedAt: tombstoneDeletedAt(record),
         },
       );
     }
-    currentVersion = BigInt(record.expectedVersion);
+    currentVersion = parseExpectedVersion(record.expectedVersion);
   }
 
   const tombstoneVersion = currentVersion + 1n;

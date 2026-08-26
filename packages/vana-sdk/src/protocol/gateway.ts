@@ -548,17 +548,19 @@ export interface GatewayClient {
 // Attach the derived `permissions` view to a grant record read back from the
 // gateway. The wire `scopes` are left untouched.
 function withGrantPermissions<T extends GatewayGrantResponse>(grant: T): T {
-  // Gateway responses are untrusted runtime data despite their type: only
-  // derive from a well-formed string[] and leave the record alone otherwise.
-  const scopes: unknown = grant.scopes;
-  if (
-    !Array.isArray(scopes) ||
-    !scopes.every((entry) => typeof entry === "string")
-  ) {
-    return grant;
+  // Gateway responses are untrusted runtime data despite their type. The
+  // `permissions` view is SDK-owned: drop whatever the body carried under
+  // that name, then derive only from a well-formed string[] and leave the
+  // field absent otherwise, so a spoofed or stale value can never be
+  // rendered as this grant's authority.
+  const stripped = { ...grant };
+  delete stripped.permissions;
+  const scopes: unknown = stripped.scopes;
+  if (!Array.isArray(scopes)) {
+    return stripped;
   }
   const permissions = tryGrantPermissions(scopes as string[]);
-  return permissions === undefined ? grant : { ...grant, permissions };
+  return permissions === undefined ? stripped : { ...stripped, permissions };
 }
 
 export function createGatewayClient(baseUrl: string): GatewayClient {

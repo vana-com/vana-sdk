@@ -90,7 +90,8 @@ function assertScopePart(entry: string, scope: string): void {
  * - `notes.entries` parses as `{ scope: "notes.entries", action: "read" }`
  * - `write:notes.*` parses as `{ scope: "notes.*", action: "write" }`
  *
- * Fails closed: an entry whose operation prefix is not recognised (including
+ * Fails closed: a non-string entry, or an entry whose operation prefix is
+ * not recognised (including
  * `read:`, any uppercase or non-ASCII prefix, or a wildcard in the operation
  * position) throws {@link InvalidScopeEntryError} and is never treated as a
  * read entry. An empty scope part (`write:`) throws as well.
@@ -100,6 +101,12 @@ function assertScopePart(entry: string, scope: string): void {
  * @throws InvalidScopeEntryError when the entry does not fit the grammar.
  */
 export function parseScopeEntry(entry: string): ParsedScopeEntry {
+  // Grant bodies arrive from the network; a non-string element is a grammar
+  // violation like any other, not a TypeError from indexOf.
+  const raw: unknown = entry;
+  if (typeof raw !== "string") {
+    throw new InvalidScopeEntryError(String(raw), "entry must be a string");
+  }
   const separatorIndex = entry.indexOf(OPERATION_SEPARATOR);
   if (separatorIndex === -1) {
     assertScopePart(entry, entry);

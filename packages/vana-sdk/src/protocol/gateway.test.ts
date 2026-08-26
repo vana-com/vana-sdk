@@ -154,7 +154,7 @@ describe("createGatewayClient", () => {
     expect(grant).not.toHaveProperty("permissions");
   });
 
-  it("leaves a grant untouched when the gateway body has no usable scopes", async () => {
+  it("leaves permissions absent when the gateway body has no usable scopes", async () => {
     const malformed = [
       { id: "grant-3", scopes: null },
       { id: "grant-4", scopes: ["notes.entries", 42] },
@@ -165,9 +165,47 @@ describe("createGatewayClient", () => {
       vi.fn().mockResolvedValue(jsonResponse(envelope(malformed))),
     );
 
-    await expect(
-      createGatewayClient("https://g").listGrantsByUser("0xowner"),
-    ).resolves.toEqual(malformed);
+    const grants =
+      await createGatewayClient("https://g").listGrantsByUser("0xowner");
+    expect(grants).toEqual(malformed);
+    for (const grant of grants) {
+      expect(grant).not.toHaveProperty("permissions");
+    }
+  });
+
+  it("never trusts a permissions field supplied by the gateway body", async () => {
+    const spoofed = {
+      id: "grant-6",
+      scopes: ["notes.entries"],
+      permissions: [{ scope: "*", actions: ["read", "write"] }],
+    };
+    const undecidable = {
+      id: "grant-7",
+      scopes: ["delete:notes.entries"],
+      permissions: [{ scope: "*", actions: ["read", "write"] }],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(envelope(spoofed)))
+        .mockResolvedValueOnce(jsonResponse(envelope(undecidable))),
+    );
+    const client = createGatewayClient("https://g");
+
+    // Derived from scopes, not from the body.
+    await expect(client.getGrant("grant-6")).resolves.toEqual({
+      id: "grant-6",
+      scopes: ["notes.entries"],
+      permissions: [{ scope: "notes.entries", actions: ["read"] }],
+    });
+    // Undecidable -> absent, never the body's value.
+    const grant = await client.getGrant("grant-7");
+    expect(grant).toEqual({
+      id: "grant-7",
+      scopes: ["delete:notes.entries"],
+    });
+    expect(grant).not.toHaveProperty("permissions");
   });
 
   it("lists grants and data points with query parameters", async () => {

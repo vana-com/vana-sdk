@@ -86,6 +86,14 @@ describe("parseScopeEntry", () => {
     );
   });
 
+  it("rejects a non-string entry as a grammar error, not a TypeError", () => {
+    for (const entry of [null, undefined, 42, { scope: "x" }]) {
+      expect(() => parseScopeEntry(entry as unknown as string)).toThrow(
+        InvalidScopeEntryError,
+      );
+    }
+  });
+
   it("reports the offending entry on the error", () => {
     let caught: unknown;
     try {
@@ -213,6 +221,9 @@ describe("tryGrantPermissions", () => {
     expect(
       tryGrantPermissions(["notes.entries", "delete:notes.entries"]),
     ).toBeUndefined();
+    expect(
+      tryGrantPermissions(["notes.entries", 42 as unknown as string]),
+    ).toBeUndefined();
   });
 });
 
@@ -309,7 +320,14 @@ describe("hasAction", () => {
   });
 
   it("skips entries it cannot interpret instead of throwing", () => {
-    const scopes = ["delete:notes.entries", "WRITE:notes.entries", "write:"];
+    const scopes = [
+      "delete:notes.entries",
+      "WRITE:notes.entries",
+      "write:",
+      // Non-string elements from an untrusted body are skipped the same way.
+      null as unknown as string,
+      42 as unknown as string,
+    ];
     expect(hasAction(scopes, "notes.entries", "read")).toBe(false);
     expect(hasAction(scopes, "notes.entries", "write")).toBe(false);
     expect(

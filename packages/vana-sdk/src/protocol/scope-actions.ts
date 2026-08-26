@@ -53,9 +53,10 @@ export interface GrantPermission {
  * malformed operation prefix, or an empty scope part.
  */
 export class InvalidScopeEntryError extends Error {
-  readonly entry: string;
+  /** The offending entry, verbatim (unknown because it may not be a string). */
+  readonly entry: unknown;
 
-  constructor(entry: string, reason: string) {
+  constructor(entry: unknown, reason: string) {
     super(`Invalid scope entry ${describeValue(entry)}: ${reason}`);
     this.name = "InvalidScopeEntryError";
     this.entry = entry;
@@ -114,10 +115,7 @@ export function parseScopeEntry(entry: string): ParsedScopeEntry {
   // violation like any other, not a TypeError from indexOf.
   const raw: unknown = entry;
   if (typeof raw !== "string") {
-    throw new InvalidScopeEntryError(
-      describeValue(raw),
-      "entry must be a string",
-    );
+    throw new InvalidScopeEntryError(raw, "entry must be a string");
   }
   const separatorIndex = entry.indexOf(OPERATION_SEPARATOR);
   if (separatorIndex === -1) {

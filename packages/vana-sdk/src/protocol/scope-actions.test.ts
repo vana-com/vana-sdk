@@ -118,7 +118,30 @@ describe("parseScopeEntry", () => {
     expect((caught as InvalidScopeEntryError).entry).toBe(
       "delete:notes.entries",
     );
-    expect((caught as InvalidScopeEntryError).message).toContain("delete");
+    expect((caught as InvalidScopeEntryError).message).toBe(
+      'Invalid scope entry "delete:notes.entries": unknown operation "delete" (known: write; read has no prefix)',
+    );
+  });
+
+  it("renders a non-string entry once, as a placeholder, and keeps it verbatim", () => {
+    const bad = { toString: null };
+    let caught: unknown;
+    try {
+      parseScopeEntry(bad as unknown as string);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(InvalidScopeEntryError);
+    expect((caught as InvalidScopeEntryError).entry).toBe(bad);
+    expect((caught as InvalidScopeEntryError).message).toBe(
+      "Invalid scope entry [object]: entry must be a string",
+    );
+    expect(() => parseScopeEntry(null as unknown as string)).toThrow(
+      "Invalid scope entry null: entry must be a string",
+    );
+    expect(() => parseScopeEntry(42 as unknown as string)).toThrow(
+      "Invalid scope entry [number]: entry must be a string",
+    );
   });
 });
 

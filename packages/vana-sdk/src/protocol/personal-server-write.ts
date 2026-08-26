@@ -511,6 +511,7 @@ function isWriteSession(value: unknown): value is WriteSession {
     typeof value.expiresAt === "number" &&
     Number.isFinite(value.expiresAt) &&
     Array.isArray(value.writeScopes) &&
+    value.writeScopes.every((scope) => typeof scope === "string") &&
     isRecord(signer) &&
     typeof signer.signMessage === "function"
   );
@@ -521,8 +522,12 @@ export function sessionCoversScope(
   session: Pick<WriteSession, "writeScopes">,
   scope: string,
 ): boolean {
-  return session.writeScopes.some((pattern) =>
-    scopeMatchesPattern(scope, pattern),
+  if (!isRecord(session) || !Array.isArray(session.writeScopes)) {
+    throw new WriteRequestError("session must come from openWriteSession");
+  }
+  return session.writeScopes.some(
+    (pattern) =>
+      typeof pattern === "string" && scopeMatchesPattern(scope, pattern),
   );
 }
 

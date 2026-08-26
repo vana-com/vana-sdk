@@ -747,13 +747,26 @@ describe("writeData", () => {
         WriteRequestError,
       );
     }
-    expect(
-      await writeData({
-        scope: SCOPE,
-        data: { a: 1 },
-        fetch: server.fetch,
-      } as unknown as Parameters<typeof writeData>[0]).catch((e: unknown) => e),
-    ).toBeInstanceOf(WriteRequestError);
+    const partialSessions: unknown[] = [
+      undefined,
+      { accessToken: "x" },
+      { ...session, expiresAt: "soon" },
+      { ...session, signer: {} },
+      { ...session, writeScopes: "notes.*" },
+      { ...session, accessToken: "" },
+    ];
+    for (const partial of partialSessions) {
+      expect(
+        await writeData({
+          session: partial,
+          scope: SCOPE,
+          data: { a: 1 },
+          fetch: server.fetch,
+        } as unknown as Parameters<typeof writeData>[0]).catch(
+          (e: unknown) => e,
+        ),
+      ).toBeInstanceOf(WriteRequestError);
+    }
     const many = await attempt({ data: { a: 1 }, lineage: tooMany });
     expect(many).toBeInstanceOf(WriteRequestError);
     expect((many as WriteRequestError).details).toMatchObject({ max: 256 });

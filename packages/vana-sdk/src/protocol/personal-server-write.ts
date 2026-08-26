@@ -498,6 +498,24 @@ export async function openWriteSession(
   };
 }
 
+/** Every field {@link writeData} relies on, checked before any is used. */
+function isWriteSession(value: unknown): value is WriteSession {
+  if (!isRecord(value)) return false;
+  const signer: unknown = value.signer;
+  return (
+    typeof value.personalServerUrl === "string" &&
+    typeof value.audience === "string" &&
+    typeof value.grantId === "string" &&
+    typeof value.accessToken === "string" &&
+    value.accessToken.length > 0 &&
+    typeof value.expiresAt === "number" &&
+    Number.isFinite(value.expiresAt) &&
+    Array.isArray(value.writeScopes) &&
+    isRecord(signer) &&
+    typeof signer.signMessage === "function"
+  );
+}
+
 /** `true` when one of the session's write patterns covers `scope`. */
 export function sessionCoversScope(
   session: Pick<WriteSession, "writeScopes">,
@@ -838,7 +856,7 @@ export async function writeData(
   params: WriteDataParams,
 ): Promise<WriteDataResult> {
   const { session } = params;
-  if (!isRecord(session) || typeof session.accessToken !== "string") {
+  if (!isWriteSession(session)) {
     throw new WriteRequestError("session must come from openWriteSession");
   }
   const fetchFn = resolveFetch(params.fetch);

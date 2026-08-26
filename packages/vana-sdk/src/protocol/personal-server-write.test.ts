@@ -742,6 +742,18 @@ describe("writeData", () => {
     const tooMany = Array.from({ length: 257 }, (_, i) =>
       deriveDataPointId(owner.address, `s.${i}`),
     );
+    for (const lineage of ["abc", 7, {}, [null]]) {
+      expect(await attempt({ data: { a: 1 }, lineage })).toBeInstanceOf(
+        WriteRequestError,
+      );
+    }
+    expect(
+      await writeData({
+        scope: SCOPE,
+        data: { a: 1 },
+        fetch: server.fetch,
+      } as unknown as Parameters<typeof writeData>[0]).catch((e: unknown) => e),
+    ).toBeInstanceOf(WriteRequestError);
     const many = await attempt({ data: { a: 1 }, lineage: tooMany });
     expect(many).toBeInstanceOf(WriteRequestError);
     expect((many as WriteRequestError).details).toMatchObject({ max: 256 });
@@ -779,21 +791,24 @@ describe("writeData", () => {
     expect(server.requests).toHaveLength(1);
   });
 
-  it("an empty lineage array is a root record: nothing is sent", async () => {
+  it("an empty or null lineage is a root record: nothing is sent", async () => {
     const session = await open();
-    const result = await writeData({
-      session,
-      scope: SCOPE,
-      data: { a: 1 },
-      lineage: [],
-      fetch: server.fetch,
-    });
-    expect(result.lineage).toBeUndefined();
-    expect(new TextDecoder().decode(server.requests[1].body)).toBe('{"a":1}');
-    expect(
-      server.requests[1].headers[WRITE_METADATA_HEADER.toLowerCase()],
-    ).toBeUndefined();
-    expect(server.records[0].data).not.toHaveProperty("$lineage");
+    for (const lineage of [[], null]) {
+      const result = await writeData({
+        session,
+        scope: SCOPE,
+        data: { a: 1 },
+        lineage: lineage as Hex[],
+        fetch: server.fetch,
+      });
+      expect(result.lineage).toBeUndefined();
+      const request = server.requests.at(-1);
+      expect(new TextDecoder().decode(request?.body)).toBe('{"a":1}');
+      expect(
+        request?.headers[WRITE_METADATA_HEADER.toLowerCase()],
+      ).toBeUndefined();
+    }
+    expect(server.records.every((r) => !("$lineage" in r.data))).toBe(true);
   });
 
   it("refuses to write on an expired session before sending anything", async () => {

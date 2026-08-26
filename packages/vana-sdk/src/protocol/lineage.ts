@@ -72,8 +72,16 @@ const DataPointIdSchema = z
   .regex(DATA_POINT_ID_PATTERN)
   .transform((value) => value.toLowerCase() as Hex);
 
-// Versions are decimal strings on the wire; a numeric value is normalised.
-const VersionSchema = z.union([z.string(), z.number()]).transform(String);
+const VERSION_PATTERN = /^[1-9]\d*$/;
+
+// Versions are positive decimal integers, strings on the wire; a numeric
+// value is normalised to the same representation.
+const VersionSchema = z
+  .union([z.string(), z.number()])
+  .transform(String)
+  .refine((value) => VERSION_PATTERN.test(value), {
+    message: "version must be a positive decimal integer",
+  });
 
 export const LineageNodeSchema = z.object({
   dataPointId: DataPointIdSchema,
@@ -164,8 +172,6 @@ export function gatewayLineagePath(
   const query = params.toString();
   return `/v1/data/${dataPointId.toLowerCase()}/lineage${query ? `?${query}` : ""}`;
 }
-
-const VERSION_PATTERN = /^[1-9]\d*$/;
 
 interface LineageRequestOptions {
   /**

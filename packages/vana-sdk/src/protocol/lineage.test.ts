@@ -293,8 +293,20 @@ describe("getPersonalServerLineage", () => {
     expect((missing as LineageReadError).errorCode).toBe("NOT_FOUND");
   });
 
-  it("rejects a body that is not a lineage view", async () => {
+  it("rejects a body that is not a lineage view, including a malformed version", async () => {
     const server = makeServer();
+    for (const version of ["abc", "0", -1, 1.5]) {
+      server.respondNextWith(200, { data: { ...view, version }, proof: {} });
+      const bad = await getPersonalServerLineage({
+        personalServerUrl: PS_ORIGIN,
+        scope: DERIVED_SCOPE,
+        grantId: READ_GRANT_ID,
+        signer: builder,
+        fetch: server.fetch,
+      }).catch((e: unknown) => e);
+      expect(bad).toBeInstanceOf(LineageReadError);
+      expect((bad as LineageReadError).details).toHaveProperty("issues");
+    }
     server.respondNextWith(200, { data: { dataPointId: "nope", sources: [] } });
     const err = await getPersonalServerLineage({
       personalServerUrl: PS_ORIGIN,

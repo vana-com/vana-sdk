@@ -624,11 +624,15 @@ function assertNoReservedKeys(
   }
 }
 
-/** Validate and lowercase the sources the way the Personal Server will. */
-function normalizeLineage(lineage: readonly Hex[]): Hex[] {
+/**
+ * Validate and lowercase the sources the way the Personal Server will;
+ * `undefined` for an empty list (a root record).
+ */
+function normalizeLineage(lineage: unknown): Hex[] | undefined {
   if (!Array.isArray(lineage)) {
     throw new WriteRequestError("lineage must be an array of data point ids");
   }
+  if (lineage.length === 0) return undefined;
   if (lineage.length > MAX_LINEAGE_SOURCES) {
     throw new WriteRequestError(
       `lineage lists ${lineage.length} sources; the maximum is ${MAX_LINEAGE_SOURCES}`,
@@ -699,11 +703,13 @@ function prepareWrite(params: WriteDataParams): PreparedWrite {
   if (params.binary !== undefined && params.data !== undefined) {
     throw new WriteRequestError("Pass either data or binary, not both");
   }
-  // An empty list is a root record, exactly like no list: send nothing.
+  // Absent, null or empty lineage is a root record: send nothing. Anything
+  // else is validated before it is touched (callers may be untyped).
+  const rawLineage: unknown = params.lineage;
   const sources =
-    params.lineage === undefined || params.lineage.length === 0
+    rawLineage === undefined || rawLineage === null
       ? undefined
-      : normalizeLineage(params.lineage);
+      : normalizeLineage(rawLineage);
 
   if (params.binary !== undefined) {
     const { bytes, contentType, filename } = params.binary;
@@ -832,6 +838,9 @@ export async function writeData(
   params: WriteDataParams,
 ): Promise<WriteDataResult> {
   const { session } = params;
+  if (!isRecord(session) || typeof session.accessToken !== "string") {
+    throw new WriteRequestError("session must come from openWriteSession");
+  }
   const fetchFn = resolveFetch(params.fetch);
   if (typeof params.scope !== "string" || params.scope.length === 0) {
     throw new WriteRequestError("scope is required");

@@ -1,8 +1,9 @@
 /**
  * Reader for the error bodies a Personal Server (or the gateway) answers
  * with. Protocol errors use `{ error: { code, errorCode, message, details? } }`;
- * contract-level rejections use `{ error: "CODE", message }`; older clients
- * saw `{ code, message }`. All three are accepted.
+ * contract-level rejections use `{ error: "CODE", message }`; the gateway
+ * uses `{ success: false, error: "<message>", code: "CODE" }`; older clients
+ * saw `{ code, message }`. All four are accepted.
  *
  * @internal
  */
@@ -29,12 +30,19 @@ export async function readPersonalServerErrorBody(
   }
   if (!isRecord(body)) return { errorCode: null, message: null };
   const nested = isRecord(body.error) ? body.error : null;
+  // Gateway bodies are `{ success: false, error: <message>, code: <CODE> }`;
+  // the Personal Server's contract rejections are `{ error: <CODE>, message }`.
+  const gatewayShape =
+    typeof body.error === "string" && typeof body.code === "string";
   const code =
     nested?.errorCode ??
     nested?.code ??
-    (typeof body.error === "string" ? body.error : body.errorCode) ??
+    body.errorCode ??
+    (gatewayShape ? body.code : undefined) ??
+    (typeof body.error === "string" ? body.error : undefined) ??
     body.code;
-  const message = nested?.message ?? body.message;
+  const message =
+    nested?.message ?? body.message ?? (gatewayShape ? body.error : undefined);
   const details = nested?.details ?? body.details;
   return {
     errorCode: typeof code === "string" ? code : null,

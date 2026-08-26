@@ -35,7 +35,7 @@ import {
 
 const ORIGIN = "http://ps.test:8798";
 const SCOPE = "notes.entries";
-const DERIVED_SCOPE = "notes.summary";
+const DERIVED_SCOPE = "coach.summary";
 const WRITE_GRANT_ID = "0xwritegrant1";
 const READ_GRANT_ID = "0xreadgrant1";
 const WIDE_GRANT_ID = "0xwritegrant-wide";
@@ -64,7 +64,7 @@ function makeServer(
         id: WIDE_GRANT_ID,
         grantorAddress: owner.address,
         granteeId: builder.address,
-        scopes: ["write:notes.*", SCOPE],
+        scopes: ["write:notes.*", "write:coach.*", SCOPE],
       },
       {
         id: READ_GRANT_ID,
@@ -74,7 +74,7 @@ function makeServer(
       },
     ],
     knownDataPoints: [
-      { dataPointId: sourceId, scope: SCOPE, version: 1, deletedAt: null },
+      { dataPointId: sourceId, scope: SCOPE, version: "1", deletedAt: null },
     ],
     ...overrides,
   });
@@ -127,7 +127,7 @@ describe("openWriteSession", () => {
       grantId: WIDE_GRANT_ID,
       fetch: server.fetch,
     });
-    expect(session.writeScopes).toEqual(["notes.*"]);
+    expect(session.writeScopes).toEqual(["notes.*", "coach.*"]);
     expect(sessionCoversScope(session, "notes.anything")).toBe(true);
     expect(sessionCoversScope(session, "photos.all")).toBe(false);
   });
@@ -488,44 +488,118 @@ describe("writeData", () => {
     expect(result.status).toBe("stored");
   });
 
-  it("writes a derivative: lineage travels in X-Vana-Metadata and is stored as $lineage", async () => {
+  it("writes a JSON derivative: lineage is the body's top-level field, inside the signed bytes, mirrored to $lineage", async () => {
     const session = await open(WIDE_GRANT_ID);
-    await writeData({
+    const upper = sourceId.toUpperCase().replace("0X", "0x") as Hex;
+    const result = await writeData({
       session,
       scope: DERIVED_SCOPE,
       data: { summary: "three notes about cats" },
-      lineage: [sourceId],
-      metadata: { model: "summarizer-v1" },
+      lineage: [upper],
       fetch: server.fetch,
     });
+    expect(result.lineage).toEqual({ sources: [sourceId] });
 
     const request = server.requests[1];
     expect(
-      JSON.parse(request.headers[WRITE_METADATA_HEADER.toLowerCase()]),
-    ).toEqual({ model: "summarizer-v1", lineage: [sourceId] });
-    // The body stays the caller's record: lineage never rides inside data.
-    expect(JSON.parse(new TextDecoder().decode(request.body))).toEqual({
-      summary: "three notes about cats",
-    });
+      request.headers[WRITE_METADATA_HEADER.toLowerCase()],
+    ).toBeUndefined();
+    const body = new TextDecoder().decode(request.body);
+    // Compact, caller's keys first, lineage last and lowercased.
+    expect(body).toBe(
+      `{"summary":"three notes about cats","lineage":["${sourceId}"]}`,
+    );
+    const proof = parseWeb3SignedHeader(
+      request.headers[WRITE_SIGNATURE_HEADER.toLowerCase()],
+    );
+    expect(proof.payload.bodyHash).toBe(computeBodyHash(request.body));
 
     const [record] = server.records;
     expect(record.scope).toBe(DERIVED_SCOPE);
-    expect(record.data.$lineage).toEqual([sourceId]);
+    expect(record.data.lineage).toEqual([sourceId]);
+    expect(record.data.$lineage).toEqual({
+      sources: [sourceId],
+      writtenAt: record.collectedAt,
+    });
   });
 
-  it("binary derivative: lineage is part of the signed $binary record", async () => {
+  it("refuses metadata on a JSON write and a lineage field inside data", async () => {
+    const session = await open(WIDE_GRANT_ID);
+    const withMetadata = await writeData({
+      session,
+      scope: DERIVED_SCOPE,
+      data: { summary: "x" },
+      metadata: { model: "summarizer-v1" },
+      fetch: server.fetch,
+    } as unknown as Parameters<typeof writeData>[0]).catch((e: unknown) => e);
+    expect(withMetadata).toBeInstanceOf(WriteRequestError);
+    const withField = await writeData({
+      session,
+      scope: DERIVED_SCOPE,
+      data: { summary: "x", lineage: [sourceId] },
+      fetch: server.fetch,
+    }).catch((e: unknown) => e);
+    expect(withField).toBeInstanceOf(WriteRequestError);
+    expect(server.requests).toHaveLength(1);
+  });
+
+  it("binary derivative: lineage rides in X-Vana-Metadata, inside the signed $binary record", async () => {
     const session = await open(WIDE_GRANT_ID);
     const bytes = new TextEncoder().encode("derived bytes");
-    await writeData({
+    const result = await writeData({
       session,
       scope: DERIVED_SCOPE,
       binary: { bytes, contentType: "text/plain" },
       lineage: [sourceId],
+      metadata: { model: "summarizer-v1" },
       fetch: server.fetch,
     });
+    expect(result.lineage).toEqual({ sources: [sourceId] });
+    expect(
+      JSON.parse(
+        server.requests[1].headers[WRITE_METADATA_HEADER.toLowerCase()],
+      ),
+    ).toEqual({ model: "summarizer-v1", lineage: [sourceId] });
     const [record] = server.records;
-    expect(record.data.$lineage).toEqual([sourceId]);
-    expect(record.data.metadata).toEqual({ lineage: [sourceId] });
+    expect(record.data.metadata).toEqual({
+      model: "summarizer-v1",
+      lineage: [sourceId],
+    });
+    expect(record.data.$lineage).toMatchObject({ sources: [sourceId] });
+  });
+
+  it("maps every LINEAGE_* rejection to WriteLineageError with its status", async () => {
+    const session = await open(WIDE_GRANT_ID);
+    // Naming rule: notes.summary derived from notes.entries.
+    const underPrefix = await writeData({
+      session,
+      scope: "notes.summary",
+      data: { summary: "x" },
+      lineage: [sourceId],
+      fetch: server.fetch,
+    }).catch((e: unknown) => e);
+    expect(underPrefix).toBeInstanceOf(WriteLineageError);
+    expect((underPrefix as WriteLineageError).status).toBe(400);
+    expect((underPrefix as WriteLineageError).errorCode).toBe(
+      "LINEAGE_SCOPE_UNDER_SOURCE_PREFIX",
+    );
+    server.respondNextWith(502, {
+      error: {
+        code: 502,
+        errorCode: "LINEAGE_SOURCE_LOOKUP_FAILED",
+        message: "gateway down",
+      },
+    });
+    const lookup = await writeData({
+      session,
+      scope: DERIVED_SCOPE,
+      data: { summary: "x" },
+      lineage: [sourceId],
+      fetch: server.fetch,
+    }).catch((e: unknown) => e);
+    expect(lookup).toBeInstanceOf(WriteLineageError);
+    expect((lookup as WriteLineageError).status).toBe(502);
+    expect(server.records).toHaveLength(0);
   });
 
   it("maps 422 LINEAGE_SOURCE_UNKNOWN to WriteLineageError", async () => {
@@ -541,7 +615,7 @@ describe("writeData", () => {
     const lineageError = err as WriteLineageError;
     expect(lineageError.status).toBe(422);
     expect(lineageError.errorCode).toBe("LINEAGE_SOURCE_UNKNOWN");
-    expect(lineageError.details).toEqual({ dataPointId: foreignSourceId });
+    expect(lineageError.details).toEqual({ unknown: [foreignSourceId] });
     // A rejected write never burns the proof, and stores nothing.
     expect(server.records).toHaveLength(0);
   });
@@ -653,16 +727,24 @@ describe("writeData", () => {
         ...(params as object),
       } as Parameters<typeof writeData>[0]).catch((e: unknown) => e);
 
+    const bin = { bytes: new Uint8Array(1), contentType: "text/plain" };
     for (const key of ["$writtenBy", "$lineage"]) {
       const err = await attempt({ data: { [key]: {} } });
       expect(err).toBeInstanceOf(WriteRequestError);
       expect((err as WriteRequestError).details).toEqual({ key });
-      const metaErr = await attempt({ data: { a: 1 }, metadata: { [key]: 1 } });
+      const metaErr = await attempt({ binary: bin, metadata: { [key]: 1 } });
       expect(metaErr).toBeInstanceOf(WriteRequestError);
+      expect((metaErr as WriteRequestError).details).toEqual({ key });
     }
     expect(
-      await attempt({ data: { a: 1 }, metadata: { lineage: [sourceId] } }),
+      await attempt({ binary: bin, metadata: { lineage: [sourceId] } }),
     ).toBeInstanceOf(WriteRequestError);
+    const tooMany = Array.from({ length: 257 }, (_, i) =>
+      deriveDataPointId(owner.address, `s.${i}`),
+    );
+    const many = await attempt({ data: { a: 1 }, lineage: tooMany });
+    expect(many).toBeInstanceOf(WriteRequestError);
+    expect((many as WriteRequestError).details).toMatchObject({ max: 256 });
     expect(
       await attempt({ data: { a: 1 }, lineage: ["0x1234" as Hex] }),
     ).toBeInstanceOf(WriteRequestError);
@@ -687,28 +769,31 @@ describe("writeData", () => {
     );
     const cyclic: Record<string, unknown> = {};
     cyclic.self = cyclic;
-    expect(
-      await attempt({ data: { a: 1 }, metadata: { n: 1n } }),
-    ).toBeInstanceOf(WriteRequestError);
-    expect(await attempt({ data: { a: 1 }, metadata: cyclic })).toBeInstanceOf(
+    expect(await attempt({ binary: bin, metadata: { n: 1n } })).toBeInstanceOf(
+      WriteRequestError,
+    );
+    expect(await attempt({ binary: bin, metadata: cyclic })).toBeInstanceOf(
       WriteRequestError,
     );
     // Nothing reached the server beyond the handshake.
     expect(server.requests).toHaveLength(1);
   });
 
-  it("an empty lineage array sends no metadata header", async () => {
+  it("an empty lineage array is a root record: nothing is sent", async () => {
     const session = await open();
-    await writeData({
+    const result = await writeData({
       session,
       scope: SCOPE,
       data: { a: 1 },
       lineage: [],
       fetch: server.fetch,
     });
+    expect(result.lineage).toBeUndefined();
+    expect(new TextDecoder().decode(server.requests[1].body)).toBe('{"a":1}');
     expect(
       server.requests[1].headers[WRITE_METADATA_HEADER.toLowerCase()],
     ).toBeUndefined();
+    expect(server.records[0].data).not.toHaveProperty("$lineage");
   });
 
   it("refuses to write on an expired session before sending anything", async () => {

@@ -565,7 +565,15 @@ export type PersonalServerWriteErrorCode =
   | "WRITE_ATTRIBUTION_GRANT_MISMATCH"
   | "WRITE_ATTRIBUTION_REPLAY"
   | "WRITE_BODY_NOT_CANONICAL"
+  | "LINEAGE_INVALID"
+  | "LINEAGE_SCOPE_UNDER_SOURCE_PREFIX"
   | "LINEAGE_SOURCE_UNKNOWN"
+  | "LINEAGE_SOURCE_LOOKUP_FAILED"
+  | "LINEAGE_FORBIDDEN"
+  | "LINEAGE_GATEWAY_ERROR"
+  | "LINEAGE_UNAVAILABLE"
+  | "INVALID_VERSION"
+  | "NOT_FOUND"
   | "MISSING_AUTH"
   | "INVALID_SIGNATURE"
   | "UNREGISTERED_BUILDER"
@@ -712,17 +720,20 @@ export class WriteConflictError extends PersonalServerWriteError {
 }
 
 /**
- * Thrown when a write answered 422: a lineage source is unknown to the
- * Personal Server (`LINEAGE_SOURCE_UNKNOWN`) or otherwise unusable.
+ * Thrown when the Personal Server rejected the write's lineage: 422
+ * `LINEAGE_SOURCE_UNKNOWN` (`details.unknown` lists the offending ids), 400
+ * `LINEAGE_INVALID` / `LINEAGE_SCOPE_UNDER_SOURCE_PREFIX`, or 502
+ * `LINEAGE_SOURCE_LOOKUP_FAILED`.
  * @category Error Handling
  */
 export class WriteLineageError extends PersonalServerWriteError {
   constructor(
     message: string,
+    status = 422,
     errorCode: PersonalServerWriteErrorCode | null = null,
     details?: Record<string, unknown>,
   ) {
-    super(message, "WRITE_LINEAGE_REJECTED", 422, errorCode, details);
+    super(message, "WRITE_LINEAGE_REJECTED", status, errorCode, details);
   }
 }
 

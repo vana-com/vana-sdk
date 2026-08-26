@@ -70,14 +70,17 @@ export function deriveDataPointId(ownerAddress: Address, scope: string): Hex {
 const DataPointIdSchema = z
   .string()
   .regex(DATA_POINT_ID_PATTERN)
-  .transform((value) => value as Hex);
+  .transform((value) => value.toLowerCase() as Hex);
+
+// Versions are decimal strings on the wire; a numeric value is normalised.
+const VersionSchema = z.union([z.string(), z.number()]).transform(String);
 
 export const LineageNodeSchema = z.object({
   dataPointId: DataPointIdSchema,
   scope: z.string(),
-  // The gateway reports versions as decimal strings; normalise a numeric
-  // Personal Server value to the same representation.
-  version: z.union([z.string(), z.number()]).transform(String),
+  /** The node's current version, decimal string. */
+  version: VersionSchema,
+  /** The node's tombstone time, or `null` when live. */
   deletedAt: z.string().nullable(),
 });
 
@@ -93,6 +96,16 @@ export const LineageEntrySchema = z.union([
 
 export const LineageGraphSchema = z.object({
   dataPointId: DataPointIdSchema,
+  /** The data point owner; every node in the view belongs to it. */
+  ownerAddress: z.string().optional(),
+  scope: z.string(),
+  /**
+   * The derived record's version whose lineage is shown: the requested one,
+   * else the current one, else (current is a tombstone) the last version
+   * that carried lineage.
+   */
+  version: VersionSchema,
+  deletedAt: z.string().nullable(),
   sources: z.array(LineageEntrySchema),
   derivatives: z.array(LineageEntrySchema),
 });
@@ -106,8 +119,18 @@ export type RedactedLineageNode = z.infer<typeof RedactedLineageNodeSchema>;
 /** One entry of a lineage graph. Narrow with {@link isRedactedLineageNode}. */
 export type LineageEntry = z.infer<typeof LineageEntrySchema>;
 
-/** The lineage graph of one data point. */
+/** The lineage view of one data point (the `data` of the response). */
 export type LineageGraph = z.infer<typeof LineageGraphSchema>;
+
+/** A lineage read: the view plus the gateway's attestation over it. */
+export interface LineageReadResult extends LineageGraph {
+  /**
+   * The gateway `proof` (`GatewayAttestation` over the served view, so a
+   * redacted view verifies on its own). Passed through as received; absent
+   * when the server sent none.
+   */
+  proof?: Record<string, unknown>;
+}
 
 /** `true` when the entry was redacted (the caller holds no grant for it). */
 export function isRedactedLineageNode(
@@ -121,13 +144,35 @@ export function personalServerLineagePath(scope: string): string {
   return `/v1/data/${encodeURIComponent(scope)}/lineage`;
 }
 
-/** Path of the gateway lineage read for a data point id. */
-export function gatewayLineagePath(dataPointId: Hex): string {
-  return `/v1/data/${dataPointId}/lineage`;
+/**
+ * The gateway lineage uri the request is signed over and sent to: the path
+ * with the id lowercased, then the canonical query (`version`, then
+ * `grantId` lowercased, in that order, only when given), so a captured
+ * signature cannot be replayed for another version or grant view.
+ */
+export function gatewayLineagePath(
+  dataPointId: Hex,
+  options: { version?: string | number; grantId?: string } = {},
+): string {
+  const params = new URLSearchParams();
+  if (options.version !== undefined) {
+    params.set("version", String(options.version));
+  }
+  if (options.grantId !== undefined) {
+    params.set("grantId", options.grantId.toLowerCase());
+  }
+  const query = params.toString();
+  return `/v1/data/${dataPointId.toLowerCase()}/lineage${query ? `?${query}` : ""}`;
 }
 
+const VERSION_PATTERN = /^[1-9]\d*$/;
+
 interface LineageRequestOptions {
-  /** Read the lineage as of this data point version (latest when omitted). */
+  /**
+   * Read the lineage as of this version (a positive decimal integer);
+   * omitted = the current version, or the last version that carried lineage
+   * when the current one is a tombstone.
+   */
   version?: string | number;
   /** `fetch` to use; defaults to `globalThis.fetch`. */
   fetch?: typeof fetch;
@@ -158,14 +203,19 @@ export interface GatewayLineageParams extends LineageRequestOptions {
   /** The data point whose lineage to read (see {@link deriveDataPointId}). */
   dataPointId: Hex;
   /**
-   * Optional builder key. When given, the request carries a Web3Signed
-   * `Authorization` header (audience = `gatewayUrl`) with `grantId` so the
-   * gateway can disclose the nodes the caller holds grants for.
+   * The key the request is signed with (Web3Signed, audience = the gateway
+   * origin). The signer decides the view: the owner or one of its servers
+   * gets the full view; a registered builder holding a live grant covering
+   * the data point's scope gets that grant's view; anyone else is refused.
    */
-  signer?: WriteSignerSource;
+  signer: WriteSignerSource;
   /** Account for a viem wallet client without a hoisted account. */
   account?: ResolveWriteSignerOptions["account"];
-  /** Grant to present alongside `signer`. */
+  /**
+   * The grant whose view to read. Sent as the canonical `grantId` query and
+   * as the signed `grantId` claim. An owner or server uses it to fetch the
+   * view a builder's grant sees.
+   */
   grantId?: string;
 }
 
@@ -185,12 +235,20 @@ function resolveFetch(fetchFn: typeof fetch | undefined): typeof fetch {
   return resolved;
 }
 
-function withVersion(
-  path: string,
+function normalizeVersion(
   version: string | number | undefined,
-): string {
-  if (version === undefined) return path;
-  return `${path}?version=${encodeURIComponent(String(version))}`;
+): string | undefined {
+  if (version === undefined) return undefined;
+  const text = String(version);
+  if (!VERSION_PATTERN.test(text)) {
+    throw new LineageReadError(
+      "version must be a positive decimal integer",
+      undefined,
+      "INVALID_VERSION",
+      { version },
+    );
+  }
+  return text;
 }
 
 async function lineageReadFailure(
@@ -211,7 +269,7 @@ async function lineageReadFailure(
 async function parseLineageGraph(
   source: string,
   response: Response,
-): Promise<LineageGraph> {
+): Promise<LineageReadResult> {
   let body: unknown;
   try {
     body = await response.json();
@@ -223,22 +281,20 @@ async function parseLineageGraph(
       { cause: err instanceof Error ? err.message : String(err) },
     );
   }
-  // The gateway wraps answers in its `{ data, proof }` envelope; the Personal
-  // Server answers the graph directly. Accept both.
-  const candidate =
-    isRecord(body) && isRecord(body.data) && !("dataPointId" in body)
-      ? body.data
-      : body;
-  const parsed = LineageGraphSchema.safeParse(candidate);
+  // Both servers answer the gateway envelope `{ data, proof }`; a bare view
+  // is accepted too.
+  const envelope = isRecord(body) && isRecord(body.data) ? body : undefined;
+  const parsed = LineageGraphSchema.safeParse(envelope?.data ?? body);
   if (!parsed.success) {
     throw new LineageReadError(
-      `${source} lineage response is not a lineage graph`,
+      `${source} lineage response is not a lineage view`,
       response.status,
       null,
       { issues: parsed.error.issues },
     );
   }
-  return parsed.data;
+  const proof = isRecord(envelope?.proof) ? envelope.proof : undefined;
+  return proof === undefined ? parsed.data : { ...parsed.data, proof };
 }
 
 async function sendLineageRead(
@@ -246,7 +302,7 @@ async function sendLineageRead(
   fetchFn: typeof fetch,
   url: string,
   headers: Headers,
-): Promise<LineageGraph> {
+): Promise<LineageReadResult> {
   let response: Response;
   try {
     response = await fetchFn(url, { method: "GET", headers });
@@ -268,25 +324,29 @@ async function sendLineageRead(
  * Read a scope's lineage from the Personal Server that stores it.
  *
  * @remarks
- * Sends `GET /v1/data/:scope/lineage` with a Web3Signed `Authorization`
- * header carrying `grantId`, the same authentication a data read uses.
+ * Sends `GET /v1/data/:scope/lineage[?version=N]` with a Web3Signed
+ * `Authorization` header carrying `grantId`, the same authentication a data
+ * read uses (the signed `uri` is the path; the server checks the request
+ * path). The server resolves the data point id, fetches the view the grant
+ * sees from the gateway and returns the gateway's `data` + `proof`.
  *
- * @returns The lineage graph, with redacted entries for nodes the grant does
- *   not cover.
- * @throws {LineageReadError} On a non-2xx answer, an unreadable body, or a
- *   transport failure.
+ * @returns The lineage view, with redacted entries for nodes the grant does
+ *   not cover, plus the gateway attestation.
+ * @throws {LineageReadError} On a non-2xx answer (`errorCode`: read errors,
+ *   `NOT_FOUND` when the scope or version is not registered at the gateway,
+ *   `LINEAGE_FORBIDDEN`, `LINEAGE_GATEWAY_ERROR`, `LINEAGE_UNAVAILABLE`), an
+ *   unreadable body, a bad `version`, or a transport failure.
  */
 export async function getPersonalServerLineage(
   params: PersonalServerLineageParams,
-): Promise<LineageGraph> {
+): Promise<LineageReadResult> {
   const fetchFn = resolveFetch(params.fetch);
   const baseUrl = normalizeBaseUrl(params.personalServerUrl);
   const audience = params.audience ?? baseUrl;
   const signer = resolveWriteSigner(params.signer, { account: params.account });
-  const path = withVersion(
-    personalServerLineagePath(params.scope),
-    params.version,
-  );
+  const version = normalizeVersion(params.version);
+  const path = personalServerLineagePath(params.scope);
+  const url = `${baseUrl}${path}${version === undefined ? "" : `?version=${version}`}`;
   const headers = new Headers(params.headers);
   headers.set(
     "Authorization",
@@ -294,35 +354,32 @@ export async function getPersonalServerLineage(
       signMessage: signer.signMessage,
       aud: audience,
       method: "GET",
-      // The signed uri claim is the path without the query string, matching
-      // the Personal Server's `url.pathname` check.
-      uri: personalServerLineagePath(params.scope),
+      uri: path,
       grantId: params.grantId,
     }),
   );
-  return sendLineageRead(
-    "Personal Server",
-    fetchFn,
-    `${baseUrl}${path}`,
-    headers,
-  );
+  return sendLineageRead("Personal Server", fetchFn, url, headers);
 }
 
 /**
  * Read a data point's lineage from the gateway.
  *
  * @remarks
- * Sends `GET /v1/data/:dataPointId/lineage`, optionally authenticated with a
- * Web3Signed header when `signer` is given.
+ * Sends `GET /v1/data/:dataPointId/lineage[?version=N][&grantId=0x...]`
+ * with a Web3Signed `Authorization` header: `aud` = the gateway origin,
+ * `uri` = {@link gatewayLineagePath} (path plus the canonical query),
+ * `grantId` claim = the lowercased `grantId` when given.
  *
- * @returns The lineage graph, with redacted entries for nodes the caller
- *   holds no grant for.
- * @throws {LineageReadError} On a malformed `dataPointId`, a non-2xx answer,
- *   an unreadable body, or a transport failure.
+ * @returns The lineage view, with redacted entries for nodes the caller's
+ *   grant does not cover, plus the gateway attestation.
+ * @throws {LineageReadError} On a malformed `dataPointId` or `version`, a
+ *   non-2xx answer (400 malformed request, 401 bad signature, 403 no
+ *   covering grant, 404 unknown data point or version), an unreadable body,
+ *   or a transport failure.
  */
 export async function getGatewayLineage(
   params: GatewayLineageParams,
-): Promise<LineageGraph> {
+): Promise<LineageReadResult> {
   if (!isDataPointId(params.dataPointId)) {
     throw new LineageReadError(
       "dataPointId must be a 32-byte hex string (see deriveDataPointId)",
@@ -333,42 +390,39 @@ export async function getGatewayLineage(
   }
   const fetchFn = resolveFetch(params.fetch);
   const baseUrl = normalizeBaseUrl(params.gatewayUrl);
-  const path = gatewayLineagePath(params.dataPointId);
+  const signer = resolveWriteSigner(params.signer, { account: params.account });
+  const grantId = params.grantId?.toLowerCase();
+  const uri = gatewayLineagePath(params.dataPointId, {
+    version: normalizeVersion(params.version),
+    grantId,
+  });
   const headers = new Headers(params.headers);
-  if (params.signer !== undefined) {
-    const signer = resolveWriteSigner(params.signer, {
-      account: params.account,
-    });
-    headers.set(
-      "Authorization",
-      await buildWeb3SignedHeader({
-        signMessage: signer.signMessage,
-        aud: baseUrl,
-        method: "GET",
-        uri: path,
-        grantId: params.grantId,
-      }),
-    );
-  }
-  return sendLineageRead(
-    "Gateway",
-    fetchFn,
-    `${baseUrl}${withVersion(path, params.version)}`,
-    headers,
+  headers.set(
+    "Authorization",
+    await buildWeb3SignedHeader({
+      signMessage: signer.signMessage,
+      aud: baseUrl,
+      method: "GET",
+      uri,
+      grantId,
+    }),
   );
+  return sendLineageRead("Gateway", fetchFn, `${baseUrl}${uri}`, headers);
 }
 
 /**
- * Read a lineage graph from either the Personal Server (by scope) or the
+ * Read a lineage view from either the Personal Server (by scope) or the
  * gateway (by data point id), chosen by the params shape.
  *
  * @example
  * ```typescript
  * const fromPs = await getLineage({ personalServerUrl, scope, grantId, signer });
- * const fromGateway = await getLineage({ gatewayUrl, dataPointId });
+ * const fromGateway = await getLineage({ gatewayUrl, dataPointId, grantId, signer });
  * ```
  */
-export function getLineage(params: GetLineageParams): Promise<LineageGraph> {
+export function getLineage(
+  params: GetLineageParams,
+): Promise<LineageReadResult> {
   return "personalServerUrl" in params
     ? getPersonalServerLineage(params)
     : getGatewayLineage(params);

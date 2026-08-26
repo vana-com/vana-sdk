@@ -25,9 +25,11 @@
  * single-use: a retry after a lost response signs a fresh proof.
  *
  * Derivatives name their sources through `lineage` (see
- * {@link deriveDataPointId}); the ids travel as the `lineage` field of the
- * write's `X-Vana-Metadata` header and the server stores them under the
- * reserved `$lineage` key. Callers never send `$writtenBy` or `$lineage`.
+ * {@link deriveDataPointId}): for a JSON write the ids are the top-level
+ * `lineage` field of the body (inside the signed bytes); for a binary write
+ * they are the `lineage` field of the `X-Vana-Metadata` JSON (inside the
+ * signed `$binary` record). The server validates them and mirrors them under
+ * the reserved `$lineage` key. Callers never send `$writtenBy` or `$lineage`.
  *
  * @category Protocol
  */
@@ -67,8 +69,12 @@ import {
 export const WRITE_SESSION_PATH = "/v1/write/session";
 /** Header carrying the builder's per-write payload proof. */
 export const WRITE_SIGNATURE_HEADER = "X-Vana-Write-Signature";
-/** Header carrying caller metadata (and `lineage`) for a write. */
+/** Header carrying caller metadata (and `lineage`) for a binary write. */
 export const WRITE_METADATA_HEADER = "X-Vana-Metadata";
+/** Field the lineage source ids travel in (body for JSON, metadata for binary). */
+export const LINEAGE_FIELD = "lineage";
+/** The most sources one record may cite. */
+export const MAX_LINEAGE_SOURCES = 256;
 /** Header carrying the filename of a binary write (printable ASCII names). */
 export const WRITE_FILENAME_HEADER = "X-Filename";
 /**
@@ -85,9 +91,6 @@ export const RESERVED_WRITE_KEYS: readonly string[] = [
   WRITER_ATTRIBUTION_KEY,
   LINEAGE_KEY,
 ];
-
-/** Metadata field the lineage source ids travel in. */
-const LINEAGE_METADATA_FIELD = "lineage";
 
 /**
  * Transport-level retry knobs shared by {@link openWriteSession} and
@@ -157,20 +160,20 @@ export interface WriteBinaryPayload {
 
 interface WriteDataBaseParams {
   session: WriteSession;
-  /** The scope to write into; must match one of the session's write patterns. */
+  /**
+   * The scope to write into; must match one of the session's write patterns.
+   * A derived scope must not share its first dot-segment with any source's
+   * scope (the server rejects it with `LINEAGE_SCOPE_UNDER_SOURCE_PREFIX`):
+   * put derivatives in the app's own namespace.
+   */
   scope: string;
   /**
-   * Data point ids this record was derived from ({@link deriveDataPointId}).
-   * Every source must belong to the same owner as the target scope.
+   * Data point ids this record was derived from ({@link deriveDataPointId}):
+   * distinct, at most {@link MAX_LINEAGE_SOURCES}, all belonging to the same
+   * owner as the target scope. Sent lowercased as the record's `lineage`
+   * field, inside the signed bytes. Empty or absent = a root record.
    */
   lineage?: readonly Hex[];
-  /**
-   * Caller metadata stored with the record. Must not contain `lineage` (use
-   * the option) or a reserved key. It travels in the `X-Vana-Metadata`
-   * header: for a binary write it is part of the signed `$binary` record;
-   * for a JSON write the proof covers the body only.
-   */
-  metadata?: Record<string, unknown>;
   /** `fetch` to use; defaults to `globalThis.fetch`. */
   fetch?: typeof fetch;
   /** Extra request headers. */
@@ -178,22 +181,40 @@ interface WriteDataBaseParams {
   retry?: WriteTransportRetryOptions;
 }
 
-/** A JSON write: `data` is stored as the record. */
+/**
+ * A JSON write: `data` is stored as the record (plus `lineage` when given).
+ * Anything else to store goes inside `data`; `lineage` and reserved keys are
+ * not accepted in it.
+ */
 export interface WriteJsonDataParams extends WriteDataBaseParams {
   data: Record<string, unknown>;
   binary?: never;
+  metadata?: never;
 }
 
 /** A binary write: the bytes are stored as a `$binary` record. */
 export interface WriteBinaryDataParams extends WriteDataBaseParams {
   binary: WriteBinaryPayload;
   data?: never;
+  /**
+   * Caller metadata stored with the record (`X-Vana-Metadata`, part of the
+   * signed `$binary` record). Must not contain `lineage` (use the option) or
+   * a reserved key.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 export type WriteDataParams = WriteJsonDataParams | WriteBinaryDataParams;
 
-/** The Personal Server's ingest answer. */
-export type WriteDataResult = IngestResponse;
+const WriteDataResultSchema = IngestResponseSchema.extend({
+  // Present when the write carried lineage: the validated, lowercased ids.
+  lineage: z.object({ sources: z.array(z.string()) }).optional(),
+});
+
+/** The Personal Server's ingest answer, plus the accepted lineage if any. */
+export type WriteDataResult = IngestResponse & {
+  lineage?: { sources: Hex[] };
+};
 
 const WriteSessionResponseSchema = z.object({
   access_token: z.string().min(1),
@@ -603,11 +624,19 @@ function assertNoReservedKeys(
   }
 }
 
-function assertLineage(lineage: readonly Hex[]): void {
+/** Validate and lowercase the sources the way the Personal Server will. */
+function normalizeLineage(lineage: readonly Hex[]): Hex[] {
   if (!Array.isArray(lineage)) {
     throw new WriteRequestError("lineage must be an array of data point ids");
   }
+  if (lineage.length > MAX_LINEAGE_SOURCES) {
+    throw new WriteRequestError(
+      `lineage lists ${lineage.length} sources; the maximum is ${MAX_LINEAGE_SOURCES}`,
+      { max: MAX_LINEAGE_SOURCES, count: lineage.length },
+    );
+  }
   const seen = new Set<string>();
+  const sources: Hex[] = [];
   for (const id of lineage) {
     if (!isDataPointId(id)) {
       throw new WriteRequestError(
@@ -615,40 +644,45 @@ function assertLineage(lineage: readonly Hex[]): void {
         { dataPointId: id },
       );
     }
-    const key = id.toLowerCase();
-    if (seen.has(key)) {
+    const normalized = id.toLowerCase() as Hex;
+    if (seen.has(normalized)) {
       throw new WriteRequestError("lineage must not repeat a data point id", {
         dataPointId: id,
       });
     }
-    seen.add(key);
+    seen.add(normalized);
+    sources.push(normalized);
+  }
+  return sources;
+}
+
+function assertNoLineageField(
+  value: Record<string, unknown>,
+  where: string,
+): void {
+  if (Object.prototype.hasOwnProperty.call(value, LINEAGE_FIELD)) {
+    throw new WriteRequestError(
+      `${where}.${LINEAGE_FIELD} is reserved; pass sources through the lineage option`,
+    );
   }
 }
 
-/** The metadata header for a write, or `undefined` when there is nothing to send. */
+/** The `X-Vana-Metadata` header for a binary write, or `undefined`. */
 function buildMetadataHeader(
   metadata: Record<string, unknown> | undefined,
-  lineage: readonly Hex[] | undefined,
+  sources: Hex[] | undefined,
 ): string | undefined {
   if (metadata !== undefined) {
     if (!isRecord(metadata)) {
       throw new WriteRequestError("metadata must be a plain object");
     }
     assertNoReservedKeys(metadata, "metadata");
-    if (
-      Object.prototype.hasOwnProperty.call(metadata, LINEAGE_METADATA_FIELD)
-    ) {
-      throw new WriteRequestError(
-        "metadata.lineage is reserved; pass sources through the lineage option",
-      );
-    }
+    assertNoLineageField(metadata, "metadata");
   }
-  if (lineage !== undefined) assertLineage(lineage);
-  const hasLineage = lineage !== undefined && lineage.length > 0;
-  if (metadata === undefined && !hasLineage) return undefined;
+  if (metadata === undefined && sources === undefined) return undefined;
   return encodeWriteMetadataHeader({
     ...(metadata ?? {}),
-    ...(hasLineage ? { [LINEAGE_METADATA_FIELD]: [...lineage] } : {}),
+    ...(sources !== undefined ? { [LINEAGE_FIELD]: sources } : {}),
   });
 }
 
@@ -662,11 +696,14 @@ interface PreparedWrite {
 }
 
 function prepareWrite(params: WriteDataParams): PreparedWrite {
-  const metadataHeader = buildMetadataHeader(params.metadata, params.lineage);
-
   if (params.binary !== undefined && params.data !== undefined) {
     throw new WriteRequestError("Pass either data or binary, not both");
   }
+  // An empty list is a root record, exactly like no list: send nothing.
+  const sources =
+    params.lineage === undefined || params.lineage.length === 0
+      ? undefined
+      : normalizeLineage(params.lineage);
 
   if (params.binary !== undefined) {
     const { bytes, contentType, filename } = params.binary;
@@ -686,6 +723,7 @@ function prepareWrite(params: WriteDataParams): PreparedWrite {
         );
       }
     }
+    const metadataHeader = buildMetadataHeader(params.metadata, sources);
     return {
       body: bytes,
       signedBytes: binaryWriteSignedBytes({
@@ -706,12 +744,22 @@ function prepareWrite(params: WriteDataParams): PreparedWrite {
   if (!isRecord(params.data)) {
     throw new WriteRequestError("data must be a plain JSON object");
   }
+  if (params.metadata !== undefined) {
+    throw new WriteRequestError(
+      "metadata applies to binary writes; put fields to store inside data",
+    );
+  }
   assertNoReservedKeys(params.data, "data");
+  assertNoLineageField(params.data, "data");
+  const record =
+    sources === undefined
+      ? params.data
+      : { ...params.data, [LINEAGE_FIELD]: sources };
   let text: string;
   try {
     // Compact JSON is the contract: the server re-serialises the parsed
     // record and requires it to match the signed bytes.
-    text = JSON.stringify(params.data);
+    text = JSON.stringify(record);
   } catch (err) {
     throw new WriteRequestError(
       `data is not JSON-serialisable: ${errorMessage(err)}`,
@@ -725,7 +773,6 @@ function prepareWrite(params: WriteDataParams): PreparedWrite {
     body,
     signedBytes: body,
     contentType: "application/json",
-    metadataHeader,
   };
 }
 
@@ -737,6 +784,10 @@ async function writeErrorFromResponse(
   const text =
     message ??
     `Personal Server write failed: ${response.status} ${response.statusText}`;
+  // Lineage rejections span 400 / 422 / 502; the code is the discriminator.
+  if (response.status === 422 || errorCode?.startsWith("LINEAGE_")) {
+    return new WriteLineageError(text, response.status, errorCode, details);
+  }
   switch (response.status) {
     case 401:
       return new WriteUnauthorizedError(text, errorCode, details);
@@ -744,8 +795,6 @@ async function writeErrorFromResponse(
       return new WriteForbiddenError(text, errorCode, details);
     case 409:
       return new WriteConflictError(text, errorCode, details);
-    case 422:
-      return new WriteLineageError(text, errorCode, details);
     default:
       return new WriteRejectedError(text, response.status, errorCode, details);
   }
@@ -760,10 +809,12 @@ async function writeErrorFromResponse(
  * representation carrying the session's `grantId` as a signed claim. JSON
  * writes send `data` as compact JSON with `Content-Type: application/json`;
  * binary writes send the bytes with their `Content-Type`, `X-Filename`, and
- * sign {@link binaryWriteSignedBytes}. `metadata` and `lineage` travel in
- * `X-Vana-Metadata`.
+ * sign {@link binaryWriteSignedBytes}. `lineage` is the record's top-level
+ * `lineage` field for JSON and the `lineage` field of `X-Vana-Metadata` for
+ * binary, so the proof covers it either way.
  *
- * @returns The ingest answer (`scope`, `collectedAt`, `status`).
+ * @returns The ingest answer (`scope`, `collectedAt`, `status`, and
+ *   `lineage.sources` when the write carried lineage).
  * @throws {WriteRequestError} Before sending: no payload, a reserved key, a
  *   malformed lineage id, or non-object data.
  * @throws {WriteSessionExpiredError} Before sending: the session token has
@@ -771,7 +822,9 @@ async function writeErrorFromResponse(
  * @throws {WriteUnauthorizedError} 401 (proof or session rejected).
  * @throws {WriteForbiddenError} 403 (grant no longer authorises the write).
  * @throws {WriteConflictError} 409.
- * @throws {WriteLineageError} 422 (`LINEAGE_SOURCE_UNKNOWN`, ...).
+ * @throws {WriteLineageError} Any `LINEAGE_*` rejection: 422
+ *   `LINEAGE_SOURCE_UNKNOWN` (`details.unknown`), 400 `LINEAGE_INVALID` /
+ *   `LINEAGE_SCOPE_UNDER_SOURCE_PREFIX`, 502 `LINEAGE_SOURCE_LOOKUP_FAILED`.
  * @throws {WriteRejectedError} Any other non-2xx.
  * @throws {WriteTransportError} `fetch` threw on every attempt.
  */
@@ -850,7 +903,7 @@ export async function writeData(
       { cause: errorMessage(err) },
     );
   }
-  const parsed = IngestResponseSchema.safeParse(body);
+  const parsed = WriteDataResultSchema.safeParse(body);
   if (!parsed.success) {
     throw new WriteRejectedError(
       "Personal Server write response is not an ingest result",
@@ -859,7 +912,7 @@ export async function writeData(
       { issues: parsed.error.issues },
     );
   }
-  return parsed.data;
+  return parsed.data as WriteDataResult;
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown

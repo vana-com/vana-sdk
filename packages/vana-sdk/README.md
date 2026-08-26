@@ -324,7 +324,7 @@ can be switched to live protocol mode with environment variables.
 ## Write into a Personal Server
 
 A builder that holds a **write-grant** (a grant whose scope entries carry the
-`write:` prefix, e.g. `write:notes.summary`; see `formatScopeEntry`) can write
+`write:` prefix, e.g. `write:coach.summary`; see `formatScopeEntry`) can write
 records into the user's Personal Server. The SDK owns the handshake and the
 signatures; the same API works from a backend (viem `privateKeyToAccount`) and
 from a browser (viem `WalletClient`).
@@ -348,27 +348,29 @@ const session = await openWriteSession({
 });
 
 // 2. Write a record (compact JSON, signed proof in X-Vana-Write-Signature).
-await writeData({ session, scope: "notes.entries", data: { note: "hello" } });
+await writeData({ session, scope: "coach.notes", data: { note: "hello" } });
 
-// 3. Write a derivative: name the sources it was computed from.
-const sourceId = deriveDataPointId(ownerAddress, "notes.entries");
+// 3. Write a derivative: name the data points it was computed from.
+const sourceId = deriveDataPointId(ownerAddress, "chatgpt.conversations");
 await writeData({
   session,
-  scope: "notes.summary",
+  scope: "coach.summary",
   data: { summary: "..." },
   lineage: [sourceId],
 });
 
-// 4. Read the lineage back (Personal Server by scope, or gateway by id).
+// 4. Walk the lineage: Personal Server by scope, or gateway by data point id.
 const graph = await getLineage({
   personalServerUrl: "https://ps.example.com",
-  scope: "notes.summary",
+  scope: "coach.summary",
   grantId: readGrantId,
   signer,
 });
 const viaGateway = await getLineage({
   gatewayUrl: "https://dp-rpc.vana.org",
-  dataPointId: deriveDataPointId(ownerAddress, "notes.summary"),
+  dataPointId: deriveDataPointId(ownerAddress, "coach.summary"),
+  grantId: readGrantId,
+  signer,
 });
 ```
 
@@ -386,17 +388,34 @@ What the SDK does for you:
   claim on that proof too.
 - Every proof is single-use on the server. Transport retries (`retry`) sign a
   fresh proof per attempt; an HTTP error is never retried.
-- `lineage` and `metadata` travel in the `X-Vana-Metadata` header; the server
-  stores them as `$lineage` and `metadata`. Sending `$writtenBy` or
-  `$lineage` yourself is refused before any request.
+- `lineage` becomes the record's top-level `lineage` field (JSON writes) or
+  the `lineage` field of `X-Vana-Metadata` (binary writes), so it is inside
+  the signed bytes either way; the server validates it and mirrors it to
+  `$lineage`. Sending `$writtenBy`, `$lineage`, or your own `lineage` field is
+  refused before any request.
+- Both lineage reads are Web3Signed. The gateway request signs the canonical
+  uri (lowercase id, then `?version=N` and/or `grantId=<lowercase>` in that
+  order), so a captured signature cannot be replayed for another view.
+
+Rules the Personal Server enforces on derivatives: sources are data points of
+the same owner (a deleted source is still a valid one), at most 256, and the
+derived scope must not share its first dot-segment with any source scope (a
+grant on `chatgpt.*` must not read `chatgpt.summary`), so put derivatives in
+your app's own namespace. A grant on a derived scope confers nothing on its
+sources, and the other way round: the pipeline needs a read grant on the
+sources and a write grant on the derived scope.
 
 Errors are typed: `WriteSessionError` (handshake refused), `WriteUnauthorizedError`
 (401), `WriteForbiddenError` (403), `WriteConflictError` (409),
-`WriteLineageError` (422, e.g. `LINEAGE_SOURCE_UNKNOWN`), `WriteRejectedError`
-(other), `WriteSessionExpiredError`, `WriteTransportError`, `WriteRequestError`,
-and `LineageReadError` for lineage reads. Each carries the server's `status`,
-`errorCode` and `details`. Lineage entries the caller holds no grant for come
-back as `{ dataPointId, redacted: true }` (narrow with `isRedactedLineageNode`).
+`WriteLineageError` (any `LINEAGE_*` rejection: 422 `LINEAGE_SOURCE_UNKNOWN`
+with `details.unknown`, 400 `LINEAGE_INVALID` /
+`LINEAGE_SCOPE_UNDER_SOURCE_PREFIX`, 502 `LINEAGE_SOURCE_LOOKUP_FAILED`),
+`WriteRejectedError` (other), `WriteSessionExpiredError`, `WriteTransportError`,
+`WriteRequestError`, and `LineageReadError` for lineage reads. Each carries the
+server's `status`, `errorCode` and `details`. Lineage entries the caller holds
+no grant for come back as `{ dataPointId, redacted: true }` (narrow with
+`isRedactedLineageNode`); the gateway's `proof` over the served view is passed
+through.
 
 ## Networks
 

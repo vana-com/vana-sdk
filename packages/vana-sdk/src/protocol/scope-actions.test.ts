@@ -317,6 +317,14 @@ describe("hasAction", () => {
     ).toBe(true);
   });
 
+  it("never lets a prefixed request through, even against a full wildcard", () => {
+    expect(hasAction(["*"], "write:notes.entries", "read")).toBe(false);
+    expect(hasAction(["write:*"], "write:notes.entries", "write")).toBe(false);
+    expect(
+      hasAction(["write:notes.entries"], "write:notes.entries", "read"),
+    ).toBe(false);
+  });
+
   it("returns false for an empty grant", () => {
     for (const action of SCOPE_ACTIONS) {
       expect(hasAction([], "notes.entries", action)).toBe(false);

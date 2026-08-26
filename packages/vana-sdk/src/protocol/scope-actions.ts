@@ -254,7 +254,8 @@ export function permissionsToScopes(
  * for the operations it does.
  *
  * @param scopes - A grant's `scopes` array, verbatim.
- * @param scope - The concrete scope being requested (never prefixed).
+ * @param scope - The concrete scope being requested. Never prefixed: a value
+ * containing `:` is not a scope id and yields `false`.
  * @param action - The operation being requested.
  * @returns `true` if some entry grants `action` over a pattern covering
  * `scope`.
@@ -264,12 +265,18 @@ export function hasAction(
   scope: string,
   action: ScopeAction,
 ): boolean {
+  // A requested scope is a concrete scope id and never carries a prefix; the
+  // Personal Server rejects anything else with ScopeSchema before it ever
+  // reaches its matcher, so answer the same way here instead of letting
+  // `write:x` fall through to a `*` entry.
+  if (scope.includes(OPERATION_SEPARATOR)) return false;
   for (const entry of scopes) {
     let parsed: ParsedScopeEntry;
     try {
       parsed = parseScopeEntry(entry);
-    } catch {
-      continue;
+    } catch (error) {
+      if (error instanceof InvalidScopeEntryError) continue;
+      throw error;
     }
     if (parsed.action === action && scopeMatchesPattern(scope, parsed.scope)) {
       return true;

@@ -548,7 +548,16 @@ export interface GatewayClient {
 // Attach the derived `permissions` view to a grant record read back from the
 // gateway. The wire `scopes` are left untouched.
 function withGrantPermissions<T extends GatewayGrantResponse>(grant: T): T {
-  const permissions = tryGrantPermissions(grant.scopes);
+  // Gateway responses are untrusted runtime data despite their type: only
+  // derive from a well-formed string[] and leave the record alone otherwise.
+  const scopes: unknown = grant.scopes;
+  if (
+    !Array.isArray(scopes) ||
+    !scopes.every((entry) => typeof entry === "string")
+  ) {
+    return grant;
+  }
+  const permissions = tryGrantPermissions(scopes as string[]);
   return permissions === undefined ? grant : { ...grant, permissions };
 }
 

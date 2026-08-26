@@ -154,6 +154,22 @@ describe("createGatewayClient", () => {
     expect(grant).not.toHaveProperty("permissions");
   });
 
+  it("leaves a grant untouched when the gateway body has no usable scopes", async () => {
+    const malformed = [
+      { id: "grant-3", scopes: null },
+      { id: "grant-4", scopes: ["notes.entries", 42] },
+      { id: "grant-5" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(envelope(malformed))),
+    );
+
+    await expect(
+      createGatewayClient("https://g").listGrantsByUser("0xowner"),
+    ).resolves.toEqual(malformed);
+  });
+
   it("lists grants and data points with query parameters", async () => {
     const dataPoint = {
       id: "0xdp1",

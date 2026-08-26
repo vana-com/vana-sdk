@@ -321,6 +321,83 @@ app. It includes the route handlers, return page, and React connect button from
 this flow, defaults to sample-data mode using `vana-com/data-connectors`, and
 can be switched to live protocol mode with environment variables.
 
+## Write into a Personal Server
+
+A builder that holds a **write-grant** (a grant whose scope entries carry the
+`write:` prefix, e.g. `write:notes.summary`; see `formatScopeEntry`) can write
+records into the user's Personal Server. The SDK owns the handshake and the
+signatures; the same API works from a backend (viem `privateKeyToAccount`) and
+from a browser (viem `WalletClient`).
+
+```typescript
+import { privateKeyToAccount } from "viem/accounts";
+import {
+  openWriteSession,
+  writeData,
+  getLineage,
+  deriveDataPointId,
+} from "@opendatalabs/vana-sdk";
+
+const signer = privateKeyToAccount(process.env.BUILDER_KEY as `0x${string}`);
+
+// 1. Open a session: Web3Signed handshake carrying the write-grant id.
+const session = await openWriteSession({
+  personalServerUrl: "https://ps.example.com",
+  signer,
+  grantId: writeGrantId,
+});
+
+// 2. Write a record (compact JSON, signed proof in X-Vana-Write-Signature).
+await writeData({ session, scope: "notes.entries", data: { note: "hello" } });
+
+// 3. Write a derivative: name the sources it was computed from.
+const sourceId = deriveDataPointId(ownerAddress, "notes.entries");
+await writeData({
+  session,
+  scope: "notes.summary",
+  data: { summary: "..." },
+  lineage: [sourceId],
+});
+
+// 4. Read the lineage back (Personal Server by scope, or gateway by id).
+const graph = await getLineage({
+  personalServerUrl: "https://ps.example.com",
+  scope: "notes.summary",
+  grantId: readGrantId,
+  signer,
+});
+const viaGateway = await getLineage({
+  gatewayUrl: "https://dp-rpc.vana.org",
+  dataPointId: deriveDataPointId(ownerAddress, "notes.summary"),
+});
+```
+
+`writePersonalServerData({ personalServerUrl, signer, grantId, scope, data })`
+does steps 1 and 2 in one call and returns the session for reuse.
+
+What the SDK does for you:
+
+- Sends `POST /v1/write/session` with a Web3Signed proof (the grant id is a
+  signed claim) and keeps the short-lived bearer in `session`.
+- Sends `POST /v1/data/:scope` with the bearer and `X-Vana-Write-Signature`, a
+  second Web3Signed proof over the **stored** representation: the compact JSON
+  body for JSON writes, the `$binary` record (`binaryWriteSignedBytes`) for
+  `binary: { bytes, contentType, filename }` writes. The grant id is a signed
+  claim on that proof too.
+- Every proof is single-use on the server. Transport retries (`retry`) sign a
+  fresh proof per attempt; an HTTP error is never retried.
+- `lineage` and `metadata` travel in the `X-Vana-Metadata` header; the server
+  stores them as `$lineage` and `metadata`. Sending `$writtenBy` or
+  `$lineage` yourself is refused before any request.
+
+Errors are typed: `WriteSessionError` (handshake refused), `WriteUnauthorizedError`
+(401), `WriteForbiddenError` (403), `WriteConflictError` (409),
+`WriteLineageError` (422, e.g. `LINEAGE_SOURCE_UNKNOWN`), `WriteRejectedError`
+(other), `WriteSessionExpiredError`, `WriteTransportError`, `WriteRequestError`,
+and `LineageReadError` for lineage reads. Each carries the server's `status`,
+`errorCode` and `details`. Lineage entries the caller holds no grant for come
+back as `{ dataPointId, redacted: true }` (narrow with `isRedactedLineageNode`).
+
 ## Networks
 
 | Network        | Chain ID | RPC URL                     |

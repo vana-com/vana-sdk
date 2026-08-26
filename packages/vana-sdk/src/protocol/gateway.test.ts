@@ -105,6 +105,55 @@ describe("createGatewayClient", () => {
     ).resolves.toBe(true);
   });
 
+  it("attaches the derived permissions view to grants it reads back", async () => {
+    const wireGrant = {
+      id: "grant-1",
+      grantorAddress: "0xowner",
+      granteeId: "0xbuilder",
+      scopes: ["write:notes.entries", "instagram.profile", "notes.entries"],
+      status: "confirmed",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(envelope(wireGrant)))
+      .mockResolvedValueOnce(jsonResponse(envelope([wireGrant])));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    const expected = {
+      ...wireGrant,
+      permissions: [
+        { scope: "instagram.profile", actions: ["read"] },
+        { scope: "notes.entries", actions: ["read", "write"] },
+      ],
+    };
+    const grant = await client.getGrant("grant-1");
+    expect(grant).toEqual(expected);
+    // The wire form is untouched: same entries, same order.
+    expect(grant?.scopes).toEqual(wireGrant.scopes);
+    await expect(client.listGrantsByUser("0xowner")).resolves.toEqual([
+      expected,
+    ]);
+  });
+
+  it("leaves permissions absent when a grant carries an operation it cannot interpret", async () => {
+    const wireGrant = {
+      id: "grant-2",
+      grantorAddress: "0xowner",
+      granteeId: "0xbuilder",
+      scopes: ["notes.entries", "delete:notes.entries"],
+      status: "confirmed",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(envelope(wireGrant))),
+    );
+
+    const grant = await createGatewayClient("https://g").getGrant("grant-2");
+    expect(grant).toEqual(wireGrant);
+    expect(grant).not.toHaveProperty("permissions");
+  });
+
   it("lists grants and data points with query parameters", async () => {
     const dataPoint = {
       id: "0xdp1",

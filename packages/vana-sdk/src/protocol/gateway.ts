@@ -1,3 +1,4 @@
+import { tryGrantPermissions, type GrantPermission } from "./scope-actions";
 export interface GatewayEnvelope<T> {
   data: T;
   proof: GatewayProof;
@@ -124,7 +125,17 @@ export interface GatewayGrantResponse {
   id: string;
   grantorAddress: string;
   granteeId: string;
+  // The signed scope entries, verbatim (`[operation:]scope`, bare = read).
+  // This is the wire form: it is what the grantor signed and what the
+  // gateway stores. Render `permissions` instead of parsing these.
   scopes: string[];
+  // Derived by the SDK at read time from `scopes` via grantPermissions():
+  // one `{ scope, actions }` row per scope pattern, canonically ordered.
+  // Never sent to the gateway and never part of the signed payload. Absent
+  // when `scopes` carries an entry this SDK version cannot interpret (an
+  // operation introduced after this release) - fall back to `scopes` and
+  // do not assume such a grant is read-only.
+  permissions?: GrantPermission[];
   status: GatewayGrantStatus;
   addedAt: string;
   // Grantor-signed deadline. null = perpetual grant (signed value was 0).
@@ -534,6 +545,13 @@ export interface GatewayClient {
   settle(params?: SettleParams): Promise<SettleResult>;
 }
 
+// Attach the derived `permissions` view to a grant record read back from the
+// gateway. The wire `scopes` are left untouched.
+function withGrantPermissions<T extends GatewayGrantResponse>(grant: T): T {
+  const permissions = tryGrantPermissions(grant.scopes);
+  return permissions === undefined ? grant : { ...grant, permissions };
+}
+
 export function createGatewayClient(baseUrl: string): GatewayClient {
   const base = baseUrl.replace(/\/+$/, "");
 
@@ -571,7 +589,9 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      return unwrapEnvelope<GatewayGrantResponse>(res);
+      return withGrantPermissions(
+        await unwrapEnvelope<GatewayGrantResponse>(res),
+      );
     },
 
     async listGrantsByUser(userAddress: string): Promise<GrantListItem[]> {
@@ -580,7 +600,8 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      return unwrapEnvelope<GrantListItem[]>(res);
+      const grants = await unwrapEnvelope<GrantListItem[]>(res);
+      return grants.map(withGrantPermissions);
     },
 
     async getSchemaForScope(scope: string): Promise<Schema | null> {

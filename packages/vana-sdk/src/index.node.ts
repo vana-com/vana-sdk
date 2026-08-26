@@ -271,6 +271,19 @@ export {
   type ParsedScope,
 } from "./protocol/scopes";
 export {
+  SCOPE_ACTIONS,
+  InvalidScopeEntryError,
+  parseScopeEntry,
+  formatScopeEntry,
+  grantPermissions,
+  permissionsToScopes,
+  tryGrantPermissions,
+  hasAction,
+  type ScopeAction,
+  type ParsedScopeEntry,
+  type GrantPermission,
+} from "./protocol/scope-actions";
+export {
   DataFileEnvelopeSchema,
   createDataFileEnvelope,
   IngestResponseSchema,

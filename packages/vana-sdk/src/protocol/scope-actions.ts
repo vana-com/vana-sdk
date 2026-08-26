@@ -56,13 +56,22 @@ export class InvalidScopeEntryError extends Error {
   readonly entry: string;
 
   constructor(entry: string, reason: string) {
-    super(`Invalid scope entry ${JSON.stringify(entry)}: ${reason}`);
+    super(`Invalid scope entry ${describeValue(entry)}: ${reason}`);
     this.name = "InvalidScopeEntryError";
     this.entry = entry;
   }
 }
 
 const OPERATION_SEPARATOR = ":";
+
+// Render an untrusted value for an error message without ever throwing:
+// String() and JSON.stringify() both defer to the value's own toString /
+// toJSON, which a hostile JSON body can make throw.
+function describeValue(value: unknown): string {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (value === null) return "null";
+  return `[${typeof value}]`;
+}
 
 // The only operation that is ever written out. Read has no prefix, and
 // `read:` is NOT an alias for it: the Personal Server's read policy matches
@@ -105,7 +114,10 @@ export function parseScopeEntry(entry: string): ParsedScopeEntry {
   // violation like any other, not a TypeError from indexOf.
   const raw: unknown = entry;
   if (typeof raw !== "string") {
-    throw new InvalidScopeEntryError(String(raw), "entry must be a string");
+    throw new InvalidScopeEntryError(
+      describeValue(raw),
+      "entry must be a string",
+    );
   }
   const separatorIndex = entry.indexOf(OPERATION_SEPARATOR);
   if (separatorIndex === -1) {
@@ -150,7 +162,7 @@ export function formatScopeEntry(parsed: ParsedScopeEntry): string {
   if (prefix === undefined) {
     throw new InvalidScopeEntryError(
       scope,
-      `unknown action ${JSON.stringify(action)} (known: ${SCOPE_ACTIONS.join(", ")})`,
+      `unknown action ${describeValue(action)} (known: ${SCOPE_ACTIONS.join(", ")})`,
     );
   }
   return `${prefix}${OPERATION_SEPARATOR}${scope}`;
@@ -235,7 +247,7 @@ export function permissionsToScopes(
       if (!(SCOPE_ACTIONS as readonly string[]).includes(action)) {
         throw new InvalidScopeEntryError(
           scope,
-          `unknown action ${JSON.stringify(action)} (known: ${SCOPE_ACTIONS.join(", ")})`,
+          `unknown action ${describeValue(action)} (known: ${SCOPE_ACTIONS.join(", ")})`,
         );
       }
       merged.add(action);

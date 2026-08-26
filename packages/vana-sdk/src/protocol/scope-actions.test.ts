@@ -87,7 +87,20 @@ describe("parseScopeEntry", () => {
   });
 
   it("rejects a non-string entry as a grammar error, not a TypeError", () => {
-    for (const entry of [null, undefined, 42, { scope: "x" }]) {
+    for (const entry of [
+      null,
+      undefined,
+      42,
+      { scope: "x" },
+      // Values whose own stringification would throw.
+      { toString: null },
+      {
+        toJSON: () => {
+          throw new Error("boom");
+        },
+      },
+      Object.create(null) as object,
+    ]) {
       expect(() => parseScopeEntry(entry as unknown as string)).toThrow(
         InvalidScopeEntryError,
       );
@@ -224,6 +237,9 @@ describe("tryGrantPermissions", () => {
     expect(
       tryGrantPermissions(["notes.entries", 42 as unknown as string]),
     ).toBeUndefined();
+    expect(
+      tryGrantPermissions([{ toString: null } as unknown as string]),
+    ).toBeUndefined();
   });
 });
 
@@ -258,6 +274,14 @@ describe("permissionsToScopes", () => {
         {
           scope: "notes.entries",
           actions: ["delete" as unknown as "read"],
+        },
+      ]),
+    ).toThrow(InvalidScopeEntryError);
+    expect(() =>
+      permissionsToScopes([
+        {
+          scope: "notes.entries",
+          actions: [{ toString: null } as unknown as "read"],
         },
       ]),
     ).toThrow(InvalidScopeEntryError);
@@ -327,6 +351,7 @@ describe("hasAction", () => {
       // Non-string elements from an untrusted body are skipped the same way.
       null as unknown as string,
       42 as unknown as string,
+      { toString: null } as unknown as string,
     ];
     expect(hasAction(scopes, "notes.entries", "read")).toBe(false);
     expect(hasAction(scopes, "notes.entries", "write")).toBe(false);

@@ -33,6 +33,7 @@ export interface ViemWriteAccount {
 /** The subset of a viem `WalletClient` the Write API uses. */
 export interface ViemWriteWalletClient {
   type?: string;
+  transport?: unknown;
   account?: Account | undefined;
   signMessage(args: {
     account: Account | Address;
@@ -67,13 +68,20 @@ function isViemWriteAccount(source: unknown): source is ViemWriteAccount {
   );
 }
 
+/**
+ * A viem client: `createWalletClient` stamps `type: "walletClient"`, and every
+ * viem client carries a `transport`. Either marker is enough; a bare
+ * `{ signMessage }` signer has neither, and a local account has
+ * `type: "local"`.
+ */
 function isViemWriteWalletClient(
   source: unknown,
 ): source is ViemWriteWalletClient {
   return (
     isRecord(source) &&
-    source.type === "walletClient" &&
-    typeof source.signMessage === "function"
+    typeof source.signMessage === "function" &&
+    source.type !== "local" &&
+    (source.type === "walletClient" || "transport" in source)
   );
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { recoverMessageAddress } from "viem";
+import { createWalletClient, http, recoverMessageAddress } from "viem";
+import { mokshaTestnet } from "../chains";
 import { WriteRequestError } from "../errors";
 import { resolveWriteSigner } from "./write-signer";
 
@@ -14,6 +15,34 @@ describe("resolveWriteSigner", () => {
     expect(await recoverMessageAddress({ message: "payload", signature })).toBe(
       account.address,
     );
+  });
+
+  it("wraps a real viem createWalletClient with a hoisted account", async () => {
+    const client = createWalletClient({
+      account,
+      chain: mokshaTestnet,
+      transport: http("http://127.0.0.1:1"),
+    });
+    const signer = resolveWriteSigner(client);
+    expect(signer.address).toBe(account.address);
+    const signature = await signer.signMessage("payload");
+    expect(await recoverMessageAddress({ message: "payload", signature })).toBe(
+      account.address,
+    );
+  });
+
+  it("wraps a real viem createWalletClient without an account via the account option", async () => {
+    const client = createWalletClient({
+      chain: mokshaTestnet,
+      transport: http("http://127.0.0.1:1"),
+    });
+    const signer = resolveWriteSigner(client, { account });
+    expect(signer.address).toBe(account.address);
+    const signature = await signer.signMessage("payload");
+    expect(await recoverMessageAddress({ message: "payload", signature })).toBe(
+      account.address,
+    );
+    expect(() => resolveWriteSigner(client)).toThrow(WriteRequestError);
   });
 
   it("wraps a viem WalletClient with a hoisted account", async () => {

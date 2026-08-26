@@ -243,10 +243,14 @@ function sleep(ms: number): Promise<void> {
  * re-issued while it could still be rejected as a replay: not by a burst,
  * and not by a wall clock stepping backwards (an identical request after a
  * step back waits for the clock instead of reusing the mark). Marks are
- * pruned once per second, keeping the map bounded by the distinct requests
- * signed in the retention window and the work per proof amortised constant.
+ * bucketed by their `iat` second, so pruning (once per second) only touches
+ * the buckets that fell out of the retention window: the work per proof is
+ * amortised constant and the map is bounded by the distinct requests signed
+ * in the window.
  */
 const issuedProofIats = new Map<string, number>();
+/** `iat` second -> identities whose current mark is that second. */
+const issuedProofBuckets = new Map<number, Set<string>>();
 let issuedProofIatsPrunedAtSec = 0;
 /** `buildWeb3SignedHeader`'s default `exp - iat`. */
 const WEB3_SIGNED_PROOF_LIFETIME_SECONDS = 300;
@@ -267,9 +271,28 @@ function pruneIssuedProofIats(nowSec: number): void {
   if (issuedProofIatsPrunedAtSec === nowSec) return;
   issuedProofIatsPrunedAtSec = nowSec;
   const cutoff = nowSec - PROOF_IAT_RETENTION_SECONDS;
-  for (const [key, iat] of issuedProofIats) {
-    if (iat < cutoff) issuedProofIats.delete(key);
+  // There is at most one bucket per second in the window, so this walk is
+  // bounded by the window length, not by the number of marks.
+  for (const [sec, keys] of issuedProofBuckets) {
+    if (sec >= cutoff) continue;
+    for (const key of keys) issuedProofIats.delete(key);
+    issuedProofBuckets.delete(sec);
   }
+}
+
+function setIssuedProofIat(key: string, iat: number, previous?: number): void {
+  if (previous !== undefined) {
+    const bucket = issuedProofBuckets.get(previous);
+    bucket?.delete(key);
+    if (bucket?.size === 0) issuedProofBuckets.delete(previous);
+  }
+  issuedProofIats.set(key, iat);
+  let bucket = issuedProofBuckets.get(iat);
+  if (bucket === undefined) {
+    bucket = new Set();
+    issuedProofBuckets.set(iat, bucket);
+  }
+  bucket.add(key);
 }
 
 /**
@@ -283,7 +306,7 @@ function nextProofIat(proofKey: string): Promise<number> {
   pruneIssuedProofIats(nowSec);
   const last = issuedProofIats.get(proofKey);
   const iat = last === undefined ? nowSec : Math.max(nowSec, last + 1);
-  issuedProofIats.set(proofKey, iat);
+  setIssuedProofIat(proofKey, iat, last);
   const waitSec = iat - nowSec - PROOF_IAT_MAX_AHEAD_SECONDS;
   if (waitSec <= 0) return Promise.resolve(iat);
   return sleep(waitSec * 1000).then(() => iat);
@@ -296,13 +319,21 @@ function proofKeyFor(parts: {
   grantId: string;
   signedBytes?: Uint8Array;
 }): string {
-  return JSON.stringify([
-    parts.aud,
-    parts.method,
-    parts.uri,
-    parts.grantId,
-    parts.signedBytes ? bytesToHex(sha256(parts.signedBytes)) : "",
-  ]);
+  // A digest, so a retained mark costs a fixed amount of memory whatever the
+  // request looked like.
+  return bytesToHex(
+    sha256(
+      new TextEncoder().encode(
+        JSON.stringify([
+          parts.aud,
+          parts.method,
+          parts.uri,
+          parts.grantId,
+          parts.signedBytes ? bytesToHex(sha256(parts.signedBytes)) : "",
+        ]),
+      ),
+    ),
+  );
 }
 
 /**

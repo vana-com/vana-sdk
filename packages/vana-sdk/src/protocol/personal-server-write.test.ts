@@ -792,6 +792,40 @@ describe("writeData", () => {
       expect(server.records).toHaveLength(burst);
     });
 
+    it("does not re-issue a proof after the wall clock steps backwards", async () => {
+      const session = await open();
+      const proofs: string[] = [];
+      const spyingFetch: typeof fetch = async (input, init) => {
+        const header = new Headers(init?.headers).get(WRITE_SIGNATURE_HEADER);
+        if (header) proofs.push(header);
+        return server.fetch(input, init);
+      };
+      const write = () =>
+        writeData({
+          session,
+          scope: SCOPE,
+          data: { note: "clock" },
+          fetch: spyingFetch,
+          retry: noRetry,
+        });
+      await write();
+      const issuedAt = Date.now();
+      vi.setSystemTime(issuedAt - 5_000);
+      const pending = write();
+      await vi.advanceTimersByTimeAsync(0);
+      await pending;
+      vi.setSystemTime(issuedAt);
+      const third = write();
+      await vi.advanceTimersByTimeAsync(0);
+      await third;
+      expect(proofs).toHaveLength(3);
+      expect(new Set(proofs).size).toBe(3);
+      const iats = proofs.map((p) => parseWeb3SignedHeader(p).payload.iat);
+      expect(iats[1]).toBe(iats[0] + 1);
+      expect(iats[2]).toBe(iats[0] + 2);
+      expect(server.records).toHaveLength(3);
+    });
+
     it("backs off exponentially from initialDelayMs", async () => {
       const session = await open();
       server.failNext(2, new TypeError("relay dropped"));

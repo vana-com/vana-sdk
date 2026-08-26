@@ -234,18 +234,26 @@ function sleep(ms: number): Promise<void> {
  * The Personal Server consumes every proof it accepts, and a Web3Signed
  * payload is fully determined by `{ aud, method, uri, bodyHash, grantId, iat,
  * exp }`, so two proofs for the same request signed within one second would
- * be byte-identical and the second rejected as a replay. Remember the last
- * `iat` issued per request identity in this process and bump it when a
- * second proof for the same identity falls inside the same second.
+ * be byte-identical and the second rejected as a replay. Remember the
+ * highest `iat` issued per request identity in this process and bump past
+ * it when a second proof for the same identity falls inside the same second.
  *
- * An entry only matters while its `iat` is still at or ahead of the clock
- * (an older one no longer influences the next value), so the map is pruned
- * of everything behind the clock, once per second, which keeps it bounded by
- * the distinct requests signed in the last {@link PROOF_IAT_MAX_AHEAD_SECONDS}
- * seconds and the work per proof amortised constant.
+ * A mark is kept for as long as the server can still remember the proof it
+ * guards (its lifetime plus the verifier's clock skew), so a proof is never
+ * re-issued while it could still be rejected as a replay: not by a burst,
+ * and not by a wall clock stepping backwards (an identical request after a
+ * step back waits for the clock instead of reusing the mark). Marks are
+ * pruned once per second, keeping the map bounded by the distinct requests
+ * signed in the retention window and the work per proof amortised constant.
  */
 const issuedProofIats = new Map<string, number>();
 let issuedProofIatsPrunedAtSec = 0;
+/** `buildWeb3SignedHeader`'s default `exp - iat`. */
+const WEB3_SIGNED_PROOF_LIFETIME_SECONDS = 300;
+/** The verifier's tolerated clock skew (`verifyWeb3Signed`). */
+const WEB3_SIGNED_CLOCK_SKEW_SECONDS = 60;
+const PROOF_IAT_RETENTION_SECONDS =
+  WEB3_SIGNED_PROOF_LIFETIME_SECONDS + WEB3_SIGNED_CLOCK_SKEW_SECONDS;
 /**
  * How far ahead of the clock a bumped `iat` may run when the proof is sent.
  * The verifier tolerates 60 s of skew. A burst of identical requests that
@@ -257,15 +265,10 @@ const PROOF_IAT_MAX_AHEAD_SECONDS = 30;
 
 function pruneIssuedProofIats(nowSec: number): void {
   if (issuedProofIatsPrunedAtSec === nowSec) return;
-  if (nowSec < issuedProofIatsPrunedAtSec) {
-    // The wall clock stepped backwards: every reservation is now further
-    // ahead than it was issued, and waiting for the clock to catch up could
-    // take arbitrarily long. Start over instead.
-    issuedProofIats.clear();
-  }
   issuedProofIatsPrunedAtSec = nowSec;
+  const cutoff = nowSec - PROOF_IAT_RETENTION_SECONDS;
   for (const [key, iat] of issuedProofIats) {
-    if (iat < nowSec) issuedProofIats.delete(key);
+    if (iat < cutoff) issuedProofIats.delete(key);
   }
 }
 

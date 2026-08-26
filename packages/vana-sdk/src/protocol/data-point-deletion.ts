@@ -18,6 +18,7 @@
 import {
   isAddress,
   keccak256,
+  maxUint256,
   stringToBytes,
   type Account,
   type Address,
@@ -164,6 +165,15 @@ function assertAddress(value: string, name: string): void {
   }
 }
 
+// `AddData.expectedVersion` is a uint256 on the contract. A bigint has no
+// such bound, so every version the SDK signs or increments is checked here
+// rather than trusting the TypeScript type.
+function assertUint256(value: bigint, name: string): void {
+  if (value < 0n || value > maxUint256) {
+    throw new Error(`${name} must fit in uint256, got ${value}`);
+  }
+}
+
 function getAccountAddress(
   account: Account | Address | null | undefined,
 ): Address | undefined {
@@ -223,6 +233,7 @@ export function buildDataPointDeletionTypedData(
   if (input.expectedVersion <= 0n) {
     throw new Error("expectedVersion must be a positive version number");
   }
+  assertUint256(input.expectedVersion, "expectedVersion");
 
   return {
     domain: dataRegistryDomain(input.config),
@@ -338,7 +349,9 @@ function parseExpectedVersion(value: unknown): bigint {
       `Gateway returned a malformed expectedVersion: ${JSON.stringify(value)}`,
     );
   }
-  return BigInt(value);
+  const parsed = BigInt(value);
+  assertUint256(parsed, "Gateway expectedVersion");
+  return parsed;
 }
 
 /**
@@ -385,6 +398,14 @@ export async function deleteDataPoint(
     currentVersion = parseExpectedVersion(record.expectedVersion);
   }
 
+  // Whichever source supplied it, `current + 1` must itself be a uint256:
+  // a negative current version would sign for 0 or wrap, and
+  // 2^256 - 1 cannot be incremented at all.
+  if (currentVersion < 0n || currentVersion >= maxUint256) {
+    throw new Error(
+      `currentVersion ${currentVersion} cannot be incremented to a uint256 tombstone version`,
+    );
+  }
   const tombstoneVersion = currentVersion + 1n;
   const signed = await buildDataPointDeletionSignature({
     signer: input.signer,

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   keccak256,
+  maxUint256,
   recoverTypedDataAddress,
   stringToBytes,
   type Hex,
@@ -235,6 +236,14 @@ describe("buildDataPointDeletionTypedData", () => {
         config: CONFIG,
       }),
     ).toThrow("expectedVersion must be a positive version number");
+    expect(() =>
+      buildDataPointDeletionTypedData({
+        ownerAddress: owner.address,
+        scope: SCOPE,
+        expectedVersion: maxUint256 + 1n,
+        config: CONFIG,
+      }),
+    ).toThrow("expectedVersion must fit in uint256");
   });
 });
 
@@ -483,6 +492,39 @@ describe("deleteDataPoint", () => {
       );
       expect(calls).toEqual([]);
     }
+  });
+
+  it("refuses to sign when current + 1 would not fit in uint256, from either source", async () => {
+    // Gateway-supplied: the maximum uint256 cannot be incremented, and
+    // anything above the range is not a uint256 at all.
+    for (const expectedVersion of [
+      maxUint256.toString(),
+      (maxUint256 + 1n).toString(),
+    ]) {
+      const { calls, input } = harness();
+      (
+        input.gateway.getDataPoint as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ ...liveRecord(), expectedVersion });
+
+      await expect(deleteDataPoint(input)).rejects.toThrow(/uint256/);
+      expect(input.gateway.getDataPoint).toHaveBeenCalledTimes(1);
+      expect(calls).toEqual([]);
+    }
+
+    // Caller-supplied: same bound, plus negatives that would sign for 0
+    // or below.
+    for (const currentVersion of [maxUint256, maxUint256 + 1n, -1n, -2n]) {
+      const { calls, input } = harness({ currentVersion });
+
+      await expect(deleteDataPoint(input)).rejects.toThrow(/uint256/);
+      expect(calls).toEqual([]);
+    }
+
+    // The boundary itself is fine: 2^256 - 2 tombstones at 2^256 - 1.
+    const { input } = harness({ currentVersion: maxUint256 - 1n });
+    await expect(deleteDataPoint(input)).resolves.toMatchObject({
+      version: maxUint256.toString(),
+    });
   });
 
   it("propagates DataPointDeletedError from a 410 gateway read", async () => {

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { parseWeb3SignedHeader } from "../auth/web3-signed";
+import { DataPointDeletedError } from "../errors";
+import {
+  TOMBSTONE_DATA_HASH,
+  TOMBSTONE_METADATA_HASH,
+} from "./data-point-deletion";
 import {
   buildPersonalServerDataReadRequest,
   personalServerDataReadPath,
@@ -114,5 +119,71 @@ describe("readPersonalServerData", () => {
         signMessage,
       }),
     ).rejects.toThrow("Personal Server data read failed: 402 Payment Required");
+  });
+});
+
+describe("readPersonalServerData tombstones", () => {
+  const params = {
+    grantId: "grant-1",
+    personalServerUrl: "https://ps.example.com",
+    scope: "instagram.profile",
+    signMessage,
+  };
+
+  it("maps a 410 to DataPointDeletedError with deletedAt", async () => {
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: "deleted",
+            deletedAt: "2026-08-25T00:00:00Z",
+          }),
+          { status: 410, statusText: "Gone" },
+        ),
+    );
+
+    const error = await readPersonalServerData({ ...params, fetch }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(DataPointDeletedError);
+    expect((error as DataPointDeletedError).details).toEqual({
+      scope: "instagram.profile",
+      deletedAt: "2026-08-25T00:00:00Z",
+    });
+  });
+
+  it("refuses a 200 body that is a tombstone", async () => {
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            scope: "instagram.profile",
+            dataHash: TOMBSTONE_DATA_HASH,
+            metadataHash: TOMBSTONE_METADATA_HASH,
+            expectedVersion: "4",
+          }),
+          { status: 200 },
+        ),
+    );
+
+    await expect(
+      readPersonalServerData({ ...params, fetch }),
+    ).rejects.toBeInstanceOf(DataPointDeletedError);
+  });
+
+  it("still parses a live envelope", async () => {
+    const envelope = {
+      version: "1.0",
+      scope: "instagram.profile",
+      collectedAt: "2026-08-25T00:00:00.000Z",
+      data: { username: "vana" },
+    };
+    const fetch = vi.fn(
+      async () => new Response(JSON.stringify(envelope), { status: 200 }),
+    );
+
+    await expect(readPersonalServerData({ ...params, fetch })).resolves.toEqual(
+      envelope,
+    );
   });
 });

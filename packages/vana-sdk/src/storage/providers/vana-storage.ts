@@ -97,6 +97,20 @@ interface VanaStorageUploadResponse {
 }
 
 /**
+ * Response of {@link VanaStorage.deleteScope} -- the worker's
+ * `DELETE /:owner/:scope` body. `count` is the number of blobs removed (0 is
+ * a success: nothing was stored under that scope).
+ *
+ * @category Storage
+ */
+export interface VanaStorageScopeDeleteResult {
+  deleted: boolean;
+  scope: string;
+  count: number;
+  totalBytes: number;
+}
+
+/**
  * Storage provider that talks to the vana-storage Worker
  * (`https://storage.vana.org` by default). All requests are authenticated
  * with Web3Signed headers signed by the configured wallet.
@@ -324,6 +338,79 @@ export class VanaStorage implements StorageProvider {
     return true;
   }
 
+  /**
+   * Delete every version's blob under `(owner, scope)` --
+   * `DELETE {prefix}/{owner}/{scope}` on vana-storage, signed with the same
+   * Web3Signed header as uploads (aud = endpoint origin, empty bodyHash).
+   * The worker accepts the owner's own signature or a personal server the
+   * owner registered with the gateway.
+   *
+   * @param ownerAddress - Must equal the provider's configured owner; a
+   *   mismatch throws before anything is signed so this wallet can never be
+   *   induced to sign a delete for another namespace.
+   * @param scope - The scope segment, e.g. `"instagram.profile"`.
+   */
+  async deleteScope(
+    ownerAddress: `0x${string}`,
+    scope: string,
+  ): Promise<VanaStorageScopeDeleteResult> {
+    if (ownerAddress.toLowerCase() !== this.ownerAddress) {
+      throw new StorageError(
+        `deleteScope owner '${ownerAddress}' does not match the configured owner '${this.ownerAddress}'`,
+        "INVALID_OWNER",
+        "vana-storage",
+      );
+    }
+    if (
+      scope.length === 0 ||
+      scope.includes("/") ||
+      isTraversalSegment(scope)
+    ) {
+      throw new StorageError(
+        `scope must be a single non-empty path segment, got '${scope}'`,
+        "INVALID_SCOPE",
+        "vana-storage",
+      );
+    }
+
+    const path = `${this.blobPathPrefix}/${this.ownerAddress}/${encodeURIComponent(scope)}`;
+    const header = await this.signRequest("DELETE", path);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.endpoint}${path}`, {
+        method: "DELETE",
+        headers: { authorization: header },
+      });
+    } catch (cause) {
+      throw new StorageError(
+        `vana-storage scope delete network error: ${describe(cause)}`,
+        "DELETE_ERROR",
+        "vana-storage",
+        { cause: cause instanceof Error ? cause : undefined },
+      );
+    }
+
+    if (!response.ok) {
+      const responseText = await safeText(response);
+      throw new StorageError(
+        `vana-storage scope delete failed: ${response.status} ${response.statusText} - ${responseText}`,
+        "DELETE_FAILED",
+        "vana-storage",
+      );
+    }
+
+    const result = (await response
+      .json()
+      .catch(() => ({}))) as Partial<VanaStorageScopeDeleteResult>;
+    return {
+      deleted: result.deleted ?? true,
+      scope: result.scope ?? scope,
+      count: result.count ?? 0,
+      totalBytes: result.totalBytes ?? 0,
+    };
+  }
+
   getConfig(): StorageProviderConfig {
     return {
       name: "vana-storage",
@@ -519,6 +606,10 @@ function encodeRelativePath(filename: string): string {
     );
   }
   return parts.map((p) => encodeURIComponent(p)).join("/");
+}
+
+function isTraversalSegment(segment: string): boolean {
+  return segment === "." || segment === "..";
 }
 
 function describe(value: unknown): string {

@@ -28,6 +28,8 @@ import {
   type EscrowPaymentHeaderConfig,
 } from "./escrow-payment";
 import { PaymentRequiredError, PersonalServerReadError } from "./errors";
+import { DataPointDeletedError } from "../errors";
+import { isDataPointTombstone } from "../protocol/data-point-deletion";
 import type {
   DirectPaymentResponseMetadata,
   PersonalServerDataAccessPaymentOperation,
@@ -703,6 +705,16 @@ export async function readPersonalServerData(params: {
     }
   }
 
+  // 410 = the scope was tombstoned by its owner. Typed so builders can
+  // branch on "gone" without parsing a generic read failure.
+  if (res.status === 410) {
+    const body: unknown = await res.json().catch(() => null);
+    throw new DataPointDeletedError(
+      `Personal Server scope '${params.scope}' has been deleted`,
+      { scope: params.scope, deletedAt: tombstoneDeletedAt(body) },
+    );
+  }
+
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new PersonalServerReadError(
@@ -715,5 +727,20 @@ export async function readPersonalServerData(params: {
   payment = paymentResponseMetadataFromHeader(
     res.headers.get("X-PAYMENT-RESPONSE"),
   );
-  return { data: await res.json(), payment };
+  const data: unknown = await res.json();
+  // Never return a tombstone as data, even on a 200 that carries the deleted
+  // row (deletedAt / tombstone hash pair).
+  if (isDataPointTombstone(data)) {
+    throw new DataPointDeletedError(
+      `Personal Server scope '${params.scope}' has been deleted`,
+      { scope: params.scope, deletedAt: tombstoneDeletedAt(data) },
+    );
+  }
+  return { data, payment };
+}
+
+function tombstoneDeletedAt(body: unknown): string | null {
+  if (typeof body !== "object" || body === null) return null;
+  const value = (body as Record<string, unknown>)["deletedAt"];
+  return typeof value === "string" ? value : null;
 }

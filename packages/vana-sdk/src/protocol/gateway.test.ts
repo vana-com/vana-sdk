@@ -1,6 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createGatewayClient } from "./gateway";
+import {
+  DataPointDeletedError,
+  DataPointNotFoundError,
+  DataPointVersionConflictError,
+} from "../errors";
+import {
+  TOMBSTONE_DATA_HASH,
+  TOMBSTONE_METADATA_HASH,
+} from "./data-point-deletion";
+import { deriveDataPointId } from "./lineage";
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(body), {
@@ -811,5 +821,296 @@ describe("createGatewayClient", () => {
         signature: "sig",
       }),
     ).rejects.toThrow("Gateway error: 409 Conflict");
+  });
+});
+
+describe("createGatewayClient data point deletion", () => {
+  const OWNER = "0x1111111111111111111111111111111111111111";
+  const SCOPE = "instagram.profile";
+  const DATA_POINT_ID = deriveDataPointId(OWNER, SCOPE);
+  const SIGNATURE = `0x${"ab".repeat(65)}`;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends DELETE /v1/data/:dataPointId with the contract body and Web3Signed header", async () => {
+    const tombstone = {
+      dataPointId: DATA_POINT_ID,
+      ownerAddress: OWNER,
+      scope: SCOPE,
+      dataHash: TOMBSTONE_DATA_HASH,
+      metadataHash: TOMBSTONE_METADATA_HASH,
+      expectedVersion: "4",
+      deletedAt: "2026-08-25T00:00:00.000Z",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(tombstone));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createGatewayClient("https://g/").deleteDataPoint({
+        ownerAddress: OWNER,
+        scope: SCOPE,
+        expectedVersion: "4",
+        signature: SIGNATURE,
+      }),
+    ).resolves.toEqual(tombstone);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://g/v1/data/${DATA_POINT_ID}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${SIGNATURE}`,
+        },
+        body: JSON.stringify({
+          ownerAddress: OWNER,
+          scope: SCOPE,
+          expectedVersion: "4",
+          signature: SIGNATURE,
+        }),
+      },
+    );
+  });
+
+  it("unwraps an enveloped tombstone record and fills in the derived id", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          envelope({
+            expectedVersion: "2",
+            deletedAt: "2026-08-25T00:00:00Z",
+          }),
+        ),
+      ),
+    );
+
+    await expect(
+      createGatewayClient("https://g").deleteDataPoint({
+        ownerAddress: OWNER,
+        scope: SCOPE,
+        expectedVersion: "2",
+        signature: SIGNATURE,
+      }),
+    ).resolves.toEqual({
+      dataPointId: DATA_POINT_ID,
+      ownerAddress: undefined,
+      scope: undefined,
+      dataHash: undefined,
+      metadataHash: undefined,
+      expectedVersion: "2",
+      deletedAt: "2026-08-25T00:00:00Z",
+    });
+  });
+
+  it("maps 409 to DataPointVersionConflictError with the gateway's current version", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            success: false,
+            error:
+              "Stale expectedVersion 2: must be strictly greater than the stored value 3",
+            currentExpectedVersion: "3",
+          },
+          { status: 409, statusText: "Conflict" },
+        ),
+      ),
+    );
+
+    const error = await createGatewayClient("https://g")
+      .deleteDataPoint({
+        ownerAddress: OWNER,
+        scope: SCOPE,
+        expectedVersion: "2",
+        signature: SIGNATURE,
+      })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(DataPointVersionConflictError);
+    expect((error as DataPointVersionConflictError).details).toEqual({
+      dataPointId: DATA_POINT_ID,
+      scope: SCOPE,
+      ownerAddress: OWNER,
+      expectedVersion: "2",
+      currentExpectedVersion: "3",
+    });
+    expect((error as Error).message).toContain("Stale expectedVersion 2");
+  });
+
+  it("maps 410 on DELETE to DataPointDeletedError and 404 to DataPointNotFoundError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { error: "deleted", deletedAt: "2026-08-20T00:00:00Z" },
+            { status: 410, statusText: "Gone" },
+          ),
+        )
+        .mockResolvedValueOnce(jsonResponse({}, { status: 404 })),
+    );
+    const client = createGatewayClient("https://g");
+    const params = {
+      ownerAddress: OWNER,
+      scope: SCOPE,
+      expectedVersion: "2",
+      signature: SIGNATURE,
+    };
+
+    const gone = await client.deleteDataPoint(params).catch((e: unknown) => e);
+    expect(gone).toBeInstanceOf(DataPointDeletedError);
+    expect((gone as DataPointDeletedError).details.deletedAt).toBe(
+      "2026-08-20T00:00:00Z",
+    );
+
+    await expect(client.deleteDataPoint(params)).rejects.toBeInstanceOf(
+      DataPointNotFoundError,
+    );
+  });
+
+  it("surfaces the 400 wrong-hash message verbatim", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { error: "signature does not match tombstone AddData" },
+            { status: 400, statusText: "Bad Request" },
+          ),
+        ),
+    );
+
+    await expect(
+      createGatewayClient("https://g").deleteDataPoint({
+        ownerAddress: OWNER,
+        scope: SCOPE,
+        expectedVersion: "2",
+        signature: SIGNATURE,
+      }),
+    ).rejects.toThrow(
+      "Gateway error: 400 signature does not match tombstone AddData",
+    );
+  });
+
+  it("maps 410 on GET /v1/data/:id to DataPointDeletedError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { error: "deleted", deletedAt: "2026-08-20T00:00:00Z" },
+            { status: 410, statusText: "Gone" },
+          ),
+        ),
+    );
+
+    const error = await createGatewayClient("https://g")
+      .getDataPoint(DATA_POINT_ID)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DataPointDeletedError);
+    expect((error as DataPointDeletedError).code).toBe("DATA_POINT_DELETED");
+    expect((error as DataPointDeletedError).details).toEqual({
+      dataPointId: DATA_POINT_ID,
+      deletedAt: "2026-08-20T00:00:00Z",
+    });
+  });
+
+  it("returns the tombstone row with deletedAt when includeDeleted is set", async () => {
+    const tombstone = {
+      id: DATA_POINT_ID,
+      ownerAddress: OWNER,
+      scope: SCOPE,
+      dataHash: TOMBSTONE_DATA_HASH,
+      metadataHash: TOMBSTONE_METADATA_HASH,
+      expectedVersion: "4",
+      addedAt: "2026-08-25T00:00:00.000Z",
+      deletedAt: "2026-08-25T00:00:00.000Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(envelope(tombstone)))
+      .mockResolvedValueOnce(jsonResponse(envelope(tombstone)));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.getDataPoint(DATA_POINT_ID, { includeDeleted: true }),
+    ).resolves.toEqual(tombstone);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `https://g/v1/data/${DATA_POINT_ID}?includeDeleted=true`,
+    );
+
+    // A 200 tombstone on a plain read is still refused.
+    await expect(client.getDataPoint(DATA_POINT_ID)).rejects.toBeInstanceOf(
+      DataPointDeletedError,
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://g/v1/data/${DATA_POINT_ID}`,
+    );
+  });
+
+  it("passes includeDeleted on list and filters leaked tombstones otherwise", async () => {
+    const live = {
+      id: "0xlive",
+      ownerAddress: OWNER,
+      scope: "a.b",
+      dataHash: "0xdata",
+      metadataHash: "0xmeta",
+      expectedVersion: "1",
+      addedAt: "2026-08-25T00:00:00.000Z",
+    };
+    const dead = {
+      ...live,
+      id: "0xdead",
+      scope: "c.d",
+      expectedVersion: "2",
+      deletedAt: "2026-08-25T00:00:00.000Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          envelope(
+            { dataPoints: [live, dead] },
+            { limit: 100, hasMore: false, nextCursor: null },
+          ),
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          envelope(
+            { dataPoints: [live, dead] },
+            { limit: 100, hasMore: false, nextCursor: null },
+          ),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = createGatewayClient("https://g");
+
+    await expect(
+      client.listDataPointsByOwner(OWNER, null, { includeDeleted: true }),
+    ).resolves.toEqual({ dataPoints: [live, dead], cursor: null });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `https://g/v1/data?user=${OWNER}&includeDeleted=true`,
+    );
+
+    await expect(client.listDataPointsByOwner(OWNER, null)).resolves.toEqual({
+      dataPoints: [live],
+      cursor: null,
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://g/v1/data?user=${OWNER}`,
+    );
   });
 });

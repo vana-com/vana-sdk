@@ -773,3 +773,70 @@ export class LineageReadError extends VanaError {
     super(message, "LINEAGE_READ_ERROR");
   }
 }
+
+/**
+ * Thrown when a DataRegistryV2 data point has been deleted (tombstoned).
+ *
+ * @remarks
+ * Raised by gateway reads that hit HTTP 410, by Personal Server reads of a
+ * deleted scope, and by any SDK read helper that would otherwise hand a
+ * tombstone back to the caller as if it were data. Pass
+ * `includeDeleted: true` to the gateway read helpers to opt in to seeing the
+ * tombstone row (with its `deletedAt`) instead of this error.
+ * @category Error Handling
+ */
+export class DataPointDeletedError extends VanaError {
+  constructor(
+    message: string,
+    public readonly details: {
+      dataPointId?: string;
+      scope?: string;
+      ownerAddress?: string;
+      deletedAt?: string | null;
+    } = {},
+  ) {
+    super(message, "DATA_POINT_DELETED");
+  }
+}
+
+/**
+ * Thrown when a data point operation targets a (owner, scope) the gateway
+ * has no record of.
+ * @category Error Handling
+ */
+export class DataPointNotFoundError extends VanaError {
+  constructor(
+    message: string,
+    public readonly details: {
+      dataPointId?: string;
+      scope?: string;
+      ownerAddress?: string;
+    } = {},
+  ) {
+    super(message, "DATA_POINT_NOT_FOUND");
+  }
+}
+
+/**
+ * Thrown when the gateway rejects a data point write with HTTP 409 because
+ * the signed `expectedVersion` is stale.
+ *
+ * @remarks
+ * `currentExpectedVersion` is the version the gateway currently holds (when
+ * the gateway surfaced it); re-sign against `currentExpectedVersion + 1`.
+ * @category Error Handling
+ */
+export class DataPointVersionConflictError extends VanaError {
+  constructor(
+    message: string,
+    public readonly details: {
+      dataPointId?: string;
+      scope?: string;
+      ownerAddress?: string;
+      expectedVersion?: string;
+      currentExpectedVersion?: string;
+    } = {},
+  ) {
+    super(message, "DATA_POINT_VERSION_CONFLICT");
+  }
+}

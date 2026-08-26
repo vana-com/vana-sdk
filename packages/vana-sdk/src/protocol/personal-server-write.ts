@@ -236,30 +236,54 @@ function sleep(ms: number): Promise<void> {
  * exp }`, so two proofs for the same request signed within one second would
  * be byte-identical and the second rejected as a replay. Remember the last
  * `iat` issued per request identity in this process and bump it when a
- * second proof for the same identity falls inside the same second. Entries
- * older than the proof lifetime are dropped as they are visited.
+ * second proof for the same identity falls inside the same second.
+ *
+ * An entry only matters while its `iat` is still at or ahead of the clock
+ * (an older one no longer influences the next value), so the map is pruned
+ * of everything behind the clock, once per second, which keeps it bounded by
+ * the distinct requests signed in the last {@link PROOF_IAT_MAX_AHEAD_SECONDS}
+ * seconds and the work per proof amortised constant.
  */
 const issuedProofIats = new Map<string, number>();
-const PROOF_IAT_RETENTION_SECONDS = 600;
+let issuedProofIatsPrunedAtSec = 0;
 /**
- * How far ahead of the clock a bumped `iat` may run. The verifier tolerates
- * 60 s of skew; staying well inside it keeps a burst of identical requests
- * (or a clock stepped backwards) from producing proofs "issued in the future".
+ * How far ahead of the clock a bumped `iat` may run when the proof is sent.
+ * The verifier tolerates 60 s of skew. A burst of identical requests that
+ * would need to run further ahead waits for the clock instead, so a proof is
+ * never repeated; sustained identical requests are throttled to one per
+ * second after a burst of this many.
  */
 const PROOF_IAT_MAX_AHEAD_SECONDS = 30;
 
-function nextProofIat(proofKey: string): number {
-  const nowSec = Math.floor(Date.now() / 1000);
-  for (const [key, iat] of issuedProofIats) {
-    if (iat < nowSec - PROOF_IAT_RETENTION_SECONDS) issuedProofIats.delete(key);
+function pruneIssuedProofIats(nowSec: number): void {
+  if (issuedProofIatsPrunedAtSec === nowSec) return;
+  if (nowSec < issuedProofIatsPrunedAtSec) {
+    // The wall clock stepped backwards: every reservation is now further
+    // ahead than it was issued, and waiting for the clock to catch up could
+    // take arbitrarily long. Start over instead.
+    issuedProofIats.clear();
   }
+  issuedProofIatsPrunedAtSec = nowSec;
+  for (const [key, iat] of issuedProofIats) {
+    if (iat < nowSec) issuedProofIats.delete(key);
+  }
+}
+
+/**
+ * Reserve the next `iat` for a request identity. The reservation is made
+ * synchronously so concurrent callers never share a value; the returned
+ * promise only waits when the reserved `iat` is further ahead of the clock
+ * than {@link PROOF_IAT_MAX_AHEAD_SECONDS}.
+ */
+function nextProofIat(proofKey: string): Promise<number> {
+  const nowSec = Math.floor(Date.now() / 1000);
+  pruneIssuedProofIats(nowSec);
   const last = issuedProofIats.get(proofKey);
-  const iat = Math.min(
-    last === undefined ? nowSec : Math.max(nowSec, last + 1),
-    nowSec + PROOF_IAT_MAX_AHEAD_SECONDS,
-  );
+  const iat = last === undefined ? nowSec : Math.max(nowSec, last + 1);
   issuedProofIats.set(proofKey, iat);
-  return iat;
+  const waitSec = iat - nowSec - PROOF_IAT_MAX_AHEAD_SECONDS;
+  if (waitSec <= 0) return Promise.resolve(iat);
+  return sleep(waitSec * 1000).then(() => iat);
 }
 
 function proofKeyFor(parts: {
@@ -293,7 +317,7 @@ async function sendWithFreshProof(
   let delayMs = Math.max(0, finiteOr(options?.initialDelayMs, 1_000));
   let lastError: unknown;
   for (let attempt = 0; attempt < attempts; attempt++) {
-    const { url, init } = await build(nextProofIat(proofKey));
+    const { url, init } = await build(await nextProofIat(proofKey));
     try {
       return await fetchFn(url, init);
     } catch (err) {
@@ -461,7 +485,18 @@ export function parseWriteMetadataHeader(value: string | null): unknown {
 export function encodeWriteMetadataHeader(
   metadata: Record<string, unknown>,
 ): string {
-  return JSON.stringify(metadata).replace(
+  let json: string;
+  try {
+    json = JSON.stringify(metadata);
+  } catch (err) {
+    throw new WriteRequestError(
+      `metadata is not JSON-serialisable: ${errorMessage(err)}`,
+    );
+  }
+  if (typeof json !== "string") {
+    throw new WriteRequestError("metadata must serialise to JSON");
+  }
+  return json.replace(
     /[\u007f-\uffff]/g,
     (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );

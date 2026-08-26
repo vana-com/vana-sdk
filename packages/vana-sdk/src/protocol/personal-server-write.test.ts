@@ -685,6 +685,14 @@ describe("writeData", () => {
     expect(await attempt({ data: { n: 1n } })).toBeInstanceOf(
       WriteRequestError,
     );
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    expect(
+      await attempt({ data: { a: 1 }, metadata: { n: 1n } }),
+    ).toBeInstanceOf(WriteRequestError);
+    expect(await attempt({ data: { a: 1 }, metadata: cyclic })).toBeInstanceOf(
+      WriteRequestError,
+    );
     // Nothing reached the server beyond the handshake.
     expect(server.requests).toHaveLength(1);
   });
@@ -748,6 +756,40 @@ describe("writeData", () => {
       expect(iats[1]).toBe(iats[0] + 1);
       expect(iats[2]).toBe(iats[0] + 2);
       expect(server.records).toHaveLength(1);
+    });
+
+    it("never repeats a proof for a burst of identical requests: it waits for the clock instead", async () => {
+      const session = await open();
+      const proofs: string[] = [];
+      const spyingFetch: typeof fetch = async (input, init) => {
+        const header = new Headers(init?.headers).get(WRITE_SIGNATURE_HEADER);
+        if (header) proofs.push(header);
+        return server.fetch(input, init);
+      };
+      const burst = 35;
+      const writes = Array.from({ length: burst }, () =>
+        writeData({
+          session,
+          scope: SCOPE,
+          data: { note: "same" },
+          fetch: spyingFetch,
+          retry: noRetry,
+        }),
+      );
+      // The first 31 sign immediately (now .. now + 30); the rest are held
+      // until the clock has advanced enough to keep them within the window.
+      for (let i = 0; i < 50 && proofs.length < 31; i++) {
+        await vi.advanceTimersByTimeAsync(0);
+      }
+      expect(proofs.length).toBe(31);
+      await vi.advanceTimersByTimeAsync(4_000);
+      const results = await Promise.all(writes);
+      expect(results.every((r) => r.status === "stored")).toBe(true);
+      expect(new Set(proofs).size).toBe(burst);
+      const iats = proofs.map((p) => parseWeb3SignedHeader(p).payload.iat);
+      const nowSec = Math.floor(Date.now() / 1000);
+      expect(Math.max(...iats) - nowSec).toBeLessThanOrEqual(30);
+      expect(server.records).toHaveLength(burst);
     });
 
     it("backs off exponentially from initialDelayMs", async () => {

@@ -130,18 +130,14 @@ describe("openWriteSession", () => {
     expect(session.writeScopes).toEqual(["notes.*", "coach.*"]);
     expect(sessionCoversScope(session, "notes.anything")).toBe(true);
     expect(sessionCoversScope(session, "photos.all")).toBe(false);
-    expect(
-      sessionCoversScope(
-        { writeScopes: [null, "notes.*"] as unknown as string[] },
-        "notes.x",
-      ),
-    ).toBe(true);
-    expect(() =>
-      sessionCoversScope(
-        { writeScopes: "notes.*" } as unknown as { writeScopes: string[] },
-        "notes.x",
-      ),
-    ).toThrow(WriteRequestError);
+    for (const writeScopes of [[null, "notes.*"], "notes.*", undefined]) {
+      expect(() =>
+        sessionCoversScope(
+          { writeScopes } as unknown as { writeScopes: string[] },
+          "notes.x",
+        ),
+      ).toThrow(WriteRequestError);
+    }
   });
 
   it("maps a read-grant handshake to WriteSessionError SCOPE_MISMATCH (403)", async () => {

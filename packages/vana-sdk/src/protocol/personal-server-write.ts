@@ -522,12 +522,15 @@ export function sessionCoversScope(
   session: Pick<WriteSession, "writeScopes">,
   scope: string,
 ): boolean {
-  if (!isRecord(session) || !Array.isArray(session.writeScopes)) {
+  if (
+    !isRecord(session) ||
+    !Array.isArray(session.writeScopes) ||
+    !session.writeScopes.every((pattern) => typeof pattern === "string")
+  ) {
     throw new WriteRequestError("session must come from openWriteSession");
   }
-  return session.writeScopes.some(
-    (pattern) =>
-      typeof pattern === "string" && scopeMatchesPattern(scope, pattern),
+  return session.writeScopes.some((pattern) =>
+    scopeMatchesPattern(scope, pattern),
   );
 }
 

@@ -1,6 +1,7 @@
 import type { Mock } from "vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { privateKeyToAccount } from "viem/accounts";
+import { recoverMessageAddress } from "viem";
 import { VanaStorage } from "../providers/vana-storage";
 import { StorageError } from "../index";
 import { parseWeb3SignedHeader } from "../../auth/web3-signed";
@@ -696,6 +697,180 @@ describe("VanaStorage", () => {
       expect(cfg.features.upload).toBe(true);
       expect(cfg.features.download).toBe(true);
       expect(cfg.features.delete).toBe(true);
+    });
+  });
+});
+
+describe("VanaStorage.deleteScope", () => {
+  it("signs DELETE {prefix}/{owner}/{scope} with the same Web3Signed shape as uploads", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        deleted: true,
+        scope: "instagram.profile",
+        count: 3,
+        totalBytes: 4096,
+      }),
+    );
+    const storage = makeStorage(fetchImpl);
+    const signer = makeSigner();
+
+    const result = await storage.deleteScope(
+      signer.address,
+      "instagram.profile",
+    );
+
+    expect(result).toEqual({
+      deleted: true,
+      scope: "instagram.profile",
+      count: 3,
+      totalBytes: 4096,
+    });
+    const owner = signer.address.toLowerCase();
+    const [calledUrl, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(calledUrl).toBe(`${ENDPOINT}/v1/blobs/${owner}/instagram.profile`);
+    expect(init.method).toBe("DELETE");
+    expect(init.body).toBeUndefined();
+
+    const headers = init.headers as Record<string, string>;
+    const parsed = parseWeb3SignedHeader(headers["authorization"]);
+    expect(parsed.payload).toMatchObject({
+      aud: ENDPOINT,
+      method: "DELETE",
+      uri: `/v1/blobs/${owner}/instagram.profile`,
+      bodyHash:
+        "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    });
+    expect(
+      (
+        await recoverMessageAddress({
+          message: parsed.payloadBase64,
+          signature: parsed.signature,
+        })
+      ).toLowerCase(),
+    ).toBe(owner);
+  });
+
+  it("uses the chain-scoped prefix when a network is configured", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ deleted: true, scope: "x.y", count: 0, totalBytes: 0 }),
+      );
+    const signer = makeSigner();
+    const storage = new VanaStorage({
+      endpoint: ENDPOINT,
+      chainId: 14800,
+      signer,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await storage.deleteScope(signer.address, "x.y");
+
+    const [calledUrl] = fetchImpl.mock.calls[0] as [string];
+    expect(calledUrl).toBe(
+      `${ENDPOINT}/v1/chains/14800/blobs/${signer.address.toLowerCase()}/x.y`,
+    );
+  });
+
+  it("accepts the configured owner case-insensitively and uses it in the path", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ deleted: true, scope: "x.y", count: 1, totalBytes: 9 }),
+      );
+    const storage = makeStorage(fetchImpl);
+    const signer = makeSigner();
+
+    await storage.deleteScope(
+      signer.address.toUpperCase().replace("0X", "0x") as `0x${string}`,
+      "x.y",
+    );
+    const [calledUrl] = fetchImpl.mock.calls[0] as [string];
+    expect(calledUrl).toBe(
+      `${ENDPOINT}/v1/blobs/${signer.address.toLowerCase()}/x.y`,
+    );
+  });
+
+  it("refuses to sign for another owner's namespace", async () => {
+    const fetchImpl = vi.fn();
+    const storage = makeStorage(fetchImpl);
+
+    await expect(
+      storage.deleteScope(OWNER_ADDRESS, "x.y"),
+    ).rejects.toMatchObject({
+      code: "INVALID_OWNER",
+      provider: "vana-storage",
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects scopes that are not a single path segment", async () => {
+    const fetchImpl = vi.fn();
+    const storage = makeStorage(fetchImpl);
+    const signer = makeSigner();
+
+    for (const scope of ["", "a/b", ".", ".."]) {
+      await expect(
+        storage.deleteScope(signer.address, scope),
+      ).rejects.toMatchObject({ code: "INVALID_SCOPE" });
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("treats any 2xx as success even when the body is empty, null, an array, or mistyped", async () => {
+    const signer = makeSigner();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response("null", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("<html>", { status: 200 }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          deleted: "yes",
+          scope: 7,
+          count: "3",
+          totalBytes: -1,
+        }),
+      );
+    const storage = makeStorage(fetchImpl);
+    const fallback = {
+      deleted: true,
+      scope: "x.y",
+      count: 0,
+      totalBytes: 0,
+    };
+
+    for (let i = 0; i < 5; i += 1) {
+      await expect(storage.deleteScope(signer.address, "x.y")).resolves.toEqual(
+        fallback,
+      );
+    }
+  });
+
+  it("wraps HTTP failures and network errors as StorageError", async () => {
+    const signer = makeSigner();
+
+    const failing = makeStorage(
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response("nope", { status: 503, statusText: "Unavailable" }),
+        ),
+    );
+    await expect(
+      failing.deleteScope(signer.address, "x.y"),
+    ).rejects.toMatchObject({
+      code: "DELETE_FAILED",
+      message: "vana-storage scope delete failed: 503 Unavailable - nope",
+    });
+
+    const network = makeStorage(vi.fn().mockRejectedValue(new Error("ECONN")));
+    await expect(
+      network.deleteScope(signer.address, "x.y"),
+    ).rejects.toMatchObject({
+      code: "DELETE_ERROR",
+      message: "vana-storage scope delete network error: ECONN",
     });
   });
 });

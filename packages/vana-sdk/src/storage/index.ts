@@ -72,6 +72,7 @@ export { VanaStorage } from "./providers/vana-storage";
 export type {
   VanaStorageConfig,
   VanaStorageSigner,
+  VanaStorageScopeDeleteResult,
 } from "./providers/vana-storage";
 export type { ProtocolNetwork } from "../protocol/networks";
 export { GoogleDriveStorage } from "./providers/google-drive";

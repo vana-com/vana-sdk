@@ -15,6 +15,7 @@ import {
   isProtocolNetwork,
   type ProtocolNetwork,
 } from "../../protocol/networks";
+import { readJsonObject } from "../../utils/response-body";
 
 const DEFAULT_ENDPOINT = "https://storage.vana.org";
 const LEGACY_BLOB_PATH_PREFIX = "/v1/blobs";
@@ -94,6 +95,20 @@ interface VanaStorageUploadResponse {
   url: string;
   etag: string;
   size: number;
+}
+
+/**
+ * Response of {@link VanaStorage.deleteScope} -- the worker's
+ * `DELETE /:owner/:scope` body. `count` is the number of blobs removed (0 is
+ * a success: nothing was stored under that scope).
+ *
+ * @category Storage
+ */
+export interface VanaStorageScopeDeleteResult {
+  deleted: boolean;
+  scope: string;
+  count: number;
+  totalBytes: number;
 }
 
 /**
@@ -324,6 +339,80 @@ export class VanaStorage implements StorageProvider {
     return true;
   }
 
+  /**
+   * Delete every version's blob under `(owner, scope)` --
+   * `DELETE {prefix}/{owner}/{scope}` on vana-storage, signed with the same
+   * Web3Signed header as uploads (aud = endpoint origin, empty bodyHash).
+   * The worker accepts the owner's own signature or a personal server the
+   * owner registered with the gateway.
+   *
+   * @param ownerAddress - Must equal the provider's configured owner; a
+   *   mismatch throws before anything is signed so this wallet can never be
+   *   induced to sign a delete for another namespace.
+   * @param scope - The scope segment, e.g. `"instagram.profile"`.
+   */
+  async deleteScope(
+    ownerAddress: `0x${string}`,
+    scope: string,
+  ): Promise<VanaStorageScopeDeleteResult> {
+    if (ownerAddress.toLowerCase() !== this.ownerAddress) {
+      throw new StorageError(
+        `deleteScope owner '${ownerAddress}' does not match the configured owner '${this.ownerAddress}'`,
+        "INVALID_OWNER",
+        "vana-storage",
+      );
+    }
+    if (
+      scope.length === 0 ||
+      scope.includes("/") ||
+      isTraversalSegment(scope)
+    ) {
+      throw new StorageError(
+        `scope must be a single non-empty path segment, got '${scope}'`,
+        "INVALID_SCOPE",
+        "vana-storage",
+      );
+    }
+
+    const path = `${this.blobPathPrefix}/${this.ownerAddress}/${encodeURIComponent(scope)}`;
+    const header = await this.signRequest("DELETE", path);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.endpoint}${path}`, {
+        method: "DELETE",
+        headers: { authorization: header },
+      });
+    } catch (cause) {
+      throw new StorageError(
+        `vana-storage scope delete network error: ${describe(cause)}`,
+        "DELETE_ERROR",
+        "vana-storage",
+        { cause: cause instanceof Error ? cause : undefined },
+      );
+    }
+
+    if (!response.ok) {
+      const responseText = await safeText(response);
+      throw new StorageError(
+        `vana-storage scope delete failed: ${response.status} ${response.statusText} - ${responseText}`,
+        "DELETE_FAILED",
+        "vana-storage",
+      );
+    }
+
+    // A 2xx is the success signal; the body is informational. Tolerate an
+    // empty 204, a non-JSON body, or a JSON `null`/array, and only trust
+    // fields that carry the documented type.
+    const body = await readJsonObject(response);
+    return {
+      deleted: typeof body["deleted"] === "boolean" ? body["deleted"] : true,
+      scope: typeof body["scope"] === "string" ? body["scope"] : scope,
+      count: nonNegativeInteger(body["count"]) ?? 0,
+      totalBytes: nonNegativeInteger(body["totalBytes"]) ?? 0,
+    };
+  }
+
   getConfig(): StorageProviderConfig {
     return {
       name: "vana-storage",
@@ -519,6 +608,16 @@ function encodeRelativePath(filename: string): string {
     );
   }
   return parts.map((p) => encodeURIComponent(p)).join("/");
+}
+
+function isTraversalSegment(segment: string): boolean {
+  return segment === "." || segment === "..";
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 function describe(value: unknown): string {

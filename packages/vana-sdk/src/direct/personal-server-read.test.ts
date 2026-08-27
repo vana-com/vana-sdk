@@ -10,6 +10,11 @@ import type { FetchResponseLike } from "./personal-server-read";
 import type { EscrowPaymentConfig } from "./escrow-payment";
 import { NATIVE_ASSET_ADDRESS } from "../protocol/escrow";
 import { PaymentRequiredError } from "./errors";
+import { DataPointDeletedError } from "../errors";
+import {
+  TOMBSTONE_DATA_HASH,
+  TOMBSTONE_METADATA_HASH,
+} from "../protocol/data-point-deletion";
 
 const KEY =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
@@ -1018,5 +1023,86 @@ describe("readPersonalServerData", () => {
       fetchFn: async () => jsonRes({ amount: "1000" }, { status: 402 }), // always 402
     });
     await expect(result).rejects.toThrow(PaymentRequiredError);
+  });
+});
+
+describe("readPersonalServerData tombstones", () => {
+  const base = {
+    personalServerUrl: "https://ps.example.com",
+    scope: "icloud_notes.notes",
+    grantId: GRANT_ID,
+    payerAddress: PAYER,
+    signMessage,
+  };
+
+  it("maps a 410 to DataPointDeletedError instead of PersonalServerReadError", async () => {
+    const error = await readPersonalServerData({
+      ...base,
+      fetchFn: async () =>
+        jsonRes(
+          { error: "deleted", deletedAt: "2026-08-25T00:00:00Z" },
+          { status: 410 },
+        ),
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(DataPointDeletedError);
+    expect((error as DataPointDeletedError).details).toEqual({
+      scope: "icloud_notes.notes",
+      deletedAt: "2026-08-25T00:00:00Z",
+    });
+  });
+
+  it("still maps a 410 whose body is empty, null, an array, or not JSON", async () => {
+    const bodies: Array<() => FetchResponseLike> = [
+      () => ({ ...jsonRes(null, { status: 410 }), json: async () => null }),
+      () => jsonRes([], { status: 410 }),
+      () => ({
+        ...jsonRes(null, { status: 410 }),
+        json: async () => {
+          throw new SyntaxError("Unexpected end of JSON input");
+        },
+      }),
+      () => ({
+        ...jsonRes(null, { status: 410 }),
+        json: async () => {
+          throw new SyntaxError("Unexpected token <");
+        },
+      }),
+    ];
+    for (const fetchFn of bodies) {
+      const error = await readPersonalServerData({
+        ...base,
+        fetchFn: async () => fetchFn(),
+      }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(DataPointDeletedError);
+      expect((error as DataPointDeletedError).details).toEqual({
+        scope: "icloud_notes.notes",
+        deletedAt: null,
+      });
+    }
+  });
+
+  it("refuses a 200 tombstone body (deletedAt or tombstone hash pair)", async () => {
+    await expect(
+      readPersonalServerData({
+        ...base,
+        fetchFn: async () =>
+          jsonRes({
+            scope: "icloud_notes.notes",
+            deletedAt: "2026-08-25T00:00:00Z",
+          }),
+      }),
+    ).rejects.toBeInstanceOf(DataPointDeletedError);
+
+    await expect(
+      readPersonalServerData({
+        ...base,
+        fetchFn: async () =>
+          jsonRes({
+            dataHash: TOMBSTONE_DATA_HASH,
+            metadataHash: TOMBSTONE_METADATA_HASH,
+          }),
+      }),
+    ).rejects.toBeInstanceOf(DataPointDeletedError);
   });
 });

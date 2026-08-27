@@ -1,4 +1,20 @@
 import { tryGrantPermissions, type GrantPermission } from "./scope-actions";
+import {
+  DataPointDeletedError,
+  DataPointNotFoundError,
+  DataPointVersionConflictError,
+} from "../errors";
+import {
+  isDataPointTombstone,
+  tombstoneDeletedAt,
+} from "./data-point-deletion";
+import { deriveDataPointId } from "./lineage";
+import {
+  isPlainObject,
+  readJsonObject,
+  readJsonValue,
+} from "../utils/response-body";
+
 export interface GatewayEnvelope<T> {
   data: T;
   proof: GatewayProof;
@@ -181,6 +197,18 @@ export interface DataPointRecord {
   expectedVersion: string;
   // ISO 8601 timestamp of the most recent gateway-side upsert.
   addedAt: string;
+  // ISO 8601 timestamp of the deletion tombstone, null/absent while live.
+  // Only present on reads that opted in via `includeDeleted`; a plain
+  // `getDataPoint` of a deleted row throws `DataPointDeletedError` instead.
+  deletedAt?: string | null;
+}
+
+export interface GetDataPointOptions {
+  /**
+   * Return the row even after it was deleted (with `deletedAt` set and the
+   * tombstone hash pair) instead of throwing `DataPointDeletedError`.
+   */
+  includeDeleted?: boolean;
 }
 
 export interface DataPointListResult {
@@ -196,6 +224,11 @@ export interface ListDataPointsOptions {
   since?: string;
   /** Page size. Capped at 1000 by the gateway. */
   limit?: number;
+  /**
+   * Include deleted (tombstoned) rows, each carrying `deletedAt`. Off by
+   * default; without it the SDK also drops any tombstone the gateway leaks.
+   */
+  includeDeleted?: boolean;
 }
 
 // grantVersion and expiresAt are decimal-string uint256s — same wire format
@@ -263,6 +296,32 @@ export interface RegisterDataPointParams {
 export interface RegisterDataPointResult {
   dataPointId?: string;
   expectedVersion?: string;
+}
+
+// Deletion = an owner-signed AddData for version current+1 carrying the
+// tombstone hash pair (see protocol/data-point-deletion.ts). The gateway
+// reconstructs the AddData from the body plus the tombstone constants and
+// recovers the signer, so the hashes are NOT on the wire. Used at
+// DELETE /v1/data/:dataPointId. expectedVersion is the tombstone's version
+// as a decimal uint256 string; the signature is the raw EIP-712 hex.
+export interface DeleteDataPointParams {
+  ownerAddress: string;
+  scope: string;
+  expectedVersion: string;
+  signature: string;
+}
+
+// The tombstone version record the gateway returns on 200. Fields are
+// optional because, like RegisterDataPointResult, the SDK tolerates either
+// a bare body or an enveloped `{data}`; `deletedAt` is the durable marker.
+export interface DeleteDataPointResult {
+  dataPointId?: string;
+  ownerAddress?: string;
+  scope?: string;
+  dataHash?: string;
+  metadataHash?: string;
+  expectedVersion?: string;
+  deletedAt?: string | null;
 }
 
 // ── Escrow / data-access payment path ───────────────────────────────────────
@@ -514,13 +573,19 @@ export interface GatewayClient {
   listServersByOwner(owner: string): Promise<OwnerServersResult>;
   /**
    * Fetch a single data point by its deterministic id (keccak256 of (owner, scope)).
-   * Returns null on 404. The gateway omits `status` from the response body — read it
-   * from the on-chain DataRegistryV2 contract when you need the canonical lifecycle state.
+   * Returns null on 404. Throws `DataPointDeletedError` on 410, or when the row is a
+   * tombstone, unless `options.includeDeleted` is set. The gateway omits `status` from
+   * the response body -- read it from the on-chain DataRegistryV2 contract when you need
+   * the canonical lifecycle state.
    */
-  getDataPoint(dataPointId: string): Promise<DataPointRecord | null>;
+  getDataPoint(
+    dataPointId: string,
+    options?: GetDataPointOptions,
+  ): Promise<DataPointRecord | null>;
   /**
    * Page through an owner's data points. Cursor is opaque; pass `null` for the first
    * page and feed back `result.cursor` until it returns null.
+   * Deleted rows are excluded unless `options.includeDeleted` is set.
    */
   listDataPointsByOwner(
     owner: string,
@@ -535,6 +600,16 @@ export interface GatewayClient {
   registerDataPoint(
     params: RegisterDataPointParams,
   ): Promise<RegisterDataPointResult>;
+  /**
+   * Tombstone a data point: `DELETE /v1/data/:dataPointId` with the owner's
+   * AddData signature for version `current + 1`. The dataPointId is derived
+   * from (ownerAddress, scope). Throws `DataPointVersionConflictError` on
+   * 409, `DataPointDeletedError` on 410 (already deleted),
+   * `DataPointNotFoundError` on 404.
+   */
+  deleteDataPoint(
+    params: DeleteDataPointParams,
+  ): Promise<DeleteDataPointResult>;
   createGrant(params: CreateGrantParams): Promise<{ grantId?: string }>;
   revokeGrant(params: RevokeGrantParams): Promise<void>;
   getEscrowBalance(account: string): Promise<EscrowBalance>;
@@ -566,17 +641,61 @@ function withGrantPermissions<T extends GatewayGrantResponse>(grant: T): T {
 export function createGatewayClient(baseUrl: string): GatewayClient {
   const base = baseUrl.replace(/\/+$/, "");
 
-  async function unwrapEnvelope<T>(res: Response): Promise<T> {
-    const envelope = (await res.json()) as GatewayEnvelope<T>;
-    return envelope.data;
+  function malformedBody(res: Response): Error {
+    return new Error(
+      `Gateway error: ${res.status} malformed response body (expected a JSON envelope)`,
+    );
   }
 
-  function getMutationId(
-    body: Record<string, unknown>,
-    key: string,
-  ): string | undefined {
+  // GET responses are `{ data, proof, pagination? }`. A 200 whose body is
+  // empty, not JSON, or not an object with `data` is a gateway bug, not a
+  // record: fail with a clear error instead of returning undefined.
+  async function readEnvelope<T>(
+    res: Response,
+  ): Promise<Record<string, unknown> & { data: T }> {
+    const envelope = await readJsonValue(res);
+    if (!isPlainObject(envelope) || !("data" in envelope)) {
+      throw malformedBody(res);
+    }
+    return envelope as Record<string, unknown> & { data: T };
+  }
+
+  async function unwrapEnvelope<T>(res: Response): Promise<T> {
+    return (await readEnvelope<T>(res)).data;
+  }
+
+  function getMutationId(body: unknown, key: string): string | undefined {
+    if (!isPlainObject(body)) return undefined;
     const value = body[key] ?? body["id"];
     return typeof value === "string" ? value : undefined;
+  }
+
+  // Mutation responses are bare JSON; GET responses are enveloped. Accept
+  // either so a gateway that wraps the tombstone record still round-trips.
+  // Any body that is not a plain object (empty 204, `null`, an array, an
+  // HTML error page) reads as `{}` so the status-code mapping still wins.
+  async function readBody(res: Response): Promise<Record<string, unknown>> {
+    const raw = await readJsonObject(res);
+    const data = raw["data"];
+    if (isPlainObject(data) && "proof" in raw) {
+      return data;
+    }
+    return raw;
+  }
+
+  function stringOrUndefined(value: unknown): string | undefined {
+    return typeof value === "string" ? value : undefined;
+  }
+
+  async function deletedError(
+    res: Response,
+    details: { dataPointId?: string; scope?: string; ownerAddress?: string },
+  ): Promise<DataPointDeletedError> {
+    const body = await readBody(res);
+    return new DataPointDeletedError(
+      `Data point ${details.dataPointId ?? details.scope ?? ""} has been deleted`,
+      { ...details, deletedAt: tombstoneDeletedAt(body) },
+    );
   }
 
   return {
@@ -647,13 +766,34 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       return (await res.json()) as OwnerServersResult;
     },
 
-    async getDataPoint(dataPointId: string): Promise<DataPointRecord | null> {
-      const res = await fetch(`${base}/v1/data/${dataPointId}`);
+    async getDataPoint(
+      dataPointId: string,
+      options?: GetDataPointOptions,
+    ): Promise<DataPointRecord | null> {
+      const query = options?.includeDeleted ? "?includeDeleted=true" : "";
+      const res = await fetch(`${base}/v1/data/${dataPointId}${query}`);
       if (res.status === 404) return null;
+      if (res.status === 410) {
+        throw await deletedError(res, { dataPointId });
+      }
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      return unwrapEnvelope<DataPointRecord>(res);
+      const record = await unwrapEnvelope<DataPointRecord>(res);
+      // Never hand a tombstone back as data unless the caller opted in --
+      // guards against a gateway that returns 200 + deletedAt on plain reads.
+      if (!options?.includeDeleted && isDataPointTombstone(record)) {
+        throw new DataPointDeletedError(
+          `Data point ${dataPointId} has been deleted`,
+          {
+            dataPointId,
+            scope: record.scope,
+            ownerAddress: record.ownerAddress,
+            deletedAt: tombstoneDeletedAt(record),
+          },
+        );
+      }
+      return record;
     },
 
     async listDataPointsByOwner(
@@ -671,6 +811,9 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       if (options?.limit !== undefined) {
         params.set("limit", String(options.limit));
       }
+      if (options?.includeDeleted) {
+        params.set("includeDeleted", "true");
+      }
       const res = await fetch(`${base}/v1/data?${params.toString()}`);
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
@@ -678,15 +821,29 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       // Next-page cursor lives in the envelope's `pagination.nextCursor`
       // (a sibling of `data`), so read the full envelope rather than going
       // through `unwrapEnvelope`, which returns only `data`.
-      const envelope = (await res.json()) as GatewayEnvelope<{
-        dataPoints: DataPointRecord[];
-      }>;
+      const envelope = await readEnvelope<unknown>(res);
+      if (
+        !isPlainObject(envelope.data) ||
+        !Array.isArray(envelope.data["dataPoints"])
+      ) {
+        throw malformedBody(res);
+      }
+      const rows = envelope.data["dataPoints"] as DataPointRecord[];
+      const pagination = isPlainObject(envelope["pagination"])
+        ? envelope["pagination"]
+        : undefined;
+      const rawCursor = pagination?.["nextCursor"];
       const nextCursor =
-        envelope.pagination?.hasMore === false
+        pagination?.["hasMore"] === false || typeof rawCursor !== "string"
           ? null
-          : (envelope.pagination?.nextCursor ?? null);
+          : rawCursor;
+      // Tombstones only surface when asked for; drop any the gateway leaks
+      // on a plain list so sync loops never ingest one as data.
+      const dataPoints = options?.includeDeleted
+        ? rows
+        : rows.filter((row) => !isDataPointTombstone(row));
       return {
-        dataPoints: envelope.data.dataPoints,
+        dataPoints,
         cursor: nextCursor,
       };
     },
@@ -717,18 +874,18 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         }),
       });
       if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
+        const body = await readJsonObject(res);
         return {
-          serverId: getMutationId(body as Record<string, unknown>, "serverId"),
+          serverId: getMutationId(body, "serverId"),
           alreadyRegistered: true,
         };
       }
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      const body = await res.json().catch(() => ({}));
+      const body = await readJsonObject(res);
       return {
-        serverId: getMutationId(body as Record<string, unknown>, "serverId"),
+        serverId: getMutationId(body, "serverId"),
         alreadyRegistered: false,
       };
     },
@@ -753,21 +910,18 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       // the builderId, but we tolerate it in case that changes (mirrors the
       // registerServer / createGrant shape).
       if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
+        const body = await readJsonObject(res);
         return {
-          builderId: getMutationId(
-            body as Record<string, unknown>,
-            "builderId",
-          ),
+          builderId: getMutationId(body, "builderId"),
           alreadyRegistered: true,
         };
       }
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      const body = await res.json().catch(() => ({}));
+      const body = await readJsonObject(res);
       return {
-        builderId: getMutationId(body as Record<string, unknown>, "builderId"),
+        builderId: getMutationId(body, "builderId"),
         alreadyRegistered: false,
       };
     },
@@ -793,22 +947,88 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
       // surface the gateway's error message verbatim so the caller knows
       // what `currentExpectedVersion` to re-sign against.
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        const detail = body.error ?? res.statusText;
+        const body = await readJsonObject(res);
+        const detail = stringOrUndefined(body["error"]) ?? res.statusText;
         throw new Error(`Gateway error: ${res.status} ${detail}`);
       }
-      const body = (await res.json().catch(() => ({}))) as {
-        dataPointId?: string;
-        expectedVersion?: string;
-      };
+      const body = await readJsonObject(res);
       return {
-        dataPointId: getMutationId(
-          body as Record<string, unknown>,
-          "dataPointId",
-        ),
-        expectedVersion: body.expectedVersion,
+        dataPointId: getMutationId(body, "dataPointId"),
+        expectedVersion: stringOrUndefined(body["expectedVersion"]),
+      };
+    },
+
+    async deleteDataPoint(
+      params: DeleteDataPointParams,
+    ): Promise<DeleteDataPointResult> {
+      // The gateway keys the row on keccak256(abi.encode(owner, scope)) --
+      // derive it locally rather than asking the caller for it, so the path
+      // can never disagree with the signed (owner, scope).
+      const dataPointId = deriveDataPointId(
+        params.ownerAddress as `0x${string}`,
+        params.scope,
+      );
+      const details = {
+        dataPointId,
+        scope: params.scope,
+        ownerAddress: params.ownerAddress,
+      };
+      // Signature rides both in the body (the DELETE contract) and as the
+      // Web3Signed Authorization header every other /v1 mutation uses.
+      const res = await fetch(`${base}/v1/data/${dataPointId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Web3Signed ${params.signature}`,
+        },
+        body: JSON.stringify({
+          ownerAddress: params.ownerAddress,
+          scope: params.scope,
+          expectedVersion: params.expectedVersion,
+          signature: params.signature,
+        }),
+      });
+      if (res.status === 404) {
+        throw new DataPointNotFoundError(
+          `Data point ${dataPointId} (scope '${params.scope}') is not registered`,
+          details,
+        );
+      }
+      if (res.status === 409) {
+        const body = await readBody(res);
+        const currentExpectedVersion = stringOrUndefined(
+          body["currentExpectedVersion"],
+        );
+        const detail = stringOrUndefined(body["error"]) ?? res.statusText;
+        throw new DataPointVersionConflictError(
+          `Gateway error: 409 ${detail}`,
+          {
+            ...details,
+            expectedVersion: params.expectedVersion,
+            currentExpectedVersion,
+          },
+        );
+      }
+      if (res.status === 410) {
+        throw await deletedError(res, details);
+      }
+      if (!res.ok) {
+        // 400 = the recovered signer/hashes do not match the tombstone
+        // AddData. Surface the gateway's message verbatim, like
+        // registerDataPoint does.
+        const body = await readBody(res);
+        const detail = stringOrUndefined(body["error"]) ?? res.statusText;
+        throw new Error(`Gateway error: ${res.status} ${detail}`);
+      }
+      const body = await readBody(res);
+      return {
+        dataPointId: getMutationId(body, "dataPointId") ?? dataPointId,
+        ownerAddress: stringOrUndefined(body["ownerAddress"]),
+        scope: stringOrUndefined(body["scope"]),
+        dataHash: stringOrUndefined(body["dataHash"]),
+        metadataHash: stringOrUndefined(body["metadataHash"]),
+        expectedVersion: stringOrUndefined(body["expectedVersion"]),
+        deletedAt: tombstoneDeletedAt(body),
       };
     },
 
@@ -830,18 +1050,14 @@ export function createGatewayClient(baseUrl: string): GatewayClient {
         }),
       });
       if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          grantId: getMutationId(body as Record<string, unknown>, "grantId"),
-        };
+        const body = await readJsonObject(res);
+        return { grantId: getMutationId(body, "grantId") };
       }
       if (!res.ok) {
         throw new Error(`Gateway error: ${res.status} ${res.statusText}`);
       }
-      const body = await res.json();
-      return {
-        grantId: getMutationId(body as Record<string, unknown>, "grantId"),
-      };
+      const body = await readJsonObject(res);
+      return { grantId: getMutationId(body, "grantId") };
     },
 
     async revokeGrant(params: RevokeGrantParams): Promise<void> {

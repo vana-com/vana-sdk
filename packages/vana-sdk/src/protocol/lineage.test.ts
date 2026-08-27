@@ -367,6 +367,14 @@ describe("getPersonalServerLineage", () => {
     const server = makeServer();
     const leaking = [
       { dataPointId: hiddenId, redacted: true },
+      // Every visible-node field plus the marker: must not pass as visible.
+      {
+        dataPointId: hiddenId,
+        scope: HIDDEN_SCOPE,
+        version: "1",
+        deletedAt: null,
+        redacted: true,
+      },
       { redacted: true, scope: HIDDEN_SCOPE },
       { redacted: true, version: "1" },
     ];
@@ -384,6 +392,7 @@ describe("getPersonalServerLineage", () => {
       }).catch((e: unknown) => e);
       expect(err).toBeInstanceOf(LineageReadError);
       expect((err as LineageReadError).details).toHaveProperty("issues");
+      expect(JSON.stringify(err)).not.toContain(HIDDEN_SCOPE);
     }
     expect(
       isRedactedLineageNode({

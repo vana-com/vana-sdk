@@ -148,6 +148,12 @@ export const LineageNodeSchema = z.object({
   version: VersionSchema,
   /** The node's tombstone time, or `null` when live. */
   deletedAt: z.string().nullable(),
+  /**
+   * Never present on a visible node. Declared so a node that carries
+   * `redacted: true` next to an id, scope and version cannot slip through
+   * this branch of {@link LineageEntrySchema} with the key stripped.
+   */
+  redacted: z.undefined(),
 });
 
 /**

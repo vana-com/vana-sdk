@@ -35,7 +35,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha2";
-import { bytesToHex, type Hex } from "viem";
+import { bytesToHex, isAddress, type Address, type Hex } from "viem";
 import { z } from "zod";
 import { buildWeb3SignedHeader } from "../auth/web3-signed-builder";
 import {
@@ -52,7 +52,11 @@ import {
 } from "../errors";
 import { toBase64 } from "../utils/encoding";
 import { IngestResponseSchema, type IngestResponse } from "./data-file";
-import { isDataPointId } from "./lineage";
+import {
+  assertDerivedScopeNaming,
+  deriveDataPointId,
+  isDataPointId,
+} from "./lineage";
 import {
   isRecord,
   readPersonalServerErrorBody,
@@ -143,6 +147,9 @@ export interface OpenWriteSessionParams extends ResolveWriteSignerOptions {
   retry?: WriteTransportRetryOptions;
 }
 
+/** A lineage source: a data point id, or the pair it is derived from. */
+export type LineageSource = Hex | { ownerAddress: Address; scope: string };
+
 /** Bytes to store as an unstructured (binary) record. */
 export interface WriteBinaryPayload {
   bytes: Uint8Array;
@@ -168,12 +175,16 @@ interface WriteDataBaseParams {
    */
   scope: string;
   /**
-   * Data point ids this record was derived from ({@link deriveDataPointId}):
-   * distinct, at most {@link MAX_LINEAGE_SOURCES}, all belonging to the same
-   * owner as the target scope. Sent lowercased as the record's `lineage`
-   * field, inside the signed bytes. Empty or absent = a root record.
+   * The data points this record was derived from: ids
+   * ({@link deriveDataPointId}) or `{ ownerAddress, scope }` pairs the SDK
+   * derives the id from. Distinct, at most {@link MAX_LINEAGE_SOURCES}, all
+   * belonging to the same owner as the target scope, never the record's own
+   * id. Sent lowercased as the record's `lineage` field, inside the signed
+   * bytes. `[]` is an explicit root statement and is sent; absent or `null`
+   * makes no statement. Pairs also let the SDK apply the naming rule
+   * ({@link assertDerivedScopeNaming}) before anything is signed.
    */
-  lineage?: readonly Hex[];
+  lineage?: readonly LineageSource[] | null;
   /** `fetch` to use; defaults to `globalThis.fetch`. */
   fetch?: typeof fetch;
   /** Extra request headers. */
@@ -650,15 +661,26 @@ function assertNoReservedKeys(
   }
 }
 
+function isLineagePair(
+  value: unknown,
+): value is { ownerAddress: Address; scope: string } {
+  return (
+    isRecord(value) &&
+    typeof value.ownerAddress === "string" &&
+    typeof value.scope === "string"
+  );
+}
+
 /**
- * Validate and lowercase the sources the way the Personal Server will;
- * `undefined` for an empty list (a root record).
+ * Validate and lowercase the sources the way the Personal Server will
+ * (distinct, at most {@link MAX_LINEAGE_SOURCES}, never the record's own id)
+ * and apply the naming rule to every source given as a pair. `[]` is kept:
+ * it is an explicit root statement.
  */
-function normalizeLineage(lineage: unknown): Hex[] | undefined {
+function normalizeLineage(lineage: unknown, derivedScope: string): Hex[] {
   if (!Array.isArray(lineage)) {
     throw new WriteRequestError("lineage must be an array of data point ids");
   }
-  if (lineage.length === 0) return undefined;
   if (lineage.length > MAX_LINEAGE_SOURCES) {
     throw new WriteRequestError(
       `lineage lists ${lineage.length} sources; the maximum is ${MAX_LINEAGE_SOURCES}`,
@@ -667,22 +689,49 @@ function normalizeLineage(lineage: unknown): Hex[] | undefined {
   }
   const seen = new Set<string>();
   const sources: Hex[] = [];
-  for (const id of lineage) {
-    if (!isDataPointId(id)) {
+  const sourceScopes: string[] = [];
+  const ownIds = new Set<string>();
+  for (const entry of lineage as unknown[]) {
+    let id: Hex;
+    if (isLineagePair(entry)) {
+      if (!isAddress(entry.ownerAddress, { strict: false })) {
+        throw new WriteRequestError(
+          "lineage source ownerAddress must be an EVM address",
+          { ownerAddress: entry.ownerAddress },
+        );
+      }
+      if (entry.scope.length === 0) {
+        throw new WriteRequestError("lineage source scope is required");
+      }
+      id = deriveDataPointId(entry.ownerAddress, entry.scope);
+      sourceScopes.push(entry.scope);
+      ownIds.add(deriveDataPointId(entry.ownerAddress, derivedScope));
+    } else if (isDataPointId(entry)) {
+      id = entry;
+    } else {
       throw new WriteRequestError(
-        "lineage entries must be 32-byte hex data point ids (see deriveDataPointId)",
-        { dataPointId: id },
+        "lineage entries must be 32-byte hex data point ids or { ownerAddress, scope } pairs",
+        { entry },
       );
     }
     const normalized = id.toLowerCase() as Hex;
     if (seen.has(normalized)) {
       throw new WriteRequestError("lineage must not repeat a data point id", {
-        dataPointId: id,
+        dataPointId: normalized,
       });
     }
     seen.add(normalized);
     sources.push(normalized);
   }
+  for (const own of ownIds) {
+    if (seen.has(own)) {
+      throw new WriteRequestError(
+        "lineage must not cite the record's own data point",
+        { dataPointId: own, scope: derivedScope },
+      );
+    }
+  }
+  assertDerivedScopeNaming(derivedScope, sourceScopes);
   return sources;
 }
 
@@ -729,13 +778,14 @@ function prepareWrite(params: WriteDataParams): PreparedWrite {
   if (params.binary !== undefined && params.data !== undefined) {
     throw new WriteRequestError("Pass either data or binary, not both");
   }
-  // Absent, null or empty lineage is a root record: send nothing. Anything
-  // else is validated before it is touched (callers may be untyped).
+  // Absent or null lineage makes no statement: send nothing. Anything else
+  // (`[]` included: an explicit root) is validated before it is touched,
+  // since callers may be untyped.
   const rawLineage: unknown = params.lineage;
   const sources =
     rawLineage === undefined || rawLineage === null
       ? undefined
-      : normalizeLineage(rawLineage);
+      : normalizeLineage(rawLineage, params.scope);
 
   if (params.binary !== undefined) {
     const { bytes, contentType, filename } = params.binary;

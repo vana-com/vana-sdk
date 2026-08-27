@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeAbiParameters, keccak256, type Hex } from "viem";
 import { parseWeb3SignedHeader } from "../auth/web3-signed";
-import { LineageReadError } from "../errors";
+import { LineageReadError, WriteRequestError } from "../errors";
 import {
   createMockGateway,
   createMockPersonalServer,
   type MockGatewayView,
 } from "../tests/mock-personal-server";
 import {
+  assertDerivedScopeNaming,
   deriveDataPointId,
+  derivedScopeViolatesNaming,
   gatewayLineagePath,
+  scopeNamespace,
   getGatewayLineage,
   getLineage,
   getPersonalServerLineage,
@@ -36,6 +39,7 @@ const stranger = privateKeyToAccount(generatePrivateKey());
 const sourceId = deriveDataPointId(owner.address, SOURCE_SCOPE);
 const hiddenId = deriveDataPointId(owner.address, HIDDEN_SCOPE);
 const derivedId = deriveDataPointId(owner.address, DERIVED_SCOPE);
+const danglingId = deriveDataPointId(owner.address, "gone.scope");
 
 function makeServer() {
   return createMockPersonalServer({
@@ -86,7 +90,15 @@ const view: MockGatewayView = {
       deletedAt: null,
     },
     { dataPointId: hiddenId, redacted: true },
+    // A source that no longer resolves to a registered data point.
+    {
+      dataPointId: danglingId,
+      scope: "gone.scope",
+      version: "0",
+      deletedAt: null,
+    },
   ],
+  derivativesTruncated: true,
   derivatives: [
     {
       dataPointId: deriveDataPointId(owner.address, "coach.weekly"),
@@ -152,18 +164,37 @@ describe("paths", () => {
     );
   });
 
-  it("builds the canonical gateway lineage uri: lowercase id, version then lowercase grantId", () => {
+  it("builds the lineage paths with the version as a path segment and the id lowercased", () => {
     const upper = sourceId.toUpperCase().replace("0X", "0x") as Hex;
     expect(gatewayLineagePath(upper)).toBe(`/v1/data/${sourceId}/lineage`);
-    expect(gatewayLineagePath(sourceId, { version: 2 })).toBe(
-      `/v1/data/${sourceId}/lineage?version=2`,
+    expect(gatewayLineagePath(sourceId, 2)).toBe(
+      `/v1/data/${sourceId}/lineage/2`,
     );
-    expect(gatewayLineagePath(sourceId, { grantId: "0xAbC" })).toBe(
-      `/v1/data/${sourceId}/lineage?grantId=0xabc`,
+    expect(personalServerLineagePath("coach.summary", "7")).toBe(
+      "/v1/data/coach.summary/lineage/7",
     );
+  });
+
+  it("naming rule helpers mirror the server", () => {
+    expect(scopeNamespace("chatgpt.conversations")).toBe("chatgpt");
     expect(
-      gatewayLineagePath(sourceId, { grantId: "0xAbC", version: "7" }),
-    ).toBe(`/v1/data/${sourceId}/lineage?version=7&grantId=0xabc`);
+      derivedScopeViolatesNaming("chatgpt.summary", "chatgpt.conversations"),
+    ).toBe(true);
+    expect(
+      derivedScopeViolatesNaming("coach.summary", "chatgpt.conversations"),
+    ).toBe(false);
+    expect(() =>
+      assertDerivedScopeNaming("coach.summary", [
+        "chatgpt.conversations",
+        "oura.sleep",
+      ]),
+    ).not.toThrow();
+    expect(() =>
+      assertDerivedScopeNaming("oura.summary", [
+        "chatgpt.conversations",
+        "oura.sleep",
+      ]),
+    ).toThrow(WriteRequestError);
   });
 });
 
@@ -228,12 +259,23 @@ describe("getPersonalServerLineage", () => {
     });
   });
 
-  it("appends ?version= to the URL and signs the path the server checks", async () => {
+  it("sends the version as a path segment and signs that full path", async () => {
     const server = makeServer();
-    server.respondNextWith(200, {
-      data: { ...view, dataPointId: derivedId },
-      proof: {},
+    const session = await openWriteSession({
+      personalServerUrl: PS_ORIGIN,
+      signer: builder,
+      grantId: WRITE_GRANT_ID,
+      fetch: server.fetch,
     });
+    for (const summary of ["v1", "v2"]) {
+      await writeData({
+        session,
+        scope: DERIVED_SCOPE,
+        data: { summary },
+        lineage: [sourceId],
+        fetch: server.fetch,
+      });
+    }
     const result = await getLineage({
       personalServerUrl: PS_ORIGIN,
       scope: DERIVED_SCOPE,
@@ -242,12 +284,36 @@ describe("getPersonalServerLineage", () => {
       version: 2,
       fetch: server.fetch,
     });
-    expect(result.version).toBe("3");
+    expect(result.version).toBe("2");
     const request = server.requests.at(-1);
-    expect(request?.path).toBe(`/v1/data/${DERIVED_SCOPE}/lineage?version=2`);
+    expect(request?.path).toBe(`/v1/data/${DERIVED_SCOPE}/lineage/2`);
     expect(
       parseWeb3SignedHeader(request?.headers.authorization).payload.uri,
-    ).toBe(`/v1/data/${DERIVED_SCOPE}/lineage`);
+    ).toBe(`/v1/data/${DERIVED_SCOPE}/lineage/2`);
+
+    const missing = await getLineage({
+      personalServerUrl: PS_ORIGIN,
+      scope: DERIVED_SCOPE,
+      grantId: READ_GRANT_ID,
+      signer: builder,
+      version: 9,
+      fetch: server.fetch,
+    }).catch((e: unknown) => e);
+    expect((missing as LineageReadError).status).toBe(404);
+    expect((missing as LineageReadError).errorCode).toBe("NOT_FOUND");
+  });
+
+  it("the servers refuse a query string; the client never sends one", async () => {
+    const server = makeServer();
+    const res = await server.fetch(
+      `${PS_ORIGIN}/v1/data/${DERIVED_SCOPE}/lineage?version=2`,
+    );
+    expect(res.status).toBe(400);
+    const gateway = makeGateway();
+    const gres = await gateway.fetch(
+      `${GATEWAY_ORIGIN}/v1/data/${derivedId}/lineage?version=2`,
+    );
+    expect(gres.status).toBe(400);
   });
 
   it("refuses a malformed version before any request", async () => {
@@ -336,7 +402,7 @@ describe("getPersonalServerLineage", () => {
 });
 
 describe("getGatewayLineage", () => {
-  it("signs the canonical uri (lowercase id, lowercase grantId claim and query) and reads the envelope", async () => {
+  it("signs the bare path (lowercase id) with the lowercase grantId claim and reads the envelope", async () => {
     const gateway = makeGateway();
     const upper = derivedId.toUpperCase().replace("0X", "0x") as Hex;
     const result = await getLineage({
@@ -348,9 +414,16 @@ describe("getGatewayLineage", () => {
     });
     expect(result).toEqual({ ...view, proof: expect.any(Object) });
     expect(LineageGraphSchema.parse(result)).toEqual(view);
+    expect(result.derivativesTruncated).toBe(true);
+    expect(result.sources[2]).toEqual({
+      dataPointId: danglingId,
+      scope: "gone.scope",
+      version: "0",
+      deletedAt: null,
+    });
 
     const [request] = gateway.requests;
-    const expectedUri = `/v1/data/${derivedId}/lineage?grantId=${READ_GRANT_ID.toLowerCase()}`;
+    const expectedUri = `/v1/data/${derivedId}/lineage`;
     expect(request.path).toBe(expectedUri);
     const proof = parseWeb3SignedHeader(request.headers.authorization);
     expect(proof.payload).toMatchObject({
@@ -364,7 +437,7 @@ describe("getGatewayLineage", () => {
     expect(proof.payload.exp - proof.payload.iat).toBeLessThanOrEqual(3600);
   });
 
-  it("puts version before grantId in the signed query", async () => {
+  it("puts the version in the signed path", async () => {
     const gateway = makeGateway();
     await getGatewayLineage({
       gatewayUrl: GATEWAY_ORIGIN,
@@ -374,7 +447,7 @@ describe("getGatewayLineage", () => {
       signer: builder,
       fetch: gateway.fetch,
     });
-    const expectedUri = `/v1/data/${derivedId}/lineage?version=7&grantId=${READ_GRANT_ID.toLowerCase()}`;
+    const expectedUri = `/v1/data/${derivedId}/lineage/7`;
     expect(gateway.requests[0].path).toBe(expectedUri);
     expect(
       parseWeb3SignedHeader(gateway.requests[0].headers.authorization).payload
@@ -396,41 +469,59 @@ describe("getGatewayLineage", () => {
     expect(result.derivatives[0]).toMatchObject({ scope: "coach.weekly" });
   });
 
-  it("maps gateway refusals to LineageReadError with the gateway's code and message", async () => {
+  it("maps the uniform 404 (no grant, wrong signer, unknown id) and reads gateway error bodies", async () => {
     const gateway = makeGateway();
-    const noGrant = await getGatewayLineage({
-      gatewayUrl: GATEWAY_ORIGIN,
-      dataPointId: derivedId,
-      signer: builder,
-      fetch: gateway.fetch,
-    }).catch((e: unknown) => e);
-    expect(noGrant).toBeInstanceOf(LineageReadError);
-    expect((noGrant as LineageReadError).status).toBe(403);
-    expect((noGrant as LineageReadError).errorCode).toBe("FORBIDDEN");
-    expect((noGrant as LineageReadError).message).toBe(
-      "signer holds no covering grant",
-    );
+    const cases = [
+      { dataPointId: derivedId, signer: builder },
+      { dataPointId: derivedId, signer: stranger, grantId: READ_GRANT_ID },
+      {
+        dataPointId: deriveDataPointId(owner.address, "nothing.here"),
+        signer: builder,
+        grantId: READ_GRANT_ID,
+      },
+    ];
+    for (const params of cases) {
+      const err = await getGatewayLineage({
+        gatewayUrl: GATEWAY_ORIGIN,
+        fetch: gateway.fetch,
+        ...params,
+      }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(LineageReadError);
+      expect((err as LineageReadError).status).toBe(404);
+      expect((err as LineageReadError).errorCode).toBe("NOT_FOUND");
+      expect((err as LineageReadError).message).toBe("Unknown data point");
+    }
 
-    const strangerRead = await getGatewayLineage({
+    const unsigned = await gateway.fetch(
+      `${GATEWAY_ORIGIN}/v1/data/${derivedId}/lineage`,
+    );
+    expect(unsigned.status).toBe(401);
+    expect((await unsigned.json()).code).toBe("LINEAGE_SIGNATURE_REQUIRED");
+
+    const gatewayBodyFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: "Lineage source is not a data point of this owner",
+          code: "LINEAGE_SOURCE_UNKNOWN",
+          unknown: [hiddenId],
+        }),
+        { status: 422, headers: { "Content-Type": "application/json" } },
+      );
+    const detailed = await getGatewayLineage({
       gatewayUrl: GATEWAY_ORIGIN,
       dataPointId: derivedId,
       grantId: READ_GRANT_ID,
-      signer: stranger,
-      fetch: gateway.fetch,
-    }).catch((e: unknown) => e);
-    expect((strangerRead as LineageReadError).status).toBe(403);
-
-    const unknown = await getGatewayLineage({
-      gatewayUrl: GATEWAY_ORIGIN,
-      dataPointId: deriveDataPointId(owner.address, "nothing.here"),
-      grantId: READ_GRANT_ID,
       signer: builder,
-      fetch: gateway.fetch,
+      fetch: gatewayBodyFetch,
     }).catch((e: unknown) => e);
-    expect((unknown as LineageReadError).status).toBe(404);
-    expect((unknown as LineageReadError).errorCode).toBe(
-      "DATA_POINT_NOT_FOUND",
+    expect((detailed as LineageReadError).status).toBe(422);
+    expect((detailed as LineageReadError).errorCode).toBe(
+      "LINEAGE_SOURCE_UNKNOWN",
     );
+    expect((detailed as LineageReadError).details).toEqual({
+      unknown: [hiddenId],
+    });
   });
 
   it("refuses a malformed data point id or version before any request", async () => {

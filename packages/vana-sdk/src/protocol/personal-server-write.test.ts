@@ -814,14 +814,27 @@ describe("writeData", () => {
     expect(server.requests).toHaveLength(1);
   });
 
-  it("an empty or null lineage is a root record: nothing is sent", async () => {
+  it("lineage [] is an explicit root statement and is sent; null or absent makes no statement", async () => {
     const session = await open();
-    for (const lineage of [[], null]) {
+    const explicit = await writeData({
+      session,
+      scope: SCOPE,
+      data: { a: 1 },
+      lineage: [],
+      fetch: server.fetch,
+    });
+    expect(explicit.lineage).toEqual({ sources: [] });
+    expect(new TextDecoder().decode(server.requests.at(-1)?.body)).toBe(
+      '{"a":1,"lineage":[]}',
+    );
+    expect(server.records.at(-1)?.data.$lineage).toMatchObject({ sources: [] });
+
+    for (const lineage of [null, undefined]) {
       const result = await writeData({
         session,
         scope: SCOPE,
         data: { a: 1 },
-        lineage: lineage as Hex[],
+        lineage,
         fetch: server.fetch,
       });
       expect(result.lineage).toBeUndefined();
@@ -830,8 +843,63 @@ describe("writeData", () => {
       expect(
         request?.headers[WRITE_METADATA_HEADER.toLowerCase()],
       ).toBeUndefined();
+      expect(server.records.at(-1)?.data).not.toHaveProperty("$lineage");
     }
-    expect(server.records.every((r) => !("$lineage" in r.data))).toBe(true);
+  });
+
+  it("accepts { ownerAddress, scope } sources, derives their ids and applies the naming rule before signing", async () => {
+    const session = await open(WIDE_GRANT_ID);
+    const result = await writeData({
+      session,
+      scope: DERIVED_SCOPE,
+      data: { summary: "x" },
+      lineage: [{ ownerAddress: owner.address, scope: SCOPE }],
+      fetch: server.fetch,
+    });
+    expect(result.lineage).toEqual({ sources: [sourceId] });
+
+    const requestsBefore = server.requests.length;
+    const underPrefix = await writeData({
+      session,
+      scope: "notes.summary",
+      data: { summary: "x" },
+      lineage: [{ ownerAddress: owner.address, scope: SCOPE }],
+      fetch: server.fetch,
+    }).catch((e: unknown) => e);
+    expect(underPrefix).toBeInstanceOf(WriteRequestError);
+    expect((underPrefix as WriteRequestError).details).toEqual({
+      scope: "notes.summary",
+      sourceScope: SCOPE,
+    });
+
+    const self = await writeData({
+      session,
+      scope: DERIVED_SCOPE,
+      data: { summary: "x" },
+      lineage: [{ ownerAddress: owner.address, scope: DERIVED_SCOPE }],
+      fetch: server.fetch,
+    }).catch((e: unknown) => e);
+    expect(self).toBeInstanceOf(WriteRequestError);
+    expect((self as WriteRequestError).message).toMatch(/own data point/);
+
+    const badOwner = await writeData({
+      session,
+      scope: DERIVED_SCOPE,
+      data: { summary: "x" },
+      lineage: [{ ownerAddress: "0x12" as Address, scope: SCOPE }],
+      fetch: server.fetch,
+    }).catch((e: unknown) => e);
+    expect(badOwner).toBeInstanceOf(WriteRequestError);
+
+    const mixedDuplicate = await writeData({
+      session,
+      scope: DERIVED_SCOPE,
+      data: { summary: "x" },
+      lineage: [sourceId, { ownerAddress: owner.address, scope: SCOPE }],
+      fetch: server.fetch,
+    }).catch((e: unknown) => e);
+    expect(mixedDuplicate).toBeInstanceOf(WriteRequestError);
+    expect(server.requests).toHaveLength(requestsBefore);
   });
 
   it("refuses to write on an expired session before sending anything", async () => {

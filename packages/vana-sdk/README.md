@@ -350,16 +350,18 @@ const session = await openWriteSession({
 // 2. Write a record (compact JSON, signed proof in X-Vana-Write-Signature).
 await writeData({ session, scope: "coach.notes", data: { note: "hello" } });
 
-// 3. Write a derivative: name the data points it was computed from.
-const sourceId = deriveDataPointId(ownerAddress, "chatgpt.conversations");
+// 3. Write a derivative: name the data points it was computed from. Given as
+//    { ownerAddress, scope } the SDK derives the ids and checks the naming
+//    rule before signing; bare ids (deriveDataPointId) work too.
 await writeData({
   session,
   scope: "coach.summary",
   data: { summary: "..." },
-  lineage: [sourceId],
+  lineage: [{ ownerAddress, scope: "chatgpt.conversations" }],
 });
 
-// 4. Walk the lineage: Personal Server by scope, or gateway by data point id.
+// 4. Walk the lineage: Personal Server by scope, or gateway by data point id
+//    (optionally `version: N` for a specific version).
 const graph = await getLineage({
   personalServerUrl: "https://ps.example.com",
   scope: "coach.summary",
@@ -390,20 +392,29 @@ What the SDK does for you:
   fresh proof per attempt; an HTTP error is never retried.
 - `lineage` becomes the record's top-level `lineage` field (JSON writes) or
   the `lineage` field of `X-Vana-Metadata` (binary writes), so it is inside
-  the signed bytes either way; the server validates it and mirrors it to
-  `$lineage`. Sending `$writtenBy`, `$lineage`, or your own `lineage` field is
-  refused before any request.
-- Both lineage reads are Web3Signed. The gateway request signs the canonical
-  uri (lowercase id, then `?version=N` and/or `grantId=<lowercase>` in that
-  order), so a captured signature cannot be replayed for another view.
+  the signed bytes either way; ids are lowercased, the server validates them
+  and mirrors them to `$lineage`. `lineage: []` is an explicit root statement
+  and is sent as such; absent or `null` makes no statement. Sending
+  `$writtenBy`, `$lineage`, or your own `lineage` field is refused before any
+  request.
+- Both lineage reads are Web3Signed over the bare path
+  (`/v1/data/<id lowercase>/lineage[/:version]` on the gateway,
+  `/v1/data/:scope/lineage[/:version]` on the Personal Server; the version is
+  a path segment, never a query), with the grant as the signed `grantId`
+  claim, so a captured signature cannot be replayed for another view. The
+  gateway answers a uniform 404 for an unknown id and for a signer it will
+  not serve.
 
-Rules the Personal Server enforces on derivatives: sources are data points of
-the same owner (a deleted source is still a valid one), at most 256, and the
-derived scope must not share its first dot-segment with any source scope (a
-grant on `chatgpt.*` must not read `chatgpt.summary`), so put derivatives in
-your app's own namespace. A grant on a derived scope confers nothing on its
-sources, and the other way round: the pipeline needs a read grant on the
-sources and a write grant on the derived scope.
+Rules on derivatives, checked by the server and (where the SDK has the
+information) by the client before anything is signed: sources are data points
+of the same owner (a deleted source is still a valid one, and comes back with
+its `deletedAt`; one that no longer resolves comes back with `version: "0"`),
+at most 256, distinct, never the record's own id, and the derived scope must
+not share its first dot-segment with any source scope (a grant on `chatgpt.*`
+must not read `chatgpt.summary`), so put derivatives in your app's own
+namespace (`assertDerivedScopeNaming` is exported). A grant on a derived scope
+confers nothing on its sources, and the other way round: the pipeline needs a
+read grant on the sources and a write grant on the derived scope.
 
 Errors are typed: `WriteSessionError` (handshake refused), `WriteUnauthorizedError`
 (401), `WriteForbiddenError` (403), `WriteConflictError` (409),

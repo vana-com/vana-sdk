@@ -2,8 +2,9 @@
  * Reader for the error bodies a Personal Server (or the gateway) answers
  * with. Protocol errors use `{ error: { code, errorCode, message, details? } }`;
  * contract-level rejections use `{ error: "CODE", message }`; the gateway
- * uses `{ success: false, error: "<message>", code: "CODE" }`; older clients
- * saw `{ code, message }`. All four are accepted.
+ * uses `{ success: false, error: "<message>", code: "CODE" }` with lineage
+ * detail fields (`unknown`, `scope`, `sourceScope`) at the top level; older
+ * clients saw `{ code, message }`. All four are accepted.
  *
  * @internal
  */
@@ -43,7 +44,15 @@ export async function readPersonalServerErrorBody(
     body.code;
   const message =
     nested?.message ?? body.message ?? (gatewayShape ? body.error : undefined);
-  const details = nested?.details ?? body.details;
+  // Gateway lineage rejections carry their detail fields at the top level.
+  const gatewayDetails: Record<string, unknown> = {};
+  for (const key of ["unknown", "scope", "sourceScope"]) {
+    if (gatewayShape && body[key] !== undefined) gatewayDetails[key] = body[key];
+  }
+  const details =
+    nested?.details ??
+    body.details ??
+    (Object.keys(gatewayDetails).length > 0 ? gatewayDetails : undefined);
   return {
     errorCode: typeof code === "string" ? code : null,
     message: typeof message === "string" ? message : null,

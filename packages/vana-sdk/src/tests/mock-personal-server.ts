@@ -14,11 +14,13 @@
  *     proof single-use; `lineage` is the body's top-level field (JSON) or
  *     the metadata object's field (binary), validated per
  *     docs/derivative-data-api.md and mirrored to `$lineage`
- *   - lineage reads on both the Personal Server (Web3Signed over the path,
- *     grant from the claim) and the gateway (Web3Signed over the path plus
- *     the canonical query, 401 unsigned, 403 uncovered), answering the
- *     gateway `{ data, proof }` envelope with redaction for nodes the
- *     caller's grant does not cover
+ *   - lineage reads on both the Personal Server and the gateway: Web3Signed
+ *     over the bare path (`/lineage[/:version]`, the version is a path
+ *     segment, any query is 400), grant view from the signed `grantId` claim
+ *     only, 401 for a missing / invalid gateway signature, a uniform 404 for
+ *     an unknown id and for a signer the gateway will not serve; answering
+ *     the `{ data, proof }` envelope with redaction for nodes the caller's
+ *     grant does not cover
  *
  * The binary representation is a verbatim port of the Personal Server's
  * `buildBinaryEnvelopeData` / `parseMetadataHeader` (Web Crypto + btoa), so
@@ -540,7 +542,7 @@ export function createMockPersonalServer(
         seen.add(id);
         sources.push(id);
       }
-      if (sources.length > 0) {
+      {
         const unknown = sources.filter((id) => !known.has(id));
         if (unknown.length > 0) {
           return protocolError(
@@ -604,6 +606,7 @@ export function createMockPersonalServer(
     headers: Headers,
     path: string,
     scope: string,
+    version: string | undefined,
   ): Promise<Response> {
     let verified;
     try {
@@ -637,12 +640,17 @@ export function createMockPersonalServer(
       return protocolError(403, "SCOPE_MISMATCH", "Scope not granted");
     }
     const history = records.filter((r) => r.scope === scope);
-    const latest = history[history.length - 1];
+    const latest =
+      version === undefined
+        ? history[history.length - 1]
+        : history[Number(version) - 1];
     if (!latest) {
       return protocolError(
         404,
         "NOT_FOUND",
-        `Scope "${scope}" is not registered at the gateway`,
+        version
+          ? `Scope "${scope}" has no registered version ${version}`
+          : `Scope "${scope}" is not registered at the gateway`,
       );
     }
     const { keccak256, encodeAbiParameters } = await import("viem");
@@ -676,7 +684,7 @@ export function createMockPersonalServer(
         dataPointId: idFor(scope),
         ownerAddress: options.owner,
         scope,
-        version: String(history.length),
+        version: version ?? String(history.length),
         deletedAt: null,
         sources,
         derivatives: [],
@@ -718,10 +726,19 @@ export function createMockPersonalServer(
     if (method === "POST" && url.pathname === "/v1/write/session") {
       return handleSession(headers, url.pathname, body);
     }
-    const lineageMatch = url.pathname.match(/^\/v1\/data\/([^/]+)\/lineage$/);
+    const lineageMatch = url.pathname.match(
+      /^\/v1\/data\/([^/]+)\/lineage(?:\/([^/]+))?$/,
+    );
     if (method === "GET" && lineageMatch) {
-      const version = url.searchParams.get("version");
-      if (version !== null && !/^[1-9]\d*$/.test(version)) {
+      if (url.search !== "") {
+        return protocolError(
+          400,
+          "INVALID_VERSION",
+          "the version is a path segment; query strings are not accepted",
+        );
+      }
+      const version = lineageMatch[2];
+      if (version !== undefined && !/^[1-9]\d*$/.test(version)) {
         return protocolError(
           400,
           "INVALID_VERSION",
@@ -732,6 +749,7 @@ export function createMockPersonalServer(
         headers,
         url.pathname,
         decodeURIComponent(lineageMatch[1]),
+        version,
       );
     }
     const dataMatch = url.pathname.match(/^\/v1\/data\/([^/]+)$/);
@@ -767,7 +785,7 @@ export interface MockGatewayOptions {
   origin: string;
   /** Lineage views by data point id (lowercase). */
   graphs: Record<string, MockGatewayView>;
-  /** Builder address -> grant ids it holds (lowercase), for the 403 rule. */
+  /** Builder address -> grant ids it holds (lowercase), for the 404 rule. */
   grants?: Record<string, string[]>;
   /** Wrap answers in the gateway `{ data, proof }` envelope (default true). */
   envelope?: boolean;
@@ -782,6 +800,7 @@ export interface MockGatewayView {
   deletedAt: string | null;
   sources: unknown[];
   derivatives: unknown[];
+  derivativesTruncated?: boolean;
 }
 
 export interface MockGateway {
@@ -789,15 +808,27 @@ export interface MockGateway {
   requests: MockRequestLog[];
 }
 
-function gatewayError(status: number, code: string, message: string): Response {
-  return jsonResponse(status, { success: false, error: message, code });
+function gatewayError(
+  status: number,
+  code: string,
+  message: string,
+  extra: Record<string, unknown> = {},
+): Response {
+  return jsonResponse(status, {
+    success: false,
+    error: message,
+    code,
+    ...extra,
+  });
 }
 
 /**
- * A gateway answering `GET /v1/data/:id/lineage`: requires a Web3Signed
- * header whose `uri` is the path plus the canonical query (`version`, then
- * lowercase `grantId`), whose `grantId` claim equals the query's, and whose
- * signer holds that grant (403 otherwise); 404 for unknown ids.
+ * A gateway answering `GET /v1/data/:id/lineage[/:version]`: the version is
+ * a path segment and any query string is 400; the request must carry a
+ * Web3Signed header whose `uri` is that bare path (401
+ * LINEAGE_SIGNATURE_REQUIRED / LINEAGE_SIGNATURE_INVALID otherwise); the
+ * grant view is the signed `grantId` claim; an unknown id and a signer that
+ * holds no such grant both answer a uniform 404.
  */
 export function createMockGateway(options: MockGatewayOptions): MockGateway {
   const requests: MockRequestLog[] = [];
@@ -815,79 +846,73 @@ export function createMockGateway(options: MockGatewayOptions): MockGateway {
       body: new Uint8Array(0),
     });
     const match = url.pathname.match(
-      /^\/v1\/data\/(0x[0-9a-fA-F]{64})\/lineage$/,
+      /^\/v1\/data\/(0x[0-9a-fA-F]{64})\/lineage(?:\/([^/]+))?$/,
     );
     if (!match) {
       return gatewayError(404, "NOT_FOUND", url.pathname);
     }
+    if (url.search !== "") {
+      return gatewayError(
+        400,
+        "INVALID_REQUEST",
+        "query strings are not accepted",
+      );
+    }
     if (match[1] !== match[1].toLowerCase()) {
       return gatewayError(400, "INVALID_DATA_POINT_ID", "id must be lowercase");
     }
-    const version = url.searchParams.get("version");
-    const grantId = url.searchParams.get("grantId");
-    if (version !== null && !/^[1-9]\d*$/.test(version)) {
+    const version = match[2];
+    if (version !== undefined && !/^[1-9]\d*$/.test(version)) {
       return gatewayError(
         400,
         "INVALID_VERSION",
         "version must be a positive decimal integer",
       );
     }
-    if (grantId !== null && grantId !== grantId.toLowerCase()) {
-      return gatewayError(400, "INVALID_GRANT_ID", "grantId must be lowercase");
-    }
-    const canonical = new URLSearchParams();
-    if (version !== null) canonical.set("version", version);
-    if (grantId !== null) canonical.set("grantId", grantId);
-    const canonicalQuery = canonical.toString();
-    const expectedUri = `${url.pathname}${canonicalQuery ? `?${canonicalQuery}` : ""}`;
-    if (url.search !== (canonicalQuery ? `?${canonicalQuery}` : "")) {
+    const authorization = headers.get("authorization");
+    if (!authorization) {
       return gatewayError(
-        400,
-        "NON_CANONICAL_QUERY",
-        "query must be version then grantId",
+        401,
+        "LINEAGE_SIGNATURE_REQUIRED",
+        "request signature required",
       );
     }
     let verified;
     try {
       verified = await verifyWeb3Signed({
-        headerValue: headers.get("authorization") ?? undefined,
+        headerValue: authorization,
         expectedOrigin: options.origin,
         expectedMethod: "GET",
-        expectedPath: expectedUri,
+        expectedPath: url.pathname,
         bodyBytes: new Uint8Array(0),
         now: Math.floor(now() / 1000),
       });
     } catch (err) {
       return gatewayError(
         401,
-        "INVALID_SIGNATURE",
+        "LINEAGE_SIGNATURE_INVALID",
         err instanceof Error ? err.message : String(err),
       );
     }
-    if (verified.payload.exp - verified.payload.iat > 3600) {
-      return gatewayError(
-        401,
-        "INVALID_SIGNATURE",
-        "iat and exp must be at most one hour apart",
-      );
-    }
     if (
-      verified.payload.grantId !== undefined &&
-      verified.payload.grantId !== (grantId ?? undefined)
+      verified.payload.exp < verified.payload.iat ||
+      verified.payload.exp - verified.payload.iat > 3600
     ) {
       return gatewayError(
-        403,
-        "GRANT_MISMATCH",
-        "grantId claim must equal the requested grantId",
+        401,
+        "LINEAGE_SIGNATURE_INVALID",
+        "iat <= exp, at most one hour apart",
       );
     }
+    const grantId = verified.payload.grantId;
     const held = options.grants?.[verified.signer.toLowerCase()] ?? [];
-    if (grantId === null || !held.includes(grantId)) {
-      return gatewayError(403, "FORBIDDEN", "signer holds no covering grant");
-    }
     const graph = options.graphs[match[1]];
-    if (graph === undefined) {
-      return gatewayError(404, "DATA_POINT_NOT_FOUND", "Unknown data point");
+    if (
+      graph === undefined ||
+      grantId === undefined ||
+      !held.includes(grantId)
+    ) {
+      return gatewayError(404, "NOT_FOUND", "Unknown data point");
     }
     return jsonResponse(
       200,

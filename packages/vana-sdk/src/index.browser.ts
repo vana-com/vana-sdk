@@ -306,6 +306,7 @@ export {
   type WriteSession,
   type OpenWriteSessionParams,
   type WriteBinaryPayload,
+  type LineageSource,
   type WriteJsonDataParams,
   type WriteBinaryDataParams,
   type WriteDataParams,
@@ -325,6 +326,9 @@ export {
 export {
   deriveDataPointId,
   isDataPointId,
+  scopeNamespace,
+  derivedScopeViolatesNaming,
+  assertDerivedScopeNaming,
   isRedactedLineageNode,
   personalServerLineagePath,
   gatewayLineagePath,

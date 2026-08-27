@@ -89,7 +89,7 @@ const view: MockGatewayView = {
       version: "3",
       deletedAt: null,
     },
-    { dataPointId: hiddenId, redacted: true },
+    { redacted: true },
     // A source that no longer resolves to a registered data point.
     {
       dataPointId: danglingId,
@@ -239,11 +239,15 @@ describe("getPersonalServerLineage", () => {
         version: "3",
         deletedAt: null,
       },
-      { dataPointId: hiddenId, redacted: true },
+      { redacted: true },
     ]);
     const [visible, hidden] = graph.sources;
     expect(isRedactedLineageNode(visible)).toBe(false);
     expect(isRedactedLineageNode(hidden)).toBe(true);
+    // A builder view discloses no 0x identifier beyond its own data point.
+    const identifiers = JSON.stringify(graph).match(/0x[0-9a-fA-F]{40,}/g);
+    expect(identifiers).toEqual([derivedId, owner.address, sourceId]);
+    expect(JSON.stringify(graph)).not.toContain(hiddenId);
 
     const request = server.requests.at(-1);
     expect(request?.method).toBe("GET");
@@ -357,6 +361,46 @@ describe("getPersonalServerLineage", () => {
     expect(missing).toBeInstanceOf(LineageReadError);
     expect((missing as LineageReadError).status).toBe(404);
     expect((missing as LineageReadError).errorCode).toBe("NOT_FOUND");
+  });
+
+  it("refuses a view whose redacted node carries anything but `redacted: true`", async () => {
+    const server = makeServer();
+    const leaking = [
+      { dataPointId: hiddenId, redacted: true },
+      // Every visible-node field plus the marker: must not pass as visible.
+      {
+        dataPointId: hiddenId,
+        scope: HIDDEN_SCOPE,
+        version: "1",
+        deletedAt: null,
+        redacted: true,
+      },
+      { redacted: true, scope: HIDDEN_SCOPE },
+      { redacted: true, version: "1" },
+    ];
+    for (const node of leaking) {
+      server.respondNextWith(200, {
+        data: { ...view, sources: [view.sources[0], node] },
+        proof: {},
+      });
+      const err = await getPersonalServerLineage({
+        personalServerUrl: PS_ORIGIN,
+        scope: DERIVED_SCOPE,
+        grantId: READ_GRANT_ID,
+        signer: builder,
+        fetch: server.fetch,
+      }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(LineageReadError);
+      expect((err as LineageReadError).details).toHaveProperty("issues");
+      expect(JSON.stringify(err)).not.toContain(HIDDEN_SCOPE);
+    }
+    expect(
+      isRedactedLineageNode({
+        dataPointId: hiddenId,
+        redacted: true,
+      } as unknown as Parameters<typeof isRedactedLineageNode>[0]),
+    ).toBe(false);
+    expect(isRedactedLineageNode({ redacted: true })).toBe(true);
   });
 
   it("rejects a body that is not a lineage view, including a malformed version", async () => {

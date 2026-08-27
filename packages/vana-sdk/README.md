@@ -424,9 +424,12 @@ with `details.unknown`, 400 `LINEAGE_INVALID` /
 `WriteRejectedError` (other), `WriteSessionExpiredError`, `WriteTransportError`,
 `WriteRequestError`, and `LineageReadError` for lineage reads. Each carries the
 server's `status`, `errorCode` and `details`. Lineage entries the caller holds
-no grant for come back as `{ dataPointId, redacted: true }` (narrow with
-`isRedactedLineageNode`); the gateway's `proof` over the served view is passed
-through.
+no grant for come back as exactly `{ redacted: true }` (narrow with
+`isRedactedLineageNode`): no id, scope or version, because the id is
+`keccak256(owner, scope)` and a grantee who knows the owner could recover the
+scope from it; order and count are preserved, so a redacted node is identified
+by its position. The SDK refuses a view whose redacted node carries anything
+else. The gateway's `proof` over the served view is passed through.
 
 ## Networks
 

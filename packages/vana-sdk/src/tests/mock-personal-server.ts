@@ -670,7 +670,8 @@ export function createMockPersonalServer(
     const sources = (stampedLineage?.sources ?? []).map((dataPointId) => {
       const node = known.get(dataPointId.toLowerCase());
       if (!node || !covered(node.scope)) {
-        return { dataPointId, redacted: true as const };
+        // Exactly `{ redacted: true }`: the id would leak the scope.
+        return { redacted: true as const };
       }
       return {
         dataPointId: node.dataPointId,

@@ -47,7 +47,8 @@ export async function readPersonalServerErrorBody(
   // Gateway lineage rejections carry their detail fields at the top level.
   const gatewayDetails: Record<string, unknown> = {};
   for (const key of ["unknown", "scope", "sourceScope"]) {
-    if (gatewayShape && body[key] !== undefined) gatewayDetails[key] = body[key];
+    if (gatewayShape && body[key] !== undefined)
+      gatewayDetails[key] = body[key];
   }
   const details =
     nested?.details ??

@@ -321,6 +321,113 @@ app. It includes the route handlers, return page, and React connect button from
 this flow, defaults to sample-data mode using `vana-com/data-connectors`, and
 can be switched to live protocol mode with environment variables.
 
+## Write into a Personal Server
+
+A builder that holds a **write-grant** (a grant whose scope entries carry the
+`write:` prefix, e.g. `write:coach.summary`; see `formatScopeEntry`) can write
+records into the user's Personal Server. The SDK owns the handshake and the
+signatures; the same API works from a backend (viem `privateKeyToAccount`) and
+from a browser (viem `WalletClient`).
+
+```typescript
+import { privateKeyToAccount } from "viem/accounts";
+import {
+  openWriteSession,
+  writeData,
+  getLineage,
+  deriveDataPointId,
+} from "@opendatalabs/vana-sdk";
+
+const signer = privateKeyToAccount(process.env.BUILDER_KEY as `0x${string}`);
+
+// 1. Open a session: Web3Signed handshake carrying the write-grant id.
+const session = await openWriteSession({
+  personalServerUrl: "https://ps.example.com",
+  signer,
+  grantId: writeGrantId,
+});
+
+// 2. Write a record (compact JSON, signed proof in X-Vana-Write-Signature).
+await writeData({ session, scope: "coach.notes", data: { note: "hello" } });
+
+// 3. Write a derivative: name the data points it was computed from. Given as
+//    { ownerAddress, scope } the SDK derives the ids and checks the naming
+//    rule before signing; bare ids (deriveDataPointId) work too.
+await writeData({
+  session,
+  scope: "coach.summary",
+  data: { summary: "..." },
+  lineage: [{ ownerAddress, scope: "chatgpt.conversations" }],
+});
+
+// 4. Walk the lineage: Personal Server by scope, or gateway by data point id
+//    (optionally `version: N` for a specific version).
+const graph = await getLineage({
+  personalServerUrl: "https://ps.example.com",
+  scope: "coach.summary",
+  grantId: readGrantId,
+  signer,
+});
+const viaGateway = await getLineage({
+  gatewayUrl: "https://dp-rpc.vana.org",
+  dataPointId: deriveDataPointId(ownerAddress, "coach.summary"),
+  grantId: readGrantId,
+  signer,
+});
+```
+
+`writePersonalServerData({ personalServerUrl, signer, grantId, scope, data })`
+does steps 1 and 2 in one call and returns the session for reuse.
+
+What the SDK does for you:
+
+- Sends `POST /v1/write/session` with a Web3Signed proof (the grant id is a
+  signed claim) and keeps the short-lived bearer in `session`.
+- Sends `POST /v1/data/:scope` with the bearer and `X-Vana-Write-Signature`, a
+  second Web3Signed proof over the **stored** representation: the compact JSON
+  body for JSON writes, the `$binary` record (`binaryWriteSignedBytes`) for
+  `binary: { bytes, contentType, filename }` writes. The grant id is a signed
+  claim on that proof too.
+- Every proof is single-use on the server. Transport retries (`retry`) sign a
+  fresh proof per attempt; an HTTP error is never retried.
+- `lineage` becomes the record's top-level `lineage` field (JSON writes) or
+  the `lineage` field of `X-Vana-Metadata` (binary writes), so it is inside
+  the signed bytes either way; ids are lowercased, the server validates them
+  and mirrors them to `$lineage`. `lineage: []` is an explicit root statement
+  and is sent as such; absent or `null` makes no statement. Sending
+  `$writtenBy`, `$lineage`, or your own `lineage` field is refused before any
+  request.
+- Both lineage reads are Web3Signed over the bare path
+  (`/v1/data/<id lowercase>/lineage[/:version]` on the gateway,
+  `/v1/data/:scope/lineage[/:version]` on the Personal Server; the version is
+  a path segment, never a query), with the grant as the signed `grantId`
+  claim, so a captured signature cannot be replayed for another view. The
+  gateway answers a uniform 404 for an unknown id and for a signer it will
+  not serve.
+
+Rules on derivatives, checked by the server and (where the SDK has the
+information) by the client before anything is signed: sources are data points
+of the same owner (a deleted source is still a valid one, and comes back with
+its `deletedAt`; one that no longer resolves comes back with `version: "0"`),
+at most 256, distinct, never the record's own id, and the derived scope must
+not share its first dot-segment with any source scope (a grant on `chatgpt.*`
+must not read `chatgpt.summary`), so put derivatives in your app's own
+namespace (`assertDerivedScopeNaming` is exported). A grant on a derived scope
+confers nothing on its sources, and the other way round: the pipeline needs a
+read grant on the sources and a write grant on the derived scope.
+
+Errors are typed: `WriteSessionError` (handshake refused), `WriteUnauthorizedError`
+(401), `WriteForbiddenError` (403), `WriteConflictError` (409),
+`WriteLineageError` (any `LINEAGE_*` rejection: 422 `LINEAGE_SOURCE_UNKNOWN`
+with `details.unknown`, 400 `LINEAGE_INVALID` /
+`LINEAGE_SCOPE_UNDER_SOURCE_PREFIX`, 502 `LINEAGE_SOURCE_LOOKUP_FAILED`),
+`WriteRejectedError` (other), `WriteSessionExpiredError`, `WriteTransportError`,
+`WriteRequestError`, and `LineageReadError` for lineage reads. Each carries the
+server's `status`, `errorCode` and `details`. Lineage entries the caller holds
+no grant for come back as `{ dataPointId, redacted: true }` (narrow with
+`isRedactedLineageNode`); the gateway's `proof` over the served view is passed
+through.
+
 ## Networks
 
 | Network        | Chain ID | RPC URL                     |

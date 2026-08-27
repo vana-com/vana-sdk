@@ -543,3 +543,233 @@ export class TransactionPendingError extends VanaError {
     };
   }
 }
+
+/**
+ * Personal Server error codes a Write API call can surface in
+ * {@link PersonalServerWriteError.errorCode}.
+ *
+ * @remarks
+ * The `WRITE_*` and `LINEAGE_*` codes are specific to the Write API; the
+ * rest are the shared protocol codes the write policy reuses. The string
+ * escape hatch keeps codes introduced by a newer Personal Server readable.
+ * @category Error Handling
+ */
+export type PersonalServerWriteErrorCode =
+  | "WRITE_SESSION_AUTH_FAILED"
+  | "WRITE_SESSION_PROOF_REQUIRED"
+  | "WRITE_SESSION_PROOF_REPLAY"
+  | "GRANT_ID_REQUIRED"
+  | "WRITE_ATTRIBUTION_REQUIRED"
+  | "WRITE_ATTRIBUTION_INVALID"
+  | "WRITE_ATTRIBUTION_SIGNER_MISMATCH"
+  | "WRITE_ATTRIBUTION_GRANT_MISMATCH"
+  | "WRITE_ATTRIBUTION_REPLAY"
+  | "WRITE_BODY_NOT_CANONICAL"
+  | "LINEAGE_INVALID"
+  | "LINEAGE_SCOPE_UNDER_SOURCE_PREFIX"
+  | "LINEAGE_SOURCE_UNKNOWN"
+  | "LINEAGE_SOURCE_LOOKUP_FAILED"
+  | "LINEAGE_FORBIDDEN"
+  | "LINEAGE_GATEWAY_ERROR"
+  | "LINEAGE_UNAVAILABLE"
+  | "LINEAGE_CASCADE_UNAVAILABLE"
+  | "LINEAGE_SIGNATURE_REQUIRED"
+  | "LINEAGE_SIGNATURE_INVALID"
+  | "INVALID_CASCADE"
+  | "INVALID_VERSION"
+  | "NOT_FOUND"
+  | "MISSING_AUTH"
+  | "INVALID_SIGNATURE"
+  | "UNREGISTERED_BUILDER"
+  | "GRANT_REQUIRED"
+  | "GRANT_REVOKED"
+  | "GRANT_EXPIRED"
+  | "GRANT_OWNER_MISMATCH"
+  | "SCOPE_MISMATCH"
+  | "INVALID_BODY"
+  | "CONTENT_TOO_LARGE"
+  | "PS_UNAVAILABLE"
+  | "SERVER_NOT_CONFIGURED"
+  | "INTERNAL_ERROR"
+  | (string & {});
+
+/**
+ * Base class for every Personal Server Write API failure.
+ *
+ * @remarks
+ * `status` is the HTTP status the Personal Server answered with (absent for
+ * failures raised before a request was sent or when no response arrived),
+ * `errorCode` is the Personal Server's protocol error code when the body
+ * carried one, and `details` is the server-supplied detail object.
+ * @category Error Handling
+ */
+export class PersonalServerWriteError extends VanaError {
+  constructor(
+    message: string,
+    code: string,
+    public readonly status?: number,
+    public readonly errorCode: PersonalServerWriteErrorCode | null = null,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message, code);
+  }
+}
+
+/**
+ * Thrown before any request is sent when the write input is invalid: no
+ * payload, a payload that is not a JSON object, a reserved `$writtenBy` /
+ * `$lineage` key, a malformed lineage source id, or an unusable signer.
+ * @category Error Handling
+ */
+export class WriteRequestError extends PersonalServerWriteError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "WRITE_INVALID_REQUEST", undefined, null, details);
+  }
+}
+
+/**
+ * Thrown when the transport failed (fetch threw) on every attempt.
+ *
+ * @remarks
+ * A write whose response was lost may still have been stored: the Personal
+ * Server commits before answering. Check the scope before re-sending the
+ * same record.
+ * @category Error Handling
+ */
+export class WriteTransportError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    public readonly attempts: number,
+    cause?: unknown,
+  ) {
+    super(message, "WRITE_TRANSPORT_ERROR", undefined, null, { attempts });
+    this.cause = cause;
+  }
+}
+
+/**
+ * Thrown when `POST /v1/write/session` refused the handshake (any non-2xx),
+ * or answered with a body the SDK cannot read.
+ * @category Error Handling
+ */
+export class WriteSessionError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    status?: number,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "WRITE_SESSION_REJECTED", status, errorCode, details);
+  }
+}
+
+/**
+ * Thrown by {@link writeData} when the session's bearer token has passed its
+ * `expires_in` lifetime. Open a new session; nothing was sent.
+ * @category Error Handling
+ */
+export class WriteSessionExpiredError extends PersonalServerWriteError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "WRITE_SESSION_EXPIRED", undefined, null, details);
+  }
+}
+
+/**
+ * Thrown when a write answered 401.
+ *
+ * @remarks
+ * `WRITE_ATTRIBUTION_*` codes describe the per-write proof. A plain
+ * `INVALID_SIGNATURE` or `MISSING_AUTH` on a write usually means the session
+ * token is no longer known to the Personal Server (expired, or the server
+ * restarted and dropped its in-memory sessions): open a new session.
+ * @category Error Handling
+ */
+export class WriteUnauthorizedError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "WRITE_UNAUTHORIZED", 401, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a write answered 403: the live grant no longer authorizes it
+ * (revoked, expired, wrong owner) or the scope is outside its write patterns.
+ * @category Error Handling
+ */
+export class WriteForbiddenError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "WRITE_FORBIDDEN", 403, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a write answered 409 (the record conflicts with server state).
+ * @category Error Handling
+ */
+export class WriteConflictError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "WRITE_CONFLICT", 409, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when the Personal Server rejected the write's lineage: 422
+ * `LINEAGE_SOURCE_UNKNOWN` (`details.unknown` lists the offending ids), 400
+ * `LINEAGE_INVALID` / `LINEAGE_SCOPE_UNDER_SOURCE_PREFIX`, or 502
+ * `LINEAGE_SOURCE_LOOKUP_FAILED`.
+ * @category Error Handling
+ */
+export class WriteLineageError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    status = 422,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "WRITE_LINEAGE_REJECTED", status, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a write answered any other non-2xx status (400 for a body the
+ * server cannot store, 413 for an oversized payload, 5xx).
+ * @category Error Handling
+ */
+export class WriteRejectedError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    status: number,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "WRITE_REJECTED", status, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a lineage read (Personal Server or gateway) fails: a non-2xx
+ * answer, a body that is not a lineage graph, a malformed data point id, or
+ * a transport failure.
+ * @category Error Handling
+ */
+export class LineageReadError extends VanaError {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly errorCode: PersonalServerWriteErrorCode | null = null,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message, "LINEAGE_READ_ERROR");
+  }
+}

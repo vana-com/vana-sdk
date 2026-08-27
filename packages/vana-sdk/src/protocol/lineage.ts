@@ -9,9 +9,12 @@
  * Server stores them under the reserved `$lineage` key and both the Personal
  * Server (`GET /v1/data/:scope/lineage[/:version]`) and the gateway
  * (`GET /v1/data/:dataPointId/lineage[/:version]`) answer the resulting view.
- * Nodes the caller holds no grant for come back as
- * `{ dataPointId, redacted: true }`; a source that no longer resolves comes
- * back with `version: "0"`.
+ * Nodes the caller holds no grant for come back as exactly
+ * `{ redacted: true }`: no id, scope or version, because the id is
+ * `keccak256(owner, scope)` and a grantee who knows the owner could recover
+ * the scope from it with a small dictionary. Order and count are preserved,
+ * so a redacted node is still identified by its position. A source that no
+ * longer resolves comes back with `version: "0"`.
  *
  * A derived scope must not share its first dot-segment with any source scope
  * (a grant on `chatgpt.*` must never read a derivative of
@@ -147,8 +150,13 @@ export const LineageNodeSchema = z.object({
   deletedAt: z.string().nullable(),
 });
 
-export const RedactedLineageNodeSchema = z.object({
-  dataPointId: DataPointIdSchema,
+/**
+ * A redacted node is exactly `{ redacted: true }`. Any other key on it would
+ * leak what the redaction hides, so the schema is strict: a view carrying a
+ * redacted node with an id (or anything else) is refused rather than passed
+ * through.
+ */
+export const RedactedLineageNodeSchema = z.strictObject({
   redacted: z.literal(true),
 });
 
@@ -178,7 +186,7 @@ export const LineageGraphSchema = z.object({
 /** A lineage node the caller is allowed to see. */
 export type LineageNode = z.infer<typeof LineageNodeSchema>;
 
-/** A lineage node the caller holds no grant for: only its id is disclosed. */
+/** A lineage node the caller holds no grant for: nothing but its position. */
 export type RedactedLineageNode = z.infer<typeof RedactedLineageNodeSchema>;
 
 /** One entry of a lineage graph. Narrow with {@link isRedactedLineageNode}. */
@@ -201,7 +209,11 @@ export interface LineageReadResult extends LineageGraph {
 export function isRedactedLineageNode(
   entry: LineageEntry,
 ): entry is RedactedLineageNode {
-  return "redacted" in entry && entry.redacted === true;
+  return (
+    "redacted" in entry &&
+    entry.redacted === true &&
+    Object.keys(entry).length === 1
+  );
 }
 
 /**

@@ -153,7 +153,7 @@ export const LineageNodeSchema = z.object({
    * `redacted: true` next to an id, scope and version cannot slip through
    * this branch of {@link LineageEntrySchema} with the key stripped.
    */
-  redacted: z.undefined(),
+  redacted: z.never().optional(),
 });
 
 /**

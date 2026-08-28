@@ -18,6 +18,7 @@ import {
   type EscrowPayResult,
 } from "../protocol/escrow";
 import { CONTRACTS } from "../generated/addresses";
+import { InvalidScopeEntryError } from "../protocol/scope-actions";
 
 // Escrow contract address from the registry (resolved by chainId)
 const ESCROW_CONTRACT_MOKSHA = CONTRACTS.DataPortabilityEscrow.addresses[14800];
@@ -180,6 +181,80 @@ describe("createDirectDataController — config validation", () => {
       }),
     ).toThrow();
   });
+
+  it("accepts a write-grant scope entry", () => {
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: ["write:coach.weekly"],
+    });
+    expect(vana.getAppAddress()).toBe(APP_ADDRESS);
+  });
+
+  it("accepts a mixed read and write scope list", () => {
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "icloud_notes",
+      scopes: [
+        "oura.sleep",
+        "icloud_notes.notes",
+        "coach.weekly",
+        "write:coach.weekly",
+      ],
+    });
+    expect(vana.getAppAddress()).toBe(APP_ADDRESS);
+  });
+
+  it("validates the scope part behind the operation prefix", () => {
+    expect(() =>
+      createDirectDataController({
+        appPrivateKey: APP_KEY,
+        app: APP,
+        source: "icloud_notes",
+        scopes: ["write:NOTAVALIDSCOPE"],
+      }),
+    ).toThrow();
+  });
+
+  it("rejects an unknown operation instead of taking it as read", () => {
+    for (const entry of [
+      "delete:coach.weekly",
+      "read:coach.weekly",
+      "WRITE:coach.weekly",
+      "write:",
+      "write:a:b",
+    ]) {
+      expect(
+        () =>
+          createDirectDataController({
+            appPrivateKey: APP_KEY,
+            app: APP,
+            source: "icloud_notes",
+            scopes: [entry],
+          }),
+        entry,
+      ).toThrow(InvalidScopeEntryError);
+    }
+  });
+
+  it("rejects a wildcard pattern for either operation", () => {
+    // This flow reads approved scopes back one by one, so the scope part must
+    // be a concrete scope even though the grant grammar allows wildcards.
+    for (const entry of ["chatgpt.*", "write:chatgpt.*", "*", "write:*"]) {
+      expect(
+        () =>
+          createDirectDataController({
+            appPrivateKey: APP_KEY,
+            app: APP,
+            source: "icloud_notes",
+            scopes: [entry],
+          }),
+        entry,
+      ).toThrow();
+    }
+  });
 });
 
 describe("createDirectDataController — createAccessRequest", () => {
@@ -221,6 +296,41 @@ describe("createDirectDataController — createAccessRequest", () => {
         url: "https://notes-lens.example/api/vana/delivery",
         token: "a".repeat(43),
       },
+    });
+  });
+
+  it("sends write-grant entries to the client with the prefix intact", async () => {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(async () => ({
+        requestId: "dcr_write",
+        approvalUrl: "https://app.vana.org/data-connection-requests/dcr_write",
+        appAddress: APP_ADDRESS,
+      })),
+      getAccessRequestStatus: vi.fn(),
+    };
+    // The entries the grantor signs, verbatim: the SDK must not normalize,
+    // reorder, or drop the `write:` prefix on the way to the access request.
+    const scopes = ["oura.sleep", "coach.weekly", "write:coach.weekly"];
+
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "oura",
+      scopes,
+      accessRequestClient,
+    });
+
+    await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/connect/return",
+    });
+
+    expect(accessRequestClient.createAccessRequest).toHaveBeenCalledWith({
+      appAddress: APP_ADDRESS,
+      app: APP,
+      source: "oura",
+      scopes,
+      returnUrl: "https://notes-lens.example/connect/return",
+      network: "mainnet",
     });
   });
 

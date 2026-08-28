@@ -70,6 +70,30 @@ export {
   PRODUCTION_ENDPOINTS,
   DEV_ENDPOINTS,
 } from "./direct/endpoints";
+// Grant scope entries: the `[operation:]scope` vocabulary the controller's
+// `scopes` are written in, so a backend can build and read them without
+// reaching for a platform entry point.
+export {
+  ScopeSchema,
+  parseScope,
+  scopeMatchesPattern,
+  scopeCoveredByGrant,
+  type Scope,
+  type ParsedScope,
+} from "./protocol/scopes";
+export {
+  SCOPE_ACTIONS,
+  InvalidScopeEntryError,
+  parseScopeEntry,
+  formatScopeEntry,
+  grantPermissions,
+  permissionsToScopes,
+  tryGrantPermissions,
+  hasAction,
+  type ScopeAction,
+  type ParsedScopeEntry,
+  type GrantPermission,
+} from "./protocol/scope-actions";
 
 // Errors
 export {

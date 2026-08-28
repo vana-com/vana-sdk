@@ -14,6 +14,13 @@
  *     proof single-use; `lineage` is the body's top-level field (JSON) or
  *     the metadata object's field (binary), validated per
  *     docs/derivative-data-api.md and mirrored to `$lineage`
+ *   - derivative questions (`/v1/derivatives/questions`): the same builder
+ *     credential as a write (bearer + X-Vana-Write-Signature over the
+ *     request PATH, query string excluded, as the server verifies it),
+ *     authorized against `write:<derivedScope>`, compact JSON bodies, the
+ *     consent rule (every source scope read-granted to the builder), the
+ *     cycle guard, and the 404 a builder gets for a question it did not
+ *     register
  *   - lineage reads on both the Personal Server and the gateway: Web3Signed
  *     over the bare path (`/lineage[/:version]`, the version is a path
  *     segment, any query is 400), grant view from the signed `grantId` claim
@@ -63,6 +70,27 @@ export interface MockPersonalServerOptions {
   status?: "stored" | "syncing";
   sessionTtlSeconds?: number;
   now?: () => number;
+  /** Answer every `/v1/derivatives` route 503, as a server with no compute. */
+  computeUnavailable?: boolean;
+}
+
+/** A question registration the mock server holds. */
+export interface MockQuestion {
+  questionId: string;
+  derivedScope: string;
+  sourceScopes: string[];
+  question: string;
+  model: string | null;
+  registeredBy:
+    | { kind: "owner" }
+    | { kind: "builder"; builder: Address; grantId: string };
+  status: "pending" | "ready" | "failed" | "stale";
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastComputedAt: string | null;
+  derivedVersion: number | null;
+  derivedCollectedAt: string | null;
 }
 
 export interface MockRequestLog {
@@ -85,6 +113,24 @@ export interface MockPersonalServer {
   respondNextWith(status: number, body: unknown): void;
   /** Sessions minted (token -> record). */
   sessions: Map<string, MockSession>;
+  /** Question registrations (id -> row), in registration order. */
+  questions: Map<string, MockQuestion>;
+  /**
+   * Forget every minted session, the way a restarted Personal Server does:
+   * the next call with an old bearer answers 401.
+   */
+  dropSessions(): void;
+  /**
+   * Settle a question the way a compute would: set its status and, for a
+   * `ready` one, store the derived record the builder then reads.
+   */
+  settleQuestion(
+    questionId: string,
+    outcome:
+      | { status: "ready"; data?: Record<string, unknown> }
+      | { status: "failed"; error: string }
+      | { status: "stale" | "pending" },
+  ): void;
 }
 
 export interface MockSession {
@@ -262,6 +308,7 @@ export function createMockPersonalServer(
     ]),
   );
   const grantsById = new Map(options.grants.map((g) => [g.id, g]));
+  const questions = new Map<string, MockQuestion>();
   let failures = 0;
   let failure: Error | undefined;
   let forced: { status: number; body: unknown } | undefined;
@@ -602,6 +649,431 @@ export function createMockPersonalServer(
     });
   }
 
+  /**
+   * The builder credential the derivative question routes share with a
+   * write: a live session bearer, the write policy on `scope`, and a
+   * single-use X-Vana-Write-Signature proof over the request path (the
+   * server verifies `url.pathname`, so a query string is NOT covered).
+   */
+  async function authorizeQuestionCall(
+    headers: Headers,
+    method: string,
+    path: string,
+    body: Uint8Array,
+    scope: string,
+  ): Promise<{ session: MockSession; grant: MockGrant } | Response> {
+    const session = liveSession(headers);
+    if (!session) {
+      return protocolError(401, "INVALID_SIGNATURE", "Invalid signature", {
+        reason: "Invalid Web3Signed header format",
+      });
+    }
+    const grant = grantsById.get(session.grantId);
+    if (!grant) return protocolError(403, "GRANT_REQUIRED", "Grant required");
+    if (grant.revokedAt) {
+      return protocolError(403, "GRANT_REVOKED", "Grant has been revoked");
+    }
+    if (
+      !writeScopePatterns(grant.scopes).some((p) =>
+        scopeMatchesPattern(scope, p),
+      )
+    ) {
+      return protocolError(403, "SCOPE_MISMATCH", "Scope not granted", {
+        requestedScope: scope,
+        reason: "Grant does not authorize writing to this scope",
+      });
+    }
+    const proofHeader = headers.get("x-vana-write-signature");
+    if (!proofHeader) {
+      return protocolError(
+        401,
+        "WRITE_ATTRIBUTION_REQUIRED",
+        "Session writes must carry a builder-signed payload proof",
+      );
+    }
+    let verified;
+    try {
+      verified = await verifyWeb3Signed({
+        headerValue: proofHeader,
+        expectedOrigin: options.origin,
+        expectedMethod: method,
+        expectedPath: path,
+        bodyBytes: body,
+        now: Math.floor(now() / 1000),
+      });
+    } catch (err) {
+      return protocolError(
+        401,
+        "WRITE_ATTRIBUTION_INVALID",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    if (
+      verified.signer.toLowerCase() !== session.builderAddress.toLowerCase()
+    ) {
+      return protocolError(
+        401,
+        "WRITE_ATTRIBUTION_SIGNER_MISMATCH",
+        "Payload proof is not signed by the session builder",
+      );
+    }
+    if (verified.payload.grantId !== session.grantId) {
+      return protocolError(
+        401,
+        "WRITE_ATTRIBUTION_GRANT_MISMATCH",
+        "Payload proof must carry the write session's grantId as a signed claim",
+      );
+    }
+    if (body.length > 0 && isJsonContentType(headers)) {
+      const text = new TextDecoder().decode(body);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        return jsonResponse(400, {
+          error: "INVALID_BODY",
+          message: "Request body must be valid JSON",
+        });
+      }
+      if (JSON.stringify(parsed) !== text) {
+        return protocolError(
+          400,
+          "WRITE_BODY_NOT_CANONICAL",
+          "Session writes must send compact JSON",
+        );
+      }
+    }
+    const id = proofId(proofHeader);
+    if (proofsSeen.has(id)) {
+      return protocolError(
+        401,
+        "WRITE_ATTRIBUTION_REPLAY",
+        "Payload proof already used; sign a fresh proof for each request",
+      );
+    }
+    proofsSeen.add(id);
+    return { session, grant };
+  }
+
+  /** Bare (non-`write:`) entries of a grant: what a read is checked against. */
+  function readPatterns(grant: MockGrant): string[] {
+    return grant.scopes.filter((entry) => !entry.includes(":"));
+  }
+
+  function questionView(row: MockQuestion): Record<string, unknown> {
+    return { ...row, sourceScopes: [...row.sourceScopes] };
+  }
+
+  /** `parseQuestionInput` + `findDerivationCycle`, as the server runs them. */
+  function validateQuestionBody(body: Record<string, unknown>):
+    | {
+        derivedScope: string;
+        sourceScopes: string[];
+        question: string;
+        model: string | null;
+      }
+    | Response {
+    const derivedScope = body.derivedScope;
+    if (typeof derivedScope !== "string" || derivedScope.length === 0) {
+      return protocolError(
+        400,
+        "DERIVATIVE_QUESTION_INVALID",
+        "derivedScope must be a scope string",
+        { field: "derivedScope" },
+      );
+    }
+    if (!Array.isArray(body.sourceScopes) || body.sourceScopes.length === 0) {
+      return protocolError(
+        400,
+        "DERIVATIVE_QUESTION_INVALID",
+        "sourceScopes must be a non-empty array of scopes",
+        { field: "sourceScopes" },
+      );
+    }
+    const sourceScopes: string[] = [];
+    for (const entry of body.sourceScopes) {
+      if (typeof entry !== "string" || entry.length === 0) {
+        return protocolError(
+          400,
+          "DERIVATIVE_QUESTION_INVALID",
+          "sourceScopes[] must be a scope string",
+          { field: "sourceScopes[]" },
+        );
+      }
+      sourceScopes.push(entry);
+    }
+    if (typeof body.question !== "string" || body.question.trim() === "") {
+      return protocolError(
+        400,
+        "DERIVATIVE_QUESTION_INVALID",
+        "question must be a non-empty string",
+        { field: "question" },
+      );
+    }
+    for (const source of sourceScopes) {
+      if (source.split(".")[0] === derivedScope.split(".")[0]) {
+        return protocolError(
+          400,
+          "LINEAGE_SCOPE_UNDER_SOURCE_PREFIX",
+          "A derived scope must not share its first segment with a source scope",
+          { scope: derivedScope, sourceScope: source },
+        );
+      }
+    }
+    return {
+      derivedScope,
+      sourceScopes,
+      question: body.question,
+      model: typeof body.model === "string" ? body.model : null,
+    };
+  }
+
+  /** Reaching the derived scope again through existing registrations. */
+  function hasDerivationCycle(
+    derivedScope: string,
+    sourceScopes: readonly string[],
+  ): boolean {
+    const sourcesOf = new Map<string, Set<string>>();
+    const add = (derived: string, sources: readonly string[]) => {
+      const set = sourcesOf.get(derived) ?? new Set<string>();
+      for (const source of sources) set.add(source);
+      sourcesOf.set(derived, set);
+    };
+    for (const row of questions.values())
+      add(row.derivedScope, row.sourceScopes);
+    add(derivedScope, sourceScopes);
+    const visited = new Set<string>();
+    const stack = [derivedScope];
+    while (stack.length > 0) {
+      const scope = stack.pop()!;
+      for (const source of sourcesOf.get(scope) ?? []) {
+        if (source === derivedScope) return true;
+        if (visited.has(source)) continue;
+        visited.add(source);
+        stack.push(source);
+      }
+    }
+    return false;
+  }
+
+  async function handleQuestions(
+    headers: Headers,
+    method: string,
+    url: URL,
+    body: Uint8Array,
+  ): Promise<Response> {
+    if (options.computeUnavailable) {
+      return protocolError(
+        503,
+        "DERIVATIVE_COMPUTE_UNAVAILABLE",
+        "This server has no derivative compute configured",
+      );
+    }
+    const path = url.pathname;
+    const parts = path.split("/").filter(Boolean).slice(2);
+    // ["questions"] | ["questions", id] | ["questions", id, "recompute"]
+    const questionId = parts[1] ? decodeURIComponent(parts[1]) : undefined;
+
+    if (questionId === undefined) {
+      if (method === "POST") {
+        let parsedBody: unknown;
+        try {
+          parsedBody = JSON.parse(new TextDecoder().decode(body));
+        } catch {
+          return jsonResponse(400, {
+            error: "INVALID_BODY",
+            message: "Request body must be valid JSON",
+          });
+        }
+        const record =
+          parsedBody !== null &&
+          typeof parsedBody === "object" &&
+          !Array.isArray(parsedBody)
+            ? (parsedBody as Record<string, unknown>)
+            : {};
+        const scopeForAuth =
+          typeof record.derivedScope === "string" ? record.derivedScope : "";
+        const auth = await authorizeQuestionCall(
+          headers,
+          method,
+          path,
+          body,
+          scopeForAuth,
+        );
+        if (auth instanceof Response) return auth;
+        const parsed = validateQuestionBody(record);
+        if (parsed instanceof Response) return parsed;
+        const uncovered = parsed.sourceScopes.filter(
+          (scope) =>
+            !readPatterns(auth.grant).some((p) =>
+              scopeMatchesPattern(scope, p),
+            ),
+        );
+        if (uncovered.length > 0) {
+          return protocolError(
+            403,
+            "DERIVATIVE_SOURCE_NOT_GRANTED",
+            "The builder's grant does not cover reading every source scope of this question",
+            { scopes: uncovered },
+          );
+        }
+        if (hasDerivationCycle(parsed.derivedScope, parsed.sourceScopes)) {
+          return protocolError(
+            409,
+            "DERIVATIVE_CYCLE",
+            `Registering this question would make "${parsed.derivedScope}" a transitive source of itself; recompute would never settle`,
+            {
+              derivedScope: parsed.derivedScope,
+              path: [parsed.derivedScope, parsed.derivedScope],
+            },
+          );
+        }
+        const at = new Date(now()).toISOString();
+        const row: MockQuestion = {
+          questionId: `q-${questions.size + 1}`,
+          derivedScope: parsed.derivedScope,
+          sourceScopes: parsed.sourceScopes,
+          question: parsed.question,
+          model: parsed.model,
+          registeredBy: {
+            kind: "builder",
+            builder: auth.session.builderAddress,
+            grantId: auth.session.grantId,
+          },
+          status: "pending",
+          error: null,
+          createdAt: at,
+          updatedAt: at,
+          lastComputedAt: null,
+          derivedVersion: null,
+          derivedCollectedAt: null,
+        };
+        questions.set(row.questionId, row);
+        return jsonResponse(201, questionView(row));
+      }
+      if (method === "GET") {
+        const derivedScope = url.searchParams.get("derivedScope");
+        if (!derivedScope) {
+          // The owner-only list; a builder bearer never passes owner auth.
+          return protocolError(401, "INVALID_SIGNATURE", "Invalid signature");
+        }
+        const auth = await authorizeQuestionCall(
+          headers,
+          method,
+          path,
+          body,
+          derivedScope,
+        );
+        if (auth instanceof Response) return auth;
+        const mine = [...questions.values()].filter(
+          (row) =>
+            row.derivedScope === derivedScope &&
+            row.registeredBy.kind === "builder" &&
+            row.registeredBy.builder.toLowerCase() ===
+              auth.session.builderAddress.toLowerCase(),
+        );
+        return jsonResponse(200, { questions: mine.map(questionView) });
+      }
+      return protocolError(405, "METHOD_NOT_ALLOWED", "Method not allowed");
+    }
+
+    const row = questions.get(questionId);
+    if (!row) {
+      // The server answers an unknown id after OWNER auth, so a builder
+      // probing ids is told 401, not 404.
+      return protocolError(401, "INVALID_SIGNATURE", "Invalid signature", {
+        reason: "Invalid Web3Signed header format",
+      });
+    }
+    const auth = await authorizeQuestionCall(
+      headers,
+      method,
+      path,
+      body,
+      row.derivedScope,
+    );
+    if (auth instanceof Response) return auth;
+    if (
+      row.registeredBy.kind !== "builder" ||
+      row.registeredBy.builder.toLowerCase() !==
+        auth.session.builderAddress.toLowerCase()
+    ) {
+      return protocolError(
+        404,
+        "DERIVATIVE_QUESTION_NOT_FOUND",
+        "Question not found",
+        { questionId },
+      );
+    }
+    if (parts[2] === "recompute") {
+      if (method !== "POST") {
+        return protocolError(405, "METHOD_NOT_ALLOWED", "Method not allowed");
+      }
+      row.status = row.status === "pending" ? "pending" : "stale";
+      return jsonResponse(202, {
+        questionId,
+        status: row.status,
+        derivedScope: row.derivedScope,
+      });
+    }
+    if (parts.length > 2) {
+      return jsonResponse(404, { error: "NOT_FOUND", message: path });
+    }
+    if (method === "GET") return jsonResponse(200, questionView(row));
+    if (method === "DELETE") {
+      questions.delete(questionId);
+      return jsonResponse(200, { questionId, deleted: true });
+    }
+    return protocolError(405, "METHOD_NOT_ALLOWED", "Method not allowed");
+  }
+
+  /** `GET /v1/data/:scope`: the Web3Signed read a builder does at the end. */
+  async function handleDataRead(
+    headers: Headers,
+    path: string,
+    scope: string,
+  ): Promise<Response> {
+    let verified;
+    try {
+      verified = await verifyWeb3Signed({
+        headerValue: headers.get("authorization") ?? undefined,
+        expectedOrigin: options.origin,
+        expectedMethod: "GET",
+        expectedPath: path,
+        now: Math.floor(now() / 1000),
+      });
+    } catch (err) {
+      return protocolError(
+        401,
+        "INVALID_SIGNATURE",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    const grant = verified.payload.grantId
+      ? grantsById.get(verified.payload.grantId)
+      : undefined;
+    if (
+      !grant ||
+      grant.granteeId.toLowerCase() !== verified.signer.toLowerCase()
+    ) {
+      return protocolError(403, "GRANT_REQUIRED", "Grant required");
+    }
+    if (!readPatterns(grant).some((p) => scopeMatchesPattern(scope, p))) {
+      return protocolError(403, "SCOPE_MISMATCH", "Scope not granted");
+    }
+    const history = records.filter((r) => r.scope === scope);
+    const latest = history[history.length - 1];
+    if (!latest) {
+      return protocolError(404, "NOT_FOUND", `Scope "${scope}" has no data`);
+    }
+    return jsonResponse(200, {
+      version: "1.0",
+      scope,
+      collectedAt: latest.collectedAt,
+      data: latest.data,
+    });
+  }
+
   async function handleLineage(
     headers: Headers,
     path: string,
@@ -706,10 +1178,15 @@ export function createMockPersonalServer(
       failures -= 1;
       throw failure ?? new TypeError("fetch failed");
     }
+    // A caller may pass a built `Request` (the data-read helper does) or a
+    // url plus init; both carry the headers the routes authenticate on.
+    const request = input instanceof Request ? input : undefined;
     const url = new URL(requestUrl(input));
-    const headers = new Headers(init?.headers);
-    const method = (init?.method ?? "GET").toUpperCase();
-    const body = await bodyBytes(init);
+    const headers = new Headers(request?.headers ?? init?.headers);
+    const method = (init?.method ?? request?.method ?? "GET").toUpperCase();
+    const body = request
+      ? new Uint8Array(await request.clone().arrayBuffer())
+      : await bodyBytes(init);
     requests.push({
       method,
       path: url.pathname + url.search,
@@ -726,6 +1203,9 @@ export function createMockPersonalServer(
     }
     if (method === "POST" && url.pathname === "/v1/write/session") {
       return handleSession(headers, url.pathname, body);
+    }
+    if (url.pathname.startsWith("/v1/derivatives/")) {
+      return handleQuestions(headers, method, url, body);
     }
     const lineageMatch = url.pathname.match(
       /^\/v1\/data\/([^/]+)\/lineage(?:\/([^/]+))?$/,
@@ -762,6 +1242,13 @@ export function createMockPersonalServer(
         body,
       );
     }
+    if (method === "GET" && dataMatch) {
+      return handleDataRead(
+        headers,
+        url.pathname,
+        decodeURIComponent(dataMatch[1]),
+      );
+    }
     return jsonResponse(404, { error: "NOT_FOUND", message: url.pathname });
   };
 
@@ -772,12 +1259,44 @@ export function createMockPersonalServer(
     requests,
     proofsSeen,
     sessions,
+    questions,
     failNext(n, error) {
       failures = n;
       failure = error;
     },
     respondNextWith(status, body) {
       forced = { status, body };
+    },
+    dropSessions() {
+      sessions.clear();
+    },
+    settleQuestion(questionId, outcome) {
+      const row = questions.get(questionId);
+      if (!row) throw new Error(`unknown question ${questionId}`);
+      const at = new Date(now()).toISOString();
+      row.status = outcome.status;
+      row.updatedAt = at;
+      if (outcome.status === "failed") {
+        row.error = outcome.error;
+        row.lastComputedAt = at;
+        return;
+      }
+      if (outcome.status !== "ready") return;
+      row.error = null;
+      row.lastComputedAt = at;
+      row.derivedVersion = (row.derivedVersion ?? 0) + 1;
+      row.derivedCollectedAt = at;
+      records.push({
+        scope: row.derivedScope,
+        collectedAt: at,
+        data: {
+          questionId: row.questionId,
+          question: row.question,
+          answer: "the answer",
+          computedAt: at,
+          ...outcome.data,
+        },
+      });
     },
   };
 }

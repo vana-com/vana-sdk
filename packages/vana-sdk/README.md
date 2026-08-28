@@ -431,6 +431,129 @@ scope from it; order and count are preserved, so a redacted node is identified
 by its position. The SDK refuses a view whose redacted node carries anything
 else. The gateway's `proof` over the served view is passed through.
 
+## Derivative questions
+
+A **question** is a standing prompt over the user's source scopes. The Personal
+Server answers it locally (the raw sources never leave the machine except
+through its inference call) and writes the answer into a derived scope as an
+ordinary derivative record, with lineage pointing at the sources. The builder
+reads that scope with its normal read grant. Every later change to a source
+recomputes the question, so you register it once and keep reading a scope that
+stays current.
+
+One grant carries the whole pipeline, and it needs all three of:
+
+- a bare read entry for **every source scope** (the answer exposes them, so a
+  registration whose sources are not read-granted is refused with
+  `DERIVATIVE_SOURCE_NOT_GRANTED`),
+- a bare read entry for the **derived scope** (to read the answer back),
+- `write:<derivedScope>` (the credential the question routes authorize
+  against).
+
+For `coach.weekly` computed from `oura.sleep` and `chatgpt.conversations`:
+
+```json
+["oura.sleep", "chatgpt.conversations", "coach.weekly", "write:coach.weekly"]
+```
+
+The derived scope must not share its first dot-segment with any source scope
+(the same naming rule as a derivative write), so keep derivatives in your app's
+own namespace.
+
+```typescript
+import { privateKeyToAccount } from "viem/accounts";
+import {
+  askPersonalServer,
+  registerQuestion,
+  waitForQuestion,
+  listQuestions,
+  recomputeQuestion,
+  deleteQuestion,
+} from "@opendatalabs/vana-sdk";
+
+const signer = privateKeyToAccount(process.env.BUILDER_KEY as `0x${string}`);
+const connection = {
+  personalServerUrl: "https://ps.example.com",
+  signer,
+  grantId, // the grant with the scopes above
+};
+
+// The whole loop in one call: register, wait for the answer, read it.
+const { registration, record } = await askPersonalServer({
+  ...connection,
+  derivedScope: "coach.weekly",
+  sourceScopes: ["oura.sleep", "chatgpt.conversations"],
+  question: "How did my sleep relate to my mood this week?",
+  model: "z-ai/glm-5.2", // optional; the server has a default
+});
+console.log(record.data.answer);
+
+// Or drive the steps yourself.
+const question = await registerQuestion({
+  ...connection,
+  derivedScope: "coach.weekly",
+  sourceScopes: ["oura.sleep"],
+  question: "How did my sleep trend this week?",
+});
+const settled = await waitForQuestion({
+  ...connection,
+  questionId: question.questionId,
+  timeoutMs: 60_000,
+});
+if (settled.status === "failed") {
+  console.error(settled.error);
+  await recomputeQuestion({ ...connection, questionId: question.questionId });
+}
+
+// Later runs: the question is already registered, so just read the scope
+// again, or list what this builder registered on it.
+const mine = await listQuestions({
+  ...connection,
+  derivedScope: "coach.weekly",
+});
+await deleteQuestion({ ...connection, questionId: question.questionId });
+```
+
+What the SDK does for you:
+
+- Opens **one** write session per `{ signer, Personal Server, grant }`
+  (`POST /v1/write/session`) and reuses it for every question call, including
+  each poll of `waitForQuestion`.
+- Signs a fresh, single-use `X-Vana-Write-Signature` proof for every request
+  (the grant id is a signed claim). Identical requests signed inside the same
+  second get distinct proofs, so polling never trips the replay guard.
+- Re-opens the session once and replays the call when the Personal Server
+  answers 401: it keeps sessions in memory and forgets them when it restarts.
+- Sends bodies as compact JSON, which the server requires
+  (`WRITE_BODY_NOT_CANONICAL` otherwise), and signs the request **path**: the
+  `?derivedScope=` of a list call is outside the proof, as the server verifies
+  it.
+- Validates the registration (scope list, question length, model id, the
+  naming rule) before anything is signed.
+
+`waitForQuestion` polls until the question is `ready` or `failed` and returns
+that state; a failed one carries a short `error` (never the prompt or the
+data) and is retried with `recomputeQuestion`. `askPersonalServer` throws
+`DerivativeQuestionFailedError` instead, since it has no record to return, and
+reads the derived scope with the plain Web3Signed read; for a priced grant,
+settle the 402 with the escrow-aware read from `@opendatalabs/vana-sdk/server`
+and use `registerQuestion` + `waitForQuestion` directly.
+
+Errors are typed and carry the server's `status`, `errorCode` and `details`:
+`DerivativeSourceNotGrantedError` (403, `details.scopes` lists the uncovered
+sources), `DerivativeCycleError` (409, the question would make the derived
+scope a transitive source of itself), `DerivativeQuestionNotFoundError` (404,
+including another builder's question on the same scope),
+`DerivativeQuestionInvalidError` (400), `DerivativeComputeUnavailableError`
+(503, no compute layer on that server), `DerivativeQuestionTimeoutError`,
+`DerivativeQuestionFailedError`, and `DerivativeQuestionRejectedError` for
+anything else. Authentication failures are the Write API's own
+`WriteUnauthorizedError`, `WriteForbiddenError`, `WriteRequestError` (refused
+before sending) and `WriteTransportError`. One thing to know: an **unknown**
+question id is answered by the Personal Server after owner authentication, so
+a builder polling an id that no longer exists sees a 401
+(`WriteUnauthorizedError`), not a 404.
+
 ## Networks
 
 | Network        | Chain ID | RPC URL                     |

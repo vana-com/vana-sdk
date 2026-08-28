@@ -6,6 +6,7 @@ import { buildWeb3SignedHeader } from "../auth/web3-signed-builder";
 import {
   DerivativeComputeUnavailableError,
   DerivativeCycleError,
+  DerivativeDerivedScopeRequiredError,
   DerivativeQuestionFailedError,
   DerivativeQuestionInvalidError,
   DerivativeQuestionNotFoundError,
@@ -35,6 +36,8 @@ const ORIGIN = "http://ps.test:8799";
 const SOURCE_SCOPE = "oura.sleep";
 const OTHER_SOURCE_SCOPE = "chatgpt.conversations";
 const DERIVED_SCOPE = "coach.weekly";
+/** A second derived scope the SAME grant may write, list and read. */
+const OTHER_DERIVED_SCOPE = "coach.monthly";
 const QUESTION = "How did my sleep relate to my mood this week?";
 
 /** Read every source, read the derived scope, write the derived scope. */
@@ -66,6 +69,8 @@ function makeServer(
           OTHER_SOURCE_SCOPE,
           DERIVED_SCOPE,
           `write:${DERIVED_SCOPE}`,
+          OTHER_DERIVED_SCOPE,
+          `write:${OTHER_DERIVED_SCOPE}`,
         ],
       },
       {
@@ -122,6 +127,54 @@ function handshakeCount(server: MockPersonalServer): number {
   return server.requests.filter(
     (request) => request.path === "/v1/write/session",
   ).length;
+}
+
+/** A Personal Server protocol error body. */
+interface ProtocolErrorBody {
+  error: { code: string; errorCode: string; message: string };
+}
+
+async function errorBodyOf(response: Response): Promise<ProtocolErrorBody> {
+  return (await response.json()) as ProtocolErrorBody;
+}
+
+/**
+ * The `nonce` claim of a proof, read from the RAW payload: the SDK's parser
+ * keeps only the claims it knows, so this is the only way to see it.
+ */
+function nonceOf(header: string): unknown {
+  const { payloadBase64 } = parseWeb3SignedHeader(header);
+  const base64 = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(
+    base64.length + ((4 - (base64.length % 4)) % 4),
+    "=",
+  );
+  const payload = JSON.parse(atob(padded)) as Record<string, unknown>;
+  return payload.nonce;
+}
+
+/** A builder proof for one request target, built by hand. */
+function builderProof(input: {
+  target: string;
+  method: string;
+  nonce?: string;
+  iat?: number;
+  grantId?: string;
+}): Promise<string> {
+  return buildWeb3SignedHeader({
+    signMessage: (message: string) => builder.signMessage({ message }),
+    aud: ORIGIN,
+    method: input.method,
+    uri: input.target,
+    grantId: input.grantId ?? GRANT_ID,
+    ...(input.nonce === undefined ? {} : { nonce: input.nonce }),
+    ...(input.iat === undefined ? {} : { iat: input.iat }),
+  });
+}
+
+/** The bearer of the session the SDK just opened. */
+function bearerOf(server: MockPersonalServer): string {
+  return [...server.sessions.keys()][0];
 }
 
 describe("registerQuestion", () => {
@@ -405,10 +458,10 @@ describe("derivative question errors", () => {
     expect((err as WriteForbiddenError).errorCode).toBe("SCOPE_MISMATCH");
   });
 
-  it("surfaces the 401 the Personal Server answers for an unknown id", async () => {
-    // The server answers an unknown question id after OWNER authentication,
-    // so a builder is told 401, never 404. The SDK re-handshakes once (the
-    // status is indistinguishable from a dropped session) and surfaces it.
+  it("maps an unknown id to the typed not-found error without re-handshaking", async () => {
+    // A caller holding a live write session is told 404, not the owner
+    // gate's 401, so the SDK reports the real problem instead of walking
+    // through a pointless handshake first.
     const server = makeServer();
     await registerQuestion({ ...auth(server), ...registration });
     const err = await getQuestion({
@@ -416,8 +469,38 @@ describe("derivative question errors", () => {
       questionId: "q-does-not-exist",
     }).catch((e: unknown) => e);
 
+    expect(err).toBeInstanceOf(DerivativeQuestionNotFoundError);
+    expect((err as DerivativeQuestionNotFoundError).errorCode).toBe(
+      "DERIVATIVE_QUESTION_NOT_FOUND",
+    );
+    expect(handshakeCount(server)).toBe(1);
+  });
+
+  it("does not re-handshake on a 401 the session cannot fix", async () => {
+    // A replayed proof is a 401 about the PROOF, not the session: a new
+    // session would fail exactly the same way, so re-handshaking would burn
+    // a second proof and report an authentication problem the caller does
+    // not have.
+    const server = makeServer();
+    const replaying = replayingFetch(server, (path) =>
+      path.startsWith(`${DERIVATIVE_QUESTIONS_PATH}/`),
+    );
+    const question = await registerQuestion({
+      ...auth(server),
+      ...registration,
+      fetch: replaying,
+    });
+    const err = await getQuestion({
+      ...auth(server),
+      fetch: replaying,
+      questionId: question.questionId,
+    }).catch((e: unknown) => e);
+
     expect(err).toBeInstanceOf(WriteUnauthorizedError);
-    expect(handshakeCount(server)).toBe(2);
+    expect((err as WriteUnauthorizedError).errorCode).toBe(
+      "WRITE_ATTRIBUTION_REPLAY",
+    );
+    expect(handshakeCount(server)).toBe(1);
   });
 });
 
@@ -440,16 +523,15 @@ describe("listQuestions", () => {
       second.questionId,
     ]);
 
+    const target = `${DERIVATIVE_QUESTIONS_PATH}?derivedScope=${encodeURIComponent(DERIVED_SCOPE)}`;
     const list = server.requests[server.requests.length - 1];
-    expect(list.path).toBe(
-      `${DERIVATIVE_QUESTIONS_PATH}?derivedScope=${encodeURIComponent(DERIVED_SCOPE)}`,
-    );
-    // The Personal Server verifies the proof against the path only, so the
-    // signed uri must not carry the query string.
+    expect(list.path).toBe(target);
+    // The query decides the authorization, so the proof commits to it: the
+    // signed uri is the whole request target, byte for byte.
     const proof = parseWeb3SignedHeader(
       list.headers[WRITE_SIGNATURE_HEADER.toLowerCase()],
     );
-    expect(proof.payload.uri).toBe(DERIVATIVE_QUESTIONS_PATH);
+    expect(proof.payload.uri).toBe(target);
     expect(proof.payload.method).toBe("GET");
   });
 
@@ -461,6 +543,185 @@ describe("listQuestions", () => {
     }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(WriteRequestError);
     expect(server.requests).toEqual([]);
+  });
+
+  it("refuses a proof signed for one derived scope on a list of another", async () => {
+    // The query decides the authorization, so a proof that committed to
+    // scope A must not authorize a list of scope B. Both scopes are
+    // writable under this grant, so the scope policy cannot be what
+    // refuses it: only the signature can.
+    const server = makeServer();
+    await registerQuestion({ ...auth(server), ...registration });
+    const swapping: typeof fetch = async (input, init) => {
+      const url = new URL(requestHref(input));
+      if (url.searchParams.get("derivedScope") === DERIVED_SCOPE) {
+        url.searchParams.set("derivedScope", OTHER_DERIVED_SCOPE);
+        return server.fetch(url.toString(), init);
+      }
+      return server.fetch(input, init);
+    };
+
+    const err = await listQuestions({
+      ...auth(server),
+      fetch: swapping,
+      derivedScope: DERIVED_SCOPE,
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(WriteUnauthorizedError);
+    expect((err as WriteUnauthorizedError).errorCode).toBe(
+      "WRITE_ATTRIBUTION_INVALID",
+    );
+    // The same list signed for its own scope is served, so the refusal is
+    // the swap and nothing else.
+    const own = await listQuestions({
+      ...auth(server),
+      derivedScope: OTHER_DERIVED_SCOPE,
+    });
+    expect(own).toEqual([]);
+  });
+
+  it("maps 400 DERIVATIVE_DERIVED_SCOPE_REQUIRED to its own error", async () => {
+    // The SDK refuses an empty derivedScope before signing, so this is the
+    // answer a hand-built request gets. It must not be treated as an
+    // authentication failure.
+    const server = makeServer();
+    const answering: typeof fetch = async (input, init) => {
+      if (
+        requestPath(input) === DERIVATIVE_QUESTIONS_PATH &&
+        (init?.method ?? "GET") === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "BAD_REQUEST",
+              errorCode: "DERIVATIVE_DERIVED_SCOPE_REQUIRED",
+              message: "Listing questions as a builder needs a derived scope",
+            },
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        );
+      }
+      return server.fetch(input, init);
+    };
+
+    const err = await listQuestions({
+      ...auth(server),
+      fetch: answering,
+      derivedScope: DERIVED_SCOPE,
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(DerivativeDerivedScopeRequiredError);
+    expect((err as DerivativeDerivedScopeRequiredError).status).toBe(400);
+    expect((err as DerivativeDerivedScopeRequiredError).errorCode).toBe(
+      "DERIVATIVE_DERIVED_SCOPE_REQUIRED",
+    );
+    expect(handshakeCount(server)).toBe(1);
+  });
+
+  it("is answered 400, not 401, when the query is missing entirely", async () => {
+    const server = makeServer();
+    await registerQuestion({ ...auth(server), ...registration });
+    const response = await server.fetch(
+      `${ORIGIN}${DERIVATIVE_QUESTIONS_PATH}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${bearerOf(server)}`,
+          [WRITE_SIGNATURE_HEADER]: await builderProof({
+            target: DERIVATIVE_QUESTIONS_PATH,
+            method: "GET",
+            nonce: "list-without-a-scope",
+          }),
+        },
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect((await errorBodyOf(response)).error.errorCode).toBe(
+      "DERIVATIVE_DERIVED_SCOPE_REQUIRED",
+    );
+  });
+});
+
+describe("proof nonces", () => {
+  it("gives every question call a fresh nonce", async () => {
+    const server = makeServer();
+    const question = await registerQuestion({
+      ...auth(server),
+      ...registration,
+    });
+    const params = { ...auth(server), questionId: question.questionId };
+    await getQuestion(params);
+    await getQuestion(params);
+
+    const nonces = proofsIn(server).map(nonceOf);
+    expect(nonces).toHaveLength(3);
+    for (const nonce of nonces) {
+      expect(typeof nonce).toBe("string");
+      expect((nonce as string).length).toBeGreaterThan(0);
+    }
+    expect(new Set(nonces).size).toBe(3);
+  });
+
+  it("lets two polls signed in the same second through on distinct nonces", async () => {
+    // Same iat, same everything but the nonce: without it the two payloads
+    // would be byte-identical and the second a replay.
+    const server = makeServer();
+    const question = await registerQuestion({
+      ...auth(server),
+      ...registration,
+    });
+    const target = `${DERIVATIVE_QUESTIONS_PATH}/${question.questionId}`;
+    const iat = Math.floor(Date.now() / 1000);
+    const poll = async (nonce: string): Promise<Response> =>
+      server.fetch(`${ORIGIN}${target}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${bearerOf(server)}`,
+          [WRITE_SIGNATURE_HEADER]: await builderProof({
+            target,
+            method: "GET",
+            nonce,
+            iat,
+          }),
+        },
+      });
+
+    const first = await poll("poll-1");
+    const second = await poll("poll-2");
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+  });
+
+  it("refuses a re-used nonce even when the rest of the payload changed", async () => {
+    const server = makeServer();
+    const question = await registerQuestion({
+      ...auth(server),
+      ...registration,
+    });
+    const target = `${DERIVATIVE_QUESTIONS_PATH}/${question.questionId}`;
+    const iat = Math.floor(Date.now() / 1000);
+    const poll = async (at: number): Promise<Response> =>
+      server.fetch(`${ORIGIN}${target}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${bearerOf(server)}`,
+          [WRITE_SIGNATURE_HEADER]: await builderProof({
+            target,
+            method: "GET",
+            nonce: "single-use",
+            iat: at,
+          }),
+        },
+      });
+
+    expect((await poll(iat)).status).toBe(200);
+    // A different iat, so a different proof: the nonce is what is spent.
+    const replay = await poll(iat + 5);
+    expect(replay.status).toBe(401);
+    expect((await errorBodyOf(replay)).error.errorCode).toBe(
+      "WRITE_ATTRIBUTION_REPLAY",
+    );
   });
 });
 
@@ -477,11 +738,19 @@ describe("recomputeQuestion and deleteQuestion", () => {
       ...auth(server),
       questionId: question.questionId,
     });
-    expect(result).toEqual({
-      questionId: question.questionId,
-      derivedScope: DERIVED_SCOPE,
-      status: "stale",
+    // The full registration view, not the three-field summary older
+    // Personal Servers answered.
+    expect(result.questionId).toBe(question.questionId);
+    expect(result.derivedScope).toBe(DERIVED_SCOPE);
+    expect(result.status).toBe("stale");
+    expect(result.question).toBe(QUESTION);
+    expect(result.sourceScopes).toEqual([SOURCE_SCOPE, OTHER_SOURCE_SCOPE]);
+    expect(result.registeredBy).toEqual({
+      kind: "builder",
+      builder: builder.address,
+      grantId: GRANT_ID,
     });
+    expect(result.lastComputedAt).not.toBeNull();
   });
 
   it("deletes a registration", async () => {
@@ -519,14 +788,31 @@ describe("recomputeQuestion and deleteQuestion", () => {
   });
 });
 
+function requestHref(input: RequestInfo | URL): string {
+  return typeof input === "string"
+    ? input
+    : input instanceof URL
+      ? input.toString()
+      : input.url;
+}
+
 function requestPath(input: RequestInfo | URL): string {
-  const href =
-    typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.toString()
-        : input.url;
-  return new URL(href).pathname;
+  return new URL(requestHref(input)).pathname;
+}
+
+/**
+ * A fetch that sends the matching request to the server TWICE and returns
+ * the second answer, so the caller's own call is the replay of its own
+ * proof.
+ */
+function replayingFetch(
+  server: MockPersonalServer,
+  matches: (path: string) => boolean,
+): typeof fetch {
+  return async (input, init) => {
+    if (matches(requestPath(input))) await server.fetch(input, init);
+    return server.fetch(input, init);
+  };
 }
 
 /** A fetch that settles the question once it has been polled `after` times. */

@@ -15,12 +15,15 @@
  *     the metadata object's field (binary), validated per
  *     docs/derivative-data-api.md and mirrored to `$lineage`
  *   - derivative questions (`/v1/derivatives/questions`): the same builder
- *     credential as a write (bearer + X-Vana-Write-Signature over the
- *     request PATH, query string excluded, as the server verifies it),
- *     authorized against `write:<derivedScope>`, compact JSON bodies, the
- *     consent rule (every source scope read-granted to the builder), the
- *     cycle guard, and the 404 a builder gets for a question it did not
- *     register
+ *     credential as a write (bearer + X-Vana-Write-Signature over the whole
+ *     request TARGET, query string INCLUDED and compared in canonical form),
+ *     the optional `nonce` claim as the replay key when present, authorized
+ *     against `write:<derivedScope>`, compact JSON bodies, the consent rule
+ *     (every source scope read-granted to the builder), the cycle guard, the
+ *     404 for a question this builder did not register AND for an unknown id
+ *     presented with a live write session, and the 400
+ *     `DERIVATIVE_DERIVED_SCOPE_REQUIRED` for a builder list with no
+ *     `?derivedScope=`
  *   - lineage reads on both the Personal Server and the gateway: Web3Signed
  *     over the bare path (`/lineage[/:version]`, the version is a path
  *     segment, any query is 400), grant view from the signed `grantId` claim
@@ -36,8 +39,9 @@
 
 import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex, type Address, type Hex } from "viem";
-import { verifyWeb3Signed } from "../auth/web3-signed";
+import { parseWeb3SignedHeader, verifyWeb3Signed } from "../auth/web3-signed";
 import { scopeMatchesPattern } from "../protocol/scopes";
+import { fromBase64 } from "../utils/encoding";
 
 export interface MockGrant {
   id: string;
@@ -244,6 +248,87 @@ function protocolError(
 
 function proofId(header: string): string {
   return bytesToHex(sha256(new TextEncoder().encode(header)));
+}
+
+/**
+ * Canonical query string: parameters sorted by name and then value, exactly
+ * as `personal-server-ts` `write/attribution.ts` does it. Sorting makes the
+ * signed-uri rule insensitive to the order a client serializes its
+ * parameters in, while still requiring the parameters themselves to match.
+ */
+function canonicalQuery(search: string): string {
+  const entries = [...new URLSearchParams(search).entries()].sort((a, b) =>
+    a[0] === b[0]
+      ? a[1] < b[1]
+        ? -1
+        : a[1] > b[1]
+          ? 1
+          : 0
+      : a[0] < b[0]
+        ? -1
+        : 1,
+  );
+  const canonical = new URLSearchParams();
+  for (const [name, value] of entries) canonical.append(name, value);
+  return canonical.toString();
+}
+
+/** The uri a proof must commit to: the path, plus the canonical query. */
+function canonicalSignedUri(pathname: string, search: string): string {
+  const query = canonicalQuery(search);
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+/** The same canonical form applied to a signed `uri` claim. */
+function canonicalizeSignedUri(uri: string): string {
+  const mark = uri.indexOf("?");
+  if (mark === -1) return uri;
+  return canonicalSignedUri(uri.slice(0, mark), uri.slice(mark + 1));
+}
+
+/** The Personal Server's bound on the optional `nonce` claim. */
+const MAX_PROOF_NONCE_LENGTH = 128;
+
+/**
+ * The proof's optional `nonce` claim, read from the RAW signed payload: the
+ * SDK's parser keeps only the claims it knows, and the nonce is covered by
+ * the signature all the same (the signature is over the base64url payload
+ * string). `null` means the claim is present but malformed, which the
+ * Personal Server answers 401 `WRITE_ATTRIBUTION_INVALID` for.
+ */
+function signedNonce(headerValue: string): string | undefined | null {
+  let payloadBase64: string;
+  try {
+    payloadBase64 = parseWeb3SignedHeader(headerValue).payloadBase64;
+  } catch {
+    return undefined;
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(base64UrlDecodeToString(payloadBase64));
+  } catch {
+    return undefined;
+  }
+  if (raw === null || typeof raw !== "object") return undefined;
+  const nonce = (raw as Record<string, unknown>).nonce;
+  if (nonce === undefined || nonce === null) return undefined;
+  if (
+    typeof nonce !== "string" ||
+    nonce.length === 0 ||
+    nonce.length > MAX_PROOF_NONCE_LENGTH
+  ) {
+    return null;
+  }
+  return nonce;
+}
+
+function base64UrlDecodeToString(value: string): string {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(
+    base64.length + ((4 - (base64.length % 4)) % 4),
+    "=",
+  );
+  return new TextDecoder().decode(fromBase64(padded));
 }
 
 function isJsonContentType(headers: Headers): boolean {
@@ -650,18 +735,26 @@ export function createMockPersonalServer(
   }
 
   /**
-   * The builder credential the derivative question routes share with a
-   * write: a live session bearer, the write policy on `scope`, and a
-   * single-use X-Vana-Write-Signature proof over the request path (the
-   * server verifies `url.pathname`, so a query string is NOT covered).
+   * Verify a builder's `X-Vana-Write-Signature` proof against the request,
+   * WITHOUT consuming it and without evaluating any scope policy: the
+   * identity half of the credential, which is what a route needs when it has
+   * no scope to authorize against yet (an unknown question id, a list call
+   * missing its `?derivedScope=`).
+   *
+   * The proof commits to the whole request TARGET, query included: the query
+   * decides the authorization on the list route, so a proof that covered
+   * only the path could be captured on one derived scope and replayed on
+   * another. Parameter order is the client's business (both sides are
+   * compared in canonical form), the parameter set is not.
    */
-  async function authorizeQuestionCall(
+  async function verifyQuestionProof(
     headers: Headers,
     method: string,
-    path: string,
+    target: URL,
     body: Uint8Array,
-    scope: string,
-  ): Promise<{ session: MockSession; grant: MockGrant } | Response> {
+  ): Promise<
+    { session: MockSession; grant: MockGrant; proofHeader: string } | Response
+  > {
     const session = liveSession(headers);
     if (!session) {
       return protocolError(401, "INVALID_SIGNATURE", "Invalid signature", {
@@ -673,16 +766,6 @@ export function createMockPersonalServer(
     if (grant.revokedAt) {
       return protocolError(403, "GRANT_REVOKED", "Grant has been revoked");
     }
-    if (
-      !writeScopePatterns(grant.scopes).some((p) =>
-        scopeMatchesPattern(scope, p),
-      )
-    ) {
-      return protocolError(403, "SCOPE_MISMATCH", "Scope not granted", {
-        requestedScope: scope,
-        reason: "Grant does not authorize writing to this scope",
-      });
-    }
     const proofHeader = headers.get("x-vana-write-signature");
     if (!proofHeader) {
       return protocolError(
@@ -691,13 +774,24 @@ export function createMockPersonalServer(
         "Session writes must carry a builder-signed payload proof",
       );
     }
+    // Any signed uri whose canonical form equals the request's is accepted;
+    // anything else goes to verifyWeb3Signed as a URI mismatch.
+    const expectedUri = canonicalSignedUri(target.pathname, target.search);
+    let expectedPath = expectedUri;
+    try {
+      const claimed = parseWeb3SignedHeader(proofHeader).payload.uri;
+      if (canonicalizeSignedUri(claimed) === expectedUri)
+        expectedPath = claimed;
+    } catch {
+      // Unparseable: verifyWeb3Signed reports it with its own error.
+    }
     let verified;
     try {
       verified = await verifyWeb3Signed({
         headerValue: proofHeader,
         expectedOrigin: options.origin,
         expectedMethod: method,
-        expectedPath: path,
+        expectedPath,
         bodyBytes: body,
         now: Math.floor(now() / 1000),
       });
@@ -724,6 +818,70 @@ export function createMockPersonalServer(
         "Payload proof must carry the write session's grantId as a signed claim",
       );
     }
+    if (signedNonce(proofHeader) === null) {
+      return protocolError(
+        401,
+        "WRITE_ATTRIBUTION_INVALID",
+        `Payload proof nonce must be a string of 1 to ${MAX_PROOF_NONCE_LENGTH} characters`,
+      );
+    }
+    return { session, grant, proofHeader };
+  }
+
+  /**
+   * Consume a verified proof. The replay key is `(builder, nonce)` when the
+   * proof carries a `nonce` claim, and the whole proof when it does not: two
+   * identical polls signed inside the same second are byte-identical, so
+   * without a nonce the second is refused.
+   */
+  function consumeQuestionProof(
+    session: MockSession,
+    proofHeader: string,
+  ): Response | undefined {
+    const nonce = signedNonce(proofHeader);
+    const id = proofId(
+      nonce === undefined
+        ? proofHeader
+        : `nonce:${session.builderAddress.toLowerCase()}:${nonce}`,
+    );
+    if (proofsSeen.has(id)) {
+      return protocolError(
+        401,
+        "WRITE_ATTRIBUTION_REPLAY",
+        nonce === undefined
+          ? "Payload proof already used; sign a fresh proof for each request (or add a unique nonce claim so repeated reads stay distinct)"
+          : "Payload proof nonce already used; each nonce is single use",
+      );
+    }
+    proofsSeen.add(id);
+    return undefined;
+  }
+
+  /**
+   * The builder credential the derivative question routes share with a
+   * write: a live session bearer, the write policy on `scope`, and a
+   * single-use X-Vana-Write-Signature proof over the request target.
+   */
+  async function authorizeQuestionCall(
+    headers: Headers,
+    method: string,
+    target: URL,
+    body: Uint8Array,
+    scope: string,
+  ): Promise<{ session: MockSession; grant: MockGrant } | Response> {
+    const verified = await verifyQuestionProof(headers, method, target, body);
+    if (verified instanceof Response) return verified;
+    const { session, grant, proofHeader } = verified;
+    if (
+      !writeScopePatterns(grant.scopes).some((p) =>
+        scopeMatchesPattern(scope, p),
+      )
+    ) {
+      return protocolError(403, "SCOPE_MISMATCH", "Scope not granted", {
+        requestedScope: scope,
+        reason: "Grant does not authorize writing to this scope",
+      });
+    }
     if (body.length > 0 && isJsonContentType(headers)) {
       const text = new TextDecoder().decode(body);
       let parsed: unknown;
@@ -743,15 +901,9 @@ export function createMockPersonalServer(
         );
       }
     }
-    const id = proofId(proofHeader);
-    if (proofsSeen.has(id)) {
-      return protocolError(
-        401,
-        "WRITE_ATTRIBUTION_REPLAY",
-        "Payload proof already used; sign a fresh proof for each request",
-      );
-    }
-    proofsSeen.add(id);
+    // Replay guard last: only a proof that passed every check is consumed.
+    const replayed = consumeQuestionProof(session, proofHeader);
+    if (replayed) return replayed;
     return { session, grant };
   }
 
@@ -896,7 +1048,7 @@ export function createMockPersonalServer(
         const auth = await authorizeQuestionCall(
           headers,
           method,
-          path,
+          url,
           body,
           scopeForAuth,
         );
@@ -954,13 +1106,30 @@ export function createMockPersonalServer(
       if (method === "GET") {
         const derivedScope = url.searchParams.get("derivedScope");
         if (!derivedScope) {
-          // The owner-only list; a builder bearer never passes owner auth.
-          return protocolError(401, "INVALID_SIGNATURE", "Invalid signature");
+          // The unfiltered list is the owner's. A builder that reached it
+          // simply forgot the parameter, so say that instead of 401, which
+          // would send a re-handshake-on-401 client through a pointless
+          // handshake. Identity only, and the proof is NOT consumed: the
+          // request ends in an error.
+          const recognized = await verifyQuestionProof(
+            headers,
+            method,
+            url,
+            body,
+          );
+          if (recognized instanceof Response) {
+            return protocolError(401, "INVALID_SIGNATURE", "Invalid signature");
+          }
+          return protocolError(
+            400,
+            "DERIVATIVE_DERIVED_SCOPE_REQUIRED",
+            "Listing questions as a builder needs a derived scope: add ?derivedScope=<scope>. The unfiltered list is the owner's",
+          );
         }
         const auth = await authorizeQuestionCall(
           headers,
           method,
-          path,
+          url,
           body,
           derivedScope,
         );
@@ -979,16 +1148,28 @@ export function createMockPersonalServer(
 
     const row = questions.get(questionId);
     if (!row) {
-      // The server answers an unknown id after OWNER auth, so a builder
-      // probing ids is told 401, not 404.
-      return protocolError(401, "INVALID_SIGNATURE", "Invalid signature", {
-        reason: "Invalid Web3Signed header format",
-      });
+      // No registration means no derived scope to authorize against, so the
+      // answer falls back to identity: a caller holding a live write session
+      // is told 404 (another builder's question already answers 404, so it
+      // learns nothing new), and everyone else 401. The proof is verified
+      // but NOT consumed: the request ends in an error.
+      const recognized = await verifyQuestionProof(headers, method, url, body);
+      if (recognized instanceof Response) {
+        return protocolError(401, "INVALID_SIGNATURE", "Invalid signature", {
+          reason: "Invalid Web3Signed header format",
+        });
+      }
+      return protocolError(
+        404,
+        "DERIVATIVE_QUESTION_NOT_FOUND",
+        "Question not found",
+        { questionId },
+      );
     }
     const auth = await authorizeQuestionCall(
       headers,
       method,
-      path,
+      url,
       body,
       row.derivedScope,
     );
@@ -1010,11 +1191,9 @@ export function createMockPersonalServer(
         return protocolError(405, "METHOD_NOT_ALLOWED", "Method not allowed");
       }
       row.status = row.status === "pending" ? "pending" : "stale";
-      return jsonResponse(202, {
-        questionId,
-        status: row.status,
-        derivedScope: row.derivedScope,
-      });
+      // The full registration view, like every other route, so a client
+      // needs one schema.
+      return jsonResponse(202, questionView(row));
     }
     if (parts.length > 2) {
       return jsonResponse(404, { error: "NOT_FOUND", message: path });

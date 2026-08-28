@@ -330,6 +330,82 @@ describe("verifyWeb3Signed", () => {
   });
 });
 
+describe("buildWeb3SignedHeader nonce claim", () => {
+  /** The raw signed payload, including claims the parser does not keep. */
+  function rawPayload(header: string): Record<string, unknown> {
+    const { payloadBase64 } = parseWeb3SignedHeader(header);
+    const base64 = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "=",
+    );
+    return JSON.parse(atob(padded)) as Record<string, unknown>;
+  }
+
+  it("omits the claim when no nonce is given", async () => {
+    const header = await buildWeb3SignedHeader({
+      signMessage: makeSigner().signMessage,
+      aud: AUD,
+      method: METHOD,
+      uri: URI,
+    });
+    expect("nonce" in rawPayload(header)).toBe(false);
+  });
+
+  it("carries the nonce in its sorted place, under the signature", async () => {
+    const header = await buildWeb3SignedHeader({
+      signMessage: makeSigner().signMessage,
+      aud: AUD,
+      method: METHOD,
+      uri: URI,
+      grantId: "0xgrant",
+      nonce: "8a1f0c2e-0000-4000-8000-000000000001",
+      iat: 1_787_654_321,
+      exp: 1_787_654_621,
+    });
+    const payload = rawPayload(header);
+    expect(payload.nonce).toBe("8a1f0c2e-0000-4000-8000-000000000001");
+    expect(Object.keys(payload)).toEqual([
+      "aud",
+      "bodyHash",
+      "exp",
+      "grantId",
+      "iat",
+      "method",
+      "nonce",
+      "uri",
+    ]);
+    // The claim rides the signature: verification still recovers the signer,
+    // and the known claims are untouched.
+    const verified = await verifyWeb3Signed({
+      headerValue: header,
+      expectedOrigin: AUD,
+      expectedMethod: METHOD,
+      expectedPath: URI,
+      now: 1_787_654_400,
+    });
+    expect(verified.signer).toBe(makeSigner().address);
+    expect(verified.payload.grantId).toBe("0xgrant");
+  });
+
+  it("makes two otherwise identical proofs different", async () => {
+    const common = {
+      signMessage: makeSigner().signMessage,
+      aud: AUD,
+      method: METHOD,
+      uri: URI,
+      iat: 1_787_654_321,
+      exp: 1_787_654_621,
+    };
+    const first = await buildWeb3SignedHeader({ ...common, nonce: "one" });
+    const second = await buildWeb3SignedHeader({ ...common, nonce: "two" });
+    expect(first).not.toBe(second);
+    expect(await buildWeb3SignedHeader(common)).toBe(
+      await buildWeb3SignedHeader(common),
+    );
+  });
+});
+
 describe("computeBodyHash", () => {
   it("returns the canonical empty-body hash for missing body", () => {
     expect(computeBodyHash(undefined)).toBe(

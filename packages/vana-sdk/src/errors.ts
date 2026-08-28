@@ -593,6 +593,7 @@ export type PersonalServerWriteErrorCode =
   | "INTERNAL_ERROR"
   | "DERIVATIVE_QUESTION_INVALID"
   | "DERIVATIVE_QUESTION_NOT_FOUND"
+  | "DERIVATIVE_DERIVED_SCOPE_REQUIRED"
   | "DERIVATIVE_CYCLE"
   | "DERIVATIVE_SOURCE_NOT_GRANTED"
   | "DERIVATIVE_COMPUTE_UNAVAILABLE"
@@ -833,7 +834,9 @@ export class DerivativeQuestionInvalidError extends PersonalServerWriteError {
  * @remarks
  * A builder only ever sees the questions it registered itself, so a question
  * another builder (or the owner) registered on the same derived scope is a
- * 404 too, not a 403.
+ * 404 too, not a 403. An id no Personal Server ever held is a 404 as well
+ * for any authenticated caller (`personal-server-ts` d91124d and later),
+ * where it used to fall through to the owner gate's 401.
  * @category Error Handling
  */
 export class DerivativeQuestionNotFoundError extends PersonalServerWriteError {
@@ -843,6 +846,36 @@ export class DerivativeQuestionNotFoundError extends PersonalServerWriteError {
     details?: Record<string, unknown>,
   ) {
     super(message, "DERIVATIVE_QUESTION_NOT_FOUND", 404, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a builder listed questions without naming a derived scope (400
+ * `DERIVATIVE_DERIVED_SCOPE_REQUIRED`).
+ *
+ * @remarks
+ * The unfiltered list is the owner's; a builder may only see its own
+ * questions on a scope it may write, so `?derivedScope=` is what the call is
+ * authorized against. The SDK refuses an empty `derivedScope` before
+ * signing anything ({@link WriteRequestError}), so this is what a hand-built
+ * request gets. It is a 400, not the 401 older servers answered, so a client
+ * with a re-handshake-on-401 policy does not go through a pointless
+ * handshake and then report an authentication problem it does not have.
+ * @category Error Handling
+ */
+export class DerivativeDerivedScopeRequiredError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(
+      message,
+      "DERIVATIVE_DERIVED_SCOPE_REQUIRED",
+      400,
+      errorCode,
+      details,
+    );
   }
 }
 

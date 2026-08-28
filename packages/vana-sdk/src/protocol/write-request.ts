@@ -145,6 +145,32 @@ export function nextProofIat(proofKey: string): Promise<number> {
   return sleep(waitSec * 1000).then(() => iat);
 }
 
+/**
+ * A fresh `nonce` claim for one proof.
+ *
+ * @remarks
+ * The Personal Server keys its replay guard on `(builder, nonce)` when a
+ * proof carries a nonce, and on the whole proof when it does not. A nonce is
+ * therefore what makes two identical requests signed inside the same second
+ * distinct instead of the second being refused as a replay, which is the
+ * difference between a poll loop that works and one that dies on its second
+ * pass. Every question call sends one.
+ */
+export function freshProofNonce(): string {
+  const webCrypto = globalThis.crypto;
+  if (typeof webCrypto?.randomUUID === "function") {
+    return webCrypto.randomUUID();
+  }
+  // Older runtimes expose getRandomValues without randomUUID; 16 random bytes
+  // are the same uniqueness with a different spelling.
+  if (typeof webCrypto?.getRandomValues === "function") {
+    return bytesToHex(webCrypto.getRandomValues(new Uint8Array(16)));
+  }
+  throw new WriteRequestError(
+    "No secure random source available to build a proof nonce; provide a crypto global",
+  );
+}
+
 /** The identity a proof is deduplicated by. */
 export function proofKeyFor(parts: {
   aud: string;

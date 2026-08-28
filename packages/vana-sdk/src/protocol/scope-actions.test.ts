@@ -36,6 +36,11 @@ describe("parseScopeEntry", () => {
       action: "write",
     });
     expect(parseScopeEntry("write:*")).toEqual({ scope: "*", action: "write" });
+    // The derivative-question shape: a write entry on the derived scope.
+    expect(parseScopeEntry("write:coach.weekly")).toEqual({
+      scope: "coach.weekly",
+      action: "write",
+    });
   });
 
   it("keeps the historical camelCase scope tail intact", () => {

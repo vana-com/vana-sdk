@@ -155,6 +155,55 @@ Use `network: "moksha"` to keep production app/API URLs while running escrow and
 chain-aware defaults against Moksha. `env: "dev"` remains for Vana's internal dev
 deployment and switches deployment URLs.
 
+### Scope entries
+
+A grant carries a list of **scope entries**, and each one is
+`[operation:]scope`:
+
+- no prefix means **read** — `spotify.savedTracks`, `chatgpt.*`, `*`;
+- `write:` means **write** — `write:coach.weekly`, `write:chatgpt.*`;
+- the operation is lowercase ASCII and matched exactly. `read:` is not an
+  alias for a bare entry, `delete:` is reserved but not implemented, and there
+  is no wildcard over operations: wildcards apply to the scope part only.
+
+Read and write never cross. `write:coach.weekly` authorizes writing
+`coach.weekly` and nothing else; reading it needs its own bare entry. A grant
+that wants both carries both.
+
+```typescript
+import {
+  parseScopeEntry, // "write:coach.weekly" -> { scope: "coach.weekly", action: "write" }
+  formatScopeEntry, // { scope, action } -> the wire entry
+  grantPermissions, // a grant's scopes -> [{ scope, actions: ["read", "write"] }]
+  hasAction, // does this grant authorize `action` over `scope`?
+} from "@opendatalabs/vana-sdk/server";
+
+// Request read + write on a derived scope, computed from two sources.
+export const vana = createDirectDataController({
+  // ...
+  source: "oura",
+  scopes: [
+    "oura.sleep",
+    "chatgpt.conversations",
+    "coach.weekly",
+    "write:coach.weekly",
+  ],
+});
+
+hasAction(grant.scopes, "coach.weekly", "write"); // true
+hasAction(grant.scopes, "oura.sleep", "write"); // false — read entry only
+```
+
+Entries are passed through and signed verbatim, so build and read them with
+these helpers rather than slicing the strings by hand. An entry whose
+operation the SDK does not recognise never parses as read: `parseScopeEntry`
+throws `InvalidScopeEntryError`, `hasAction` skips it, and `grantPermissions`
+refuses the whole list (use `tryGrantPermissions` to get `undefined` instead
+when rendering a grant a newer release may have written). The controller
+accepts write entries in `scopes`, but its scope part must be a concrete
+scope: this flow reads approved scopes back one at a time, so wildcards are
+rejected there for read and write alike.
+
 ### Backend controller
 
 ```typescript

@@ -25,6 +25,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { Hex } from "viem";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 import { parseScope } from "../protocol/scopes";
+import { parseScopeEntry } from "../protocol/scope-actions";
 import { createEscrowGatewayClient } from "../protocol/escrow";
 import { CONTRACTS } from "../generated/addresses";
 import {
@@ -91,7 +92,20 @@ export interface DirectDataControllerConfig {
   app: DirectAppConfig;
   /** Data source key (e.g. `"icloud_notes"`). */
   source: string;
-  /** Scopes to request (e.g. `["icloud_notes.notes"]`). At least one required. */
+  /**
+   * Grant scope entries to request. At least one required.
+   *
+   * Each entry is `[operation:]scope` (see `parseScopeEntry`): a bare entry
+   * such as `"icloud_notes.notes"` requests read, and `"write:coach.weekly"`
+   * requests write. The entries are carried through to the access request
+   * verbatim and become the grant's `scopes`, so a request can mix both
+   * (`["oura.sleep", "coach.weekly", "write:coach.weekly"]`).
+   *
+   * The scope part must be a concrete `{source}.{category}[.{subcategory}]`
+   * scope: this flow reads approved scopes back one by one, so wildcard
+   * patterns (`chatgpt.*`, `write:chatgpt.*`) are not accepted here for
+   * either operation.
+   */
   scopes: string[];
   /**
    * Override the resolved service endpoints (partial). Useful for pointing at a
@@ -279,7 +293,11 @@ function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
  *
  * @param config - Controller configuration (env, key, app identity, source, scopes).
  * @returns A ready-to-use controller.
- * @throws {@link DirectConfigError} when the key or scopes are invalid.
+ * @throws {@link DirectConfigError} when the key is missing or malformed, when
+ * `scopes` is empty, or when no escrow contract can be resolved.
+ * @throws InvalidScopeEntryError when a `scopes` entry does not fit the
+ * `[operation:]scope` grammar (an unknown operation prefix such as `delete:`).
+ * @throws ZodError when the scope part of an entry is not a valid scope.
  */
 export function createDirectDataController(
   config: DirectDataControllerConfig,
@@ -295,9 +313,15 @@ export function createDirectDataController(
   if (!config.scopes || config.scopes.length === 0) {
     throw new DirectConfigError("At least one scope is required");
   }
-  // Validate scopes eagerly so misconfiguration fails at construction.
-  for (const scope of config.scopes) {
-    parseScope(scope);
+  // Validate scopes eagerly so misconfiguration fails at construction. Each
+  // element is a grant scope entry (`[operation:]scope`), so the operation
+  // prefix is stripped first and only the scope part is checked against the
+  // scope grammar — `write:coach.weekly` is a valid write-grant request, and
+  // an unknown operation (`delete:x`) throws rather than being taken as read.
+  // The entries themselves are passed through to the access request verbatim,
+  // prefix included.
+  for (const entry of config.scopes) {
+    parseScope(parseScopeEntry(entry).scope);
   }
 
   const env: DirectEnv = config.env ?? "production";

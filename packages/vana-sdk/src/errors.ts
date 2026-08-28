@@ -591,10 +591,17 @@ export type PersonalServerWriteErrorCode =
   | "PS_UNAVAILABLE"
   | "SERVER_NOT_CONFIGURED"
   | "INTERNAL_ERROR"
+  | "DERIVATIVE_QUESTION_INVALID"
+  | "DERIVATIVE_QUESTION_NOT_FOUND"
+  | "DERIVATIVE_CYCLE"
+  | "DERIVATIVE_SOURCE_NOT_GRANTED"
+  | "DERIVATIVE_COMPUTE_UNAVAILABLE"
+  | "METHOD_NOT_ALLOWED"
   | (string & {});
 
 /**
- * Base class for every Personal Server Write API failure.
+ * Base class for every Personal Server Write API failure, including the
+ * derivative question routes that authenticate with the same credential.
  *
  * @remarks
  * `status` is the HTTP status the Personal Server answered with (absent for
@@ -771,6 +778,151 @@ export class LineageReadError extends VanaError {
     public readonly details?: Record<string, unknown>,
   ) {
     super(message, "LINEAGE_READ_ERROR");
+  }
+}
+
+/**
+ * Thrown when the Personal Server rejected a derivative question with a
+ * status the more specific errors do not claim (405, 413
+ * `CONTENT_TOO_LARGE`, 5xx), or answered a body the SDK cannot read.
+ *
+ * @remarks
+ * The question routes share the Write API's credential, so their
+ * authentication failures are the write errors: {@link WriteUnauthorizedError}
+ * (401), {@link WriteForbiddenError} (403 on the derived scope),
+ * {@link WriteConflictError} (409 that is not a cycle),
+ * {@link WriteRequestError} (refused before sending),
+ * {@link WriteTransportError} (`fetch` threw).
+ * @category Error Handling
+ */
+export class DerivativeQuestionRejectedError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    status: number,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "DERIVATIVE_QUESTION_REJECTED", status, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when the Personal Server refused a question registration as
+ * invalid: 400 `DERIVATIVE_QUESTION_INVALID` (body shape, the scope grammar,
+ * 1 to 16 distinct source scopes, an 8000 character question, a model id) or
+ * 400 `LINEAGE_SCOPE_UNDER_SOURCE_PREFIX` (the derived scope shares its first
+ * dot-segment with a source scope). `details.field` names the offending
+ * field when the server sent one.
+ * @category Error Handling
+ */
+export class DerivativeQuestionInvalidError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    status = 400,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "DERIVATIVE_QUESTION_INVALID", status, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a question id is unknown (404
+ * `DERIVATIVE_QUESTION_NOT_FOUND`).
+ *
+ * @remarks
+ * A builder only ever sees the questions it registered itself, so a question
+ * another builder (or the owner) registered on the same derived scope is a
+ * 404 too, not a 403.
+ * @category Error Handling
+ */
+export class DerivativeQuestionNotFoundError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "DERIVATIVE_QUESTION_NOT_FOUND", 404, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a source scope of the question is not read-granted to the
+ * builder (403 `DERIVATIVE_SOURCE_NOT_GRANTED`).
+ *
+ * @remarks
+ * The answer exposes the sources to whoever may read the derived scope, so
+ * the grant must carry a **bare** read entry for every source scope;
+ * `write:` entries confer nothing. `details.scopes` lists the uncovered
+ * ones.
+ * @category Error Handling
+ */
+export class DerivativeSourceNotGrantedError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "DERIVATIVE_SOURCE_NOT_GRANTED", 403, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when the registration would make the derived scope a transitive
+ * source of itself through other registrations (409 `DERIVATIVE_CYCLE`), so
+ * recompute would never settle. `details.path` is the offending chain.
+ * @category Error Handling
+ */
+export class DerivativeCycleError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "DERIVATIVE_CYCLE", 409, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when the Personal Server has no compute layer wired (503
+ * `DERIVATIVE_COMPUTE_UNAVAILABLE`): it cannot answer questions at all.
+ * @category Error Handling
+ */
+export class DerivativeComputeUnavailableError extends PersonalServerWriteError {
+  constructor(
+    message: string,
+    errorCode: PersonalServerWriteErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "DERIVATIVE_COMPUTE_UNAVAILABLE", 503, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a question did not reach `ready` or `failed` within the
+ * caller's budget. The question keeps computing on the server; poll it
+ * again. `details.status` is the last status seen.
+ * @category Error Handling
+ */
+export class DerivativeQuestionTimeoutError extends PersonalServerWriteError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "DERIVATIVE_QUESTION_TIMEOUT", undefined, null, details);
+  }
+}
+
+/**
+ * Thrown when a question settled as `failed`.
+ *
+ * @remarks
+ * `details.error` is the Personal Server's short failure reason (a status
+ * code, a scope name, an error class); the prompt and the data are never
+ * part of it. A failed question is recomputed on the next source change or
+ * an explicit recompute.
+ * @category Error Handling
+ */
+export class DerivativeQuestionFailedError extends PersonalServerWriteError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "DERIVATIVE_QUESTION_FAILED", undefined, null, details);
   }
 }
 

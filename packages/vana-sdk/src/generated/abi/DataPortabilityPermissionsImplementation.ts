@@ -3,16 +3,16 @@
 //
 // DataPortabilityPermissions Implementation Contract
 //
-// Generated: 2025-10-30T23:21:10.229Z
+// Generated: 2026-08-28T19:59:08.996Z
 // Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:
-//     0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF
-//     https://vanascan.io/address/0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF
+//     0x4d3FA76064D88e0454cFc4CaD7e5FeC3e3124011
+//     https://vanascan.io/address/0x4d3FA76064D88e0454cFc4CaD7e5FeC3e3124011
 //
 //   Implementation Address:
-//     0x1473D4c66E230Fd7F8C3e48a4dFc026e259C1Edf
-//     https://vanascan.io/address/0x1473D4c66E230Fd7F8C3e48a4dFc026e259C1Edf
+//     0x4E71094c8cd2065F1C0C85e978d7f53B79B1AA84
+//     https://vanascan.io/address/0x4E71094c8cd2065F1C0C85e978d7f53B79B1AA84
 
 export const DataPortabilityPermissionsABI = [
   {
@@ -97,7 +97,7 @@ export const DataPortabilityPermissionsABI = [
   },
   {
     inputs: [],
-    name: "EmptyGrant",
+    name: "EmptyScopes",
     type: "error",
   },
   {
@@ -116,19 +116,35 @@ export const DataPortabilityPermissionsABI = [
     type: "error",
   },
   {
-    inputs: [],
-    name: "GranteeNotFound",
+    inputs: [
+      {
+        internalType: "address",
+        name: "claimed",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "actual",
+        type: "address",
+      },
+    ],
+    name: "GrantorMismatch",
     type: "error",
   },
   {
     inputs: [
       {
         internalType: "uint256",
-        name: "permissionId",
+        name: "currentVersion",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "providedVersion",
         type: "uint256",
       },
     ],
-    name: "InactivePermission",
+    name: "InvalidGrantVersion",
     type: "error",
   },
   {
@@ -137,93 +153,13 @@ export const DataPortabilityPermissionsABI = [
     type: "error",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "expectedNonce",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "providedNonce",
-        type: "uint256",
-      },
-    ],
-    name: "InvalidNonce",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "filesLength",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "permissionsLength",
-        type: "uint256",
-      },
-    ],
-    name: "InvalidPermissionsLength",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "filesLength",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "schemaIdsLength",
-        type: "uint256",
-      },
-    ],
-    name: "InvalidSchemaIdsLength",
-    type: "error",
-  },
-  {
     inputs: [],
     name: "InvalidSignature",
     type: "error",
   },
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "fileOwner",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "requestor",
-        type: "address",
-      },
-    ],
-    name: "NotFileOwner",
-    type: "error",
-  },
-  {
     inputs: [],
     name: "NotInitializing",
-    type: "error",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "permissionOwner",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "requestor",
-        type: "address",
-      },
-    ],
-    name: "NotPermissionGrantor",
     type: "error",
   },
   {
@@ -246,6 +182,30 @@ export const DataPortabilityPermissionsABI = [
     inputs: [],
     name: "ZeroAddress",
     type: "error",
+  },
+  {
+    inputs: [],
+    name: "ZeroGranteeId",
+    type: "error",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "previous",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "current",
+        type: "address",
+      },
+    ],
+    name: "DataPortabilityServersUpdated",
+    type: "event",
   },
   {
     anonymous: false,
@@ -284,36 +244,42 @@ export const DataPortabilityPermissionsABI = [
     inputs: [
       {
         indexed: true,
-        internalType: "uint256",
-        name: "permissionId",
-        type: "uint256",
+        internalType: "bytes32",
+        name: "id",
+        type: "bytes32",
       },
       {
         indexed: true,
         internalType: "address",
-        name: "user",
+        name: "grantorAddress",
         type: "address",
       },
       {
         indexed: true,
-        internalType: "uint256",
+        internalType: "bytes32",
         name: "granteeId",
+        type: "bytes32",
+      },
+      {
+        indexed: false,
+        internalType: "string[]",
+        name: "scopes",
+        type: "string[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "grantVersion",
         type: "uint256",
       },
       {
         indexed: false,
-        internalType: "string",
-        name: "grant",
-        type: "string",
-      },
-      {
-        indexed: false,
-        internalType: "uint256[]",
-        name: "fileIds",
-        type: "uint256[]",
+        internalType: "uint256",
+        name: "expiresAt",
+        type: "uint256",
       },
     ],
-    name: "PermissionAdded",
+    name: "PermissionSet",
     type: "event",
   },
   {
@@ -321,12 +287,24 @@ export const DataPortabilityPermissionsABI = [
     inputs: [
       {
         indexed: true,
-        internalType: "uint256",
-        name: "permissionId",
-        type: "uint256",
+        internalType: "bytes32",
+        name: "id",
+        type: "bytes32",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "grantorAddress",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "delegate",
+        type: "address",
       },
     ],
-    name: "PermissionRevoked",
+    name: "PermissionSignedByDelegate",
     type: "event",
   },
   {
@@ -445,7 +423,7 @@ export const DataPortabilityPermissionsABI = [
   },
   {
     inputs: [],
-    name: "MAINTAINER_ROLE",
+    name: "GRANT_REGISTRATION_TYPEHASH",
     outputs: [
       {
         internalType: "bytes32",
@@ -474,42 +452,42 @@ export const DataPortabilityPermissionsABI = [
       {
         components: [
           {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
+            internalType: "address",
+            name: "grantorAddress",
+            type: "address",
           },
           {
-            internalType: "uint256",
+            internalType: "bytes32",
             name: "granteeId",
+            type: "bytes32",
+          },
+          {
+            internalType: "string[]",
+            name: "scopes",
+            type: "string[]",
+          },
+          {
+            internalType: "uint256",
+            name: "grantVersion",
             type: "uint256",
           },
           {
-            internalType: "string",
-            name: "grant",
-            type: "string",
-          },
-          {
-            internalType: "uint256[]",
-            name: "fileIds",
-            type: "uint256[]",
+            internalType: "uint256",
+            name: "expiresAt",
+            type: "uint256",
           },
         ],
-        internalType: "struct IDataPortabilityPermissions.PermissionInput",
-        name: "permissionInput",
+        internalType: "struct IDataPortabilityPermissionsV2.AddPermissionInput",
+        name: "input",
         type: "tuple",
-      },
-      {
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
       },
     ],
     name: "addPermission",
     outputs: [
       {
-        internalType: "uint256",
+        internalType: "bytes32",
         name: "",
-        type: "uint256",
+        type: "bytes32",
       },
     ],
     stateMutability: "nonpayable",
@@ -520,66 +498,33 @@ export const DataPortabilityPermissionsABI = [
       {
         components: [
           {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "granteeId",
-            type: "uint256",
-          },
-          {
-            internalType: "string",
-            name: "grant",
-            type: "string",
-          },
-          {
-            internalType: "string[]",
-            name: "fileUrls",
-            type: "string[]",
-          },
-          {
-            internalType: "uint256[]",
-            name: "schemaIds",
-            type: "uint256[]",
-          },
-          {
             internalType: "address",
-            name: "serverAddress",
+            name: "grantorAddress",
             type: "address",
           },
           {
-            internalType: "string",
-            name: "serverUrl",
-            type: "string",
+            internalType: "bytes32",
+            name: "granteeId",
+            type: "bytes32",
           },
           {
-            internalType: "string",
-            name: "serverPublicKey",
-            type: "string",
+            internalType: "string[]",
+            name: "scopes",
+            type: "string[]",
           },
           {
-            components: [
-              {
-                internalType: "address",
-                name: "account",
-                type: "address",
-              },
-              {
-                internalType: "string",
-                name: "key",
-                type: "string",
-              },
-            ],
-            internalType: "struct IDataRegistry.Permission[][]",
-            name: "filePermissions",
-            type: "tuple[][]",
+            internalType: "uint256",
+            name: "grantVersion",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "expiresAt",
+            type: "uint256",
           },
         ],
-        internalType:
-          "struct IDataPortabilityPermissions.ServerFilesAndPermissionInput",
-        name: "serverFilesAndPermissionInput",
+        internalType: "struct IDataPortabilityPermissionsV2.AddPermissionInput",
+        name: "input",
         type: "tuple",
       },
       {
@@ -588,12 +533,12 @@ export const DataPortabilityPermissionsABI = [
         type: "bytes",
       },
     ],
-    name: "addServerFilesAndPermissions",
+    name: "addPermissionWithSignature",
     outputs: [
       {
-        internalType: "uint256",
+        internalType: "bytes32",
         name: "",
-        type: "uint256",
+        type: "bytes32",
       },
     ],
     stateMutability: "nonpayable",
@@ -601,23 +546,10 @@ export const DataPortabilityPermissionsABI = [
   },
   {
     inputs: [],
-    name: "dataPortabilityGrantees",
-    outputs: [
-      {
-        internalType: "contract IDataPortabilityGrantees",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
     name: "dataPortabilityServers",
     outputs: [
       {
-        internalType: "contract IDataPortabilityServers",
+        internalType: "contract IDataPortabilityServersV2",
         name: "",
         type: "address",
       },
@@ -627,12 +559,12 @@ export const DataPortabilityPermissionsABI = [
   },
   {
     inputs: [],
-    name: "dataRegistry",
+    name: "domainSeparator",
     outputs: [
       {
-        internalType: "contract IDataRegistry",
+        internalType: "bytes32",
         name: "",
-        type: "address",
+        type: "bytes32",
       },
     ],
     stateMutability: "view",
@@ -684,50 +616,36 @@ export const DataPortabilityPermissionsABI = [
   {
     inputs: [
       {
-        internalType: "uint256",
-        name: "fileId",
-        type: "uint256",
-      },
-    ],
-    name: "filePermissionIds",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "fileId",
-        type: "uint256",
-      },
-    ],
-    name: "filePermissions",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "bytes32",
         name: "role",
         type: "bytes32",
       },
     ],
     name: "getRoleAdmin",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "grantorAddress",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "granteeId",
+        type: "bytes32",
+      },
+    ],
+    name: "grantId",
     outputs: [
       {
         internalType: "bytes32",
@@ -784,27 +702,7 @@ export const DataPortabilityPermissionsABI = [
     inputs: [
       {
         internalType: "address",
-        name: "trustedForwarderAddress",
-        type: "address",
-      },
-      {
-        internalType: "address",
         name: "ownerAddress",
-        type: "address",
-      },
-      {
-        internalType: "contract IDataRegistry",
-        name: "dataRegistryAddress",
-        type: "address",
-      },
-      {
-        internalType: "contract IDataPortabilityServers",
-        name: "serversContractAddr",
-        type: "address",
-      },
-      {
-        internalType: "contract IDataPortabilityGrantees",
-        name: "granteesContractAddr",
         type: "address",
       },
     ],
@@ -816,12 +714,12 @@ export const DataPortabilityPermissionsABI = [
   {
     inputs: [
       {
-        internalType: "address",
-        name: "forwarder",
-        type: "address",
+        internalType: "bytes32",
+        name: "id",
+        type: "bytes32",
       },
     ],
-    name: "isTrustedForwarder",
+    name: "isActive",
     outputs: [
       {
         internalType: "bool",
@@ -855,28 +753,9 @@ export const DataPortabilityPermissionsABI = [
   {
     inputs: [
       {
-        internalType: "uint256",
-        name: "permissionId",
-        type: "uint256",
-      },
-    ],
-    name: "permissionFileIds",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "permissionId",
-        type: "uint256",
+        internalType: "bytes32",
+        name: "id",
+        type: "bytes32",
       },
     ],
     name: "permissions",
@@ -884,62 +763,34 @@ export const DataPortabilityPermissionsABI = [
       {
         components: [
           {
-            internalType: "uint256",
-            name: "id",
-            type: "uint256",
-          },
-          {
             internalType: "address",
-            name: "grantor",
+            name: "grantorAddress",
             type: "address",
           },
           {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
+            internalType: "bytes32",
             name: "granteeId",
-            type: "uint256",
+            type: "bytes32",
           },
           {
-            internalType: "string",
-            name: "grant",
-            type: "string",
-          },
-          {
-            internalType: "uint256",
-            name: "startBlock",
-            type: "uint256",
+            internalType: "string[]",
+            name: "scopes",
+            type: "string[]",
           },
           {
             internalType: "uint256",
-            name: "endBlock",
+            name: "grantVersion",
             type: "uint256",
           },
           {
-            internalType: "uint256[]",
-            name: "fileIds",
-            type: "uint256[]",
+            internalType: "uint256",
+            name: "expiresAt",
+            type: "uint256",
           },
         ],
-        internalType: "struct IDataPortabilityPermissions.PermissionInfo",
+        internalType: "struct IDataPortabilityPermissionsV2.Permission",
         name: "",
         type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "permissionsCount",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
       },
     ],
     stateMutability: "view",
@@ -979,50 +830,6 @@ export const DataPortabilityPermissionsABI = [
   {
     inputs: [
       {
-        internalType: "uint256",
-        name: "permissionId",
-        type: "uint256",
-      },
-    ],
-    name: "revokePermission",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "permissionId",
-            type: "uint256",
-          },
-        ],
-        internalType:
-          "struct IDataPortabilityPermissions.RevokePermissionInput",
-        name: "revokePermissionInput",
-        type: "tuple",
-      },
-      {
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
-      },
-    ],
-    name: "revokePermissionWithSignature",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "bytes32",
         name: "role",
         type: "bytes32",
@@ -1041,17 +848,12 @@ export const DataPortabilityPermissionsABI = [
   {
     inputs: [
       {
-        internalType: "bytes32",
-        name: "role",
-        type: "bytes32",
-      },
-      {
-        internalType: "bytes32",
-        name: "adminRole",
-        type: "bytes32",
+        internalType: "address",
+        name: "newDataPortabilityServers",
+        type: "address",
       },
     ],
-    name: "setRoleAdmin",
+    name: "setDataPortabilityServers",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1077,72 +879,7 @@ export const DataPortabilityPermissionsABI = [
   },
   {
     inputs: [],
-    name: "trustedForwarder",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
     name: "unpause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "contract IDataRegistry",
-        name: "newDataRegistry",
-        type: "address",
-      },
-    ],
-    name: "updateDataRegistry",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "contract IDataPortabilityGrantees",
-        name: "newGranteesContract",
-        type: "address",
-      },
-    ],
-    name: "updateGranteesContract",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "contract IDataPortabilityServers",
-        name: "newServersContract",
-        type: "address",
-      },
-    ],
-    name: "updateServersContract",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "trustedForwarderAddress",
-        type: "address",
-      },
-    ],
-    name: "updateTrustedForwarder",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1163,111 +900,6 @@ export const DataPortabilityPermissionsABI = [
     name: "upgradeToAndCall",
     outputs: [],
     stateMutability: "payable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "userNonce",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "permissionIndex",
-        type: "uint256",
-      },
-    ],
-    name: "userPermissionIdsAt",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "userPermissionIdsLength",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "userPermissionIdsValues",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "users",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "nonce",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256[]",
-        name: "permissionIds",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
     type: "function",
   },
   {

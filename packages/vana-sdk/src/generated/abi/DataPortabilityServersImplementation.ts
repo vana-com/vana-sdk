@@ -3,16 +3,16 @@
 //
 // DataPortabilityServers Implementation Contract
 //
-// Generated: 2025-10-30T23:21:10.618Z
+// Generated: 2026-08-28T19:59:10.373Z
 // Network: Vana (Chain ID: 1480)
 //
 //   Proxy Address:
-//     0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c
-//     https://vanascan.io/address/0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c
+//     0xCae2CE0e9caa6643ed28186cF57bd40Bd9E17Eab
+//     https://vanascan.io/address/0xCae2CE0e9caa6643ed28186cF57bd40Bd9E17Eab
 //
 //   Implementation Address:
-//     0x4971CfB397D69D6B670baEE8FFa6C9bAb8968066
-//     https://vanascan.io/address/0x4971CfB397D69D6B670baEE8FFa6C9bAb8968066
+//     0x97537454751eE1A649C92Ac1BA7D0E4a9E90D1fd
+//     https://vanascan.io/address/0x97537454751eE1A649C92Ac1BA7D0E4a9E90D1fd
 
 export const DataPortabilityServersABI = [
   {
@@ -50,6 +50,33 @@ export const DataPortabilityServersABI = [
       },
     ],
     name: "AddressEmptyCode",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes32",
+        name: "serverId",
+        type: "bytes32",
+      },
+    ],
+    name: "AlreadyRevoked",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "deadline",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "currentTime",
+        type: "uint256",
+      },
+    ],
+    name: "DeadlineExpired",
     type: "error",
   },
   {
@@ -126,19 +153,8 @@ export const DataPortabilityServersABI = [
     type: "error",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "expectedNonce",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "providedNonce",
-        type: "uint256",
-      },
-    ],
-    name: "InvalidNonce",
+    inputs: [],
+    name: "InvalidSignature",
     type: "error",
   },
   {
@@ -149,13 +165,18 @@ export const DataPortabilityServersABI = [
   {
     inputs: [
       {
+        internalType: "bytes32",
+        name: "serverId",
+        type: "bytes32",
+      },
+      {
         internalType: "address",
-        name: "serverOwner",
+        name: "claimed",
         type: "address",
       },
       {
         internalType: "address",
-        name: "requestor",
+        name: "actual",
         type: "address",
       },
     ],
@@ -163,44 +184,57 @@ export const DataPortabilityServersABI = [
     type: "error",
   },
   {
-    inputs: [],
-    name: "ServerAlreadyRegistered",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ServerAlreadyTrusted",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ServerAlreadyUntrusted",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ServerNotFound",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ServerNotTrusted",
+    inputs: [
+      {
+        internalType: "address",
+        name: "claimed",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "recovered",
+        type: "address",
+      },
+    ],
+    name: "OwnerMismatch",
     type: "error",
   },
   {
     inputs: [
       {
-        internalType: "string",
-        name: "existingUrl",
-        type: "string",
-      },
-      {
-        internalType: "string",
-        name: "providedUrl",
-        type: "string",
+        internalType: "address",
+        name: "serverAddress",
+        type: "address",
       },
     ],
-    name: "ServerUrlMismatch",
+    name: "ServerAlreadyRegistered",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes32",
+        name: "serverId",
+        type: "bytes32",
+      },
+    ],
+    name: "ServerNotFound",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes32",
+        name: "expected",
+        type: "bytes32",
+      },
+      {
+        internalType: "bytes32",
+        name: "provided",
+        type: "bytes32",
+      },
+    ],
+    name: "StaleServerId",
     type: "error",
   },
   {
@@ -336,14 +370,39 @@ export const DataPortabilityServersABI = [
     inputs: [
       {
         indexed: true,
-        internalType: "uint256",
+        internalType: "bytes32",
         name: "serverId",
-        type: "uint256",
+        type: "bytes32",
       },
       {
         indexed: true,
         internalType: "address",
-        name: "owner",
+        name: "ownerAddress",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "serverAddress",
+        type: "address",
+      },
+    ],
+    name: "ServerDeregistered",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "serverId",
+        type: "bytes32",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "ownerAddress",
         type: "address",
       },
       {
@@ -361,68 +420,11 @@ export const DataPortabilityServersABI = [
       {
         indexed: false,
         internalType: "string",
-        name: "url",
+        name: "serverUrl",
         type: "string",
       },
     ],
     name: "ServerRegistered",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-    ],
-    name: "ServerTrusted",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "user",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-    ],
-    name: "ServerUntrusted",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "string",
-        name: "url",
-        type: "string",
-      },
-    ],
-    name: "ServerUpdated",
     type: "event",
   },
   {
@@ -479,7 +481,20 @@ export const DataPortabilityServersABI = [
   },
   {
     inputs: [],
-    name: "PERMISSION_MANAGER_ROLE",
+    name: "SERVER_DEREGISTRATION_TYPEHASH",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "SERVER_REGISTRATION_TYPEHASH",
     outputs: [
       {
         internalType: "bytes32",
@@ -507,35 +522,48 @@ export const DataPortabilityServersABI = [
     inputs: [
       {
         internalType: "address",
-        name: "ownerAddress",
+        name: "serverAddress",
+        type: "address",
+      },
+    ],
+    name: "activeServerId",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "serverAddress",
         type: "address",
       },
       {
-        components: [
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "string",
-            name: "serverUrl",
-            type: "string",
-          },
-        ],
-        internalType: "struct IDataPortabilityServers.AddServerInput",
-        name: "addServerInput",
-        type: "tuple",
+        internalType: "string",
+        name: "publicKey",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "serverUrl",
+        type: "string",
       },
     ],
-    name: "addAndTrustServerByManager",
-    outputs: [],
-    stateMutability: "nonpayable",
+    name: "computeServerId",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -543,9 +571,9 @@ export const DataPortabilityServersABI = [
       {
         components: [
           {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
+            internalType: "address",
+            name: "ownerAddress",
+            type: "address",
           },
           {
             internalType: "address",
@@ -553,19 +581,18 @@ export const DataPortabilityServersABI = [
             type: "address",
           },
           {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
+            internalType: "bytes32",
+            name: "serverId",
+            type: "bytes32",
           },
           {
-            internalType: "string",
-            name: "serverUrl",
-            type: "string",
+            internalType: "uint256",
+            name: "deadline",
+            type: "uint256",
           },
         ],
-        internalType:
-          "struct IDataPortabilityServers.AddServerWithSignatureInput",
-        name: "addServerInput",
+        internalType: "struct IDataPortabilityServersV2.ServerDeregistration",
+        name: "input",
         type: "tuple",
       },
       {
@@ -574,50 +601,22 @@ export const DataPortabilityServersABI = [
         type: "bytes",
       },
     ],
-    name: "addAndTrustServerWithSignature",
+    name: "deregisterServerWithSignature",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [
+    inputs: [],
+    name: "domainSeparator",
+    outputs: [
       {
-        components: [
-          {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "string",
-            name: "serverUrl",
-            type: "string",
-          },
-        ],
-        internalType:
-          "struct IDataPortabilityServers.AddServerWithSignatureInput",
-        name: "addServerInput",
-        type: "tuple",
-      },
-      {
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
       },
     ],
-    name: "addServerWithSignature",
-    outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -666,6 +665,62 @@ export const DataPortabilityServersABI = [
   {
     inputs: [
       {
+        internalType: "address",
+        name: "serverAddress",
+        type: "address",
+      },
+    ],
+    name: "getActiveServerByAddress",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "bytes32",
+            name: "id",
+            type: "bytes32",
+          },
+          {
+            internalType: "address",
+            name: "ownerAddress",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "serverAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "publicKey",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "serverUrl",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAtBlock",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "revokedAtBlock",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IDataPortabilityServersV2.ServerInfo",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "bytes32",
         name: "role",
         type: "bytes32",
@@ -677,6 +732,62 @@ export const DataPortabilityServersABI = [
         internalType: "bytes32",
         name: "",
         type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes32",
+        name: "serverId",
+        type: "bytes32",
+      },
+    ],
+    name: "getServer",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "bytes32",
+            name: "id",
+            type: "bytes32",
+          },
+          {
+            internalType: "address",
+            name: "ownerAddress",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "serverAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "publicKey",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "serverUrl",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAtBlock",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "revokedAtBlock",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IDataPortabilityServersV2.ServerInfo",
+        name: "",
+        type: "tuple",
       },
     ],
     stateMutability: "view",
@@ -762,6 +873,62 @@ export const DataPortabilityServersABI = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "ownerAddress",
+        type: "address",
+      },
+    ],
+    name: "ownerServers",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "bytes32",
+            name: "id",
+            type: "bytes32",
+          },
+          {
+            internalType: "address",
+            name: "ownerAddress",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "serverAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "publicKey",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "serverUrl",
+            type: "string",
+          },
+          {
+            internalType: "uint256",
+            name: "registeredAtBlock",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "revokedAtBlock",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IDataPortabilityServersV2.ServerInfo[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "pause",
     outputs: [],
@@ -792,6 +959,52 @@ export const DataPortabilityServersABI = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "ownerAddress",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "serverAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "publicKey",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "serverUrl",
+            type: "string",
+          },
+        ],
+        internalType: "struct IDataPortabilityServersV2.ServerRegistration",
+        name: "input",
+        type: "tuple",
+      },
+      {
+        internalType: "bytes",
+        name: "signature",
+        type: "bytes",
+      },
+    ],
+    name: "registerServerWithSignature",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "serverId",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -831,117 +1044,6 @@ export const DataPortabilityServersABI = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "serverAddress",
-        type: "address",
-      },
-    ],
-    name: "serverAddressToId",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "serverAddress",
-        type: "address",
-      },
-    ],
-    name: "serverByAddress",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "id",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "string",
-            name: "url",
-            type: "string",
-          },
-        ],
-        internalType: "struct IDataPortabilityServers.ServerInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-    ],
-    name: "servers",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "id",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "string",
-            name: "url",
-            type: "string",
-          },
-        ],
-        internalType: "struct IDataPortabilityServers.ServerInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "serversCount",
     outputs: [
@@ -952,42 +1054,6 @@ export const DataPortabilityServersABI = [
       },
     ],
     stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "bytes32",
-        name: "role",
-        type: "bytes32",
-      },
-      {
-        internalType: "bytes32",
-        name: "adminRole",
-        type: "bytes32",
-      },
-    ],
-    name: "setRoleAdmin",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "nonce",
-        type: "uint256",
-      },
-    ],
-    name: "setUserNonce",
-    outputs: [],
-    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -1010,67 +1076,6 @@ export const DataPortabilityServersABI = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-    ],
-    name: "trustServer",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-    ],
-    name: "trustServerByManager",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "serverId",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IDataPortabilityServers.TrustServerInput",
-        name: "trustServerInput",
-        type: "tuple",
-      },
-      {
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
-      },
-    ],
-    name: "trustServerWithSignature",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "trustedForwarder",
     outputs: [
@@ -1086,67 +1091,6 @@ export const DataPortabilityServersABI = [
   {
     inputs: [],
     name: "unpause",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-    ],
-    name: "untrustServer",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "serverId",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IDataPortabilityServers.UntrustServerInput",
-        name: "untrustServerInput",
-        type: "tuple",
-      },
-      {
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
-      },
-    ],
-    name: "untrustServerWithSignature",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-      {
-        internalType: "string",
-        name: "url",
-        type: "string",
-      },
-    ],
-    name: "updateServer",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1183,14 +1127,8 @@ export const DataPortabilityServersABI = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "userNonce",
+    inputs: [],
+    name: "version",
     outputs: [
       {
         internalType: "uint256",
@@ -1198,210 +1136,7 @@ export const DataPortabilityServersABI = [
         type: "uint256",
       },
     ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "serverIndex",
-        type: "uint256",
-      },
-    ],
-    name: "userServerIdsAt",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "userServerIdsLength",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "userServerIdsValues",
-    outputs: [
-      {
-        internalType: "uint256[]",
-        name: "",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "userServerValues",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "id",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "string",
-            name: "url",
-            type: "string",
-          },
-          {
-            internalType: "uint256",
-            name: "startBlock",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "endBlock",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IDataPortabilityServers.TrustedServerInfo[]",
-        name: "serversInfo",
-        type: "tuple[]",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "serverId",
-        type: "uint256",
-      },
-    ],
-    name: "userServers",
-    outputs: [
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "id",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "owner",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "serverAddress",
-            type: "address",
-          },
-          {
-            internalType: "string",
-            name: "publicKey",
-            type: "string",
-          },
-          {
-            internalType: "string",
-            name: "url",
-            type: "string",
-          },
-          {
-            internalType: "uint256",
-            name: "startBlock",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "endBlock",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IDataPortabilityServers.TrustedServerInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "userAddress",
-        type: "address",
-      },
-    ],
-    name: "users",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "nonce",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256[]",
-        name: "trustedServerIds",
-        type: "uint256[]",
-      },
-    ],
-    stateMutability: "view",
+    stateMutability: "pure",
     type: "function",
   },
 ] as const;

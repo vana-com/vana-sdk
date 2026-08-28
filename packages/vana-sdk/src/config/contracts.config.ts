@@ -54,16 +54,21 @@ export const CONTRACTS: Record<string, ContractConfig> = {
       1480: "0xb4FA18443E0FA6cdC0280D20b8cCDB2377D13Bf2",
     },
   },
+  // V2 deployment (DataPortabilityPermissionsV2Proxy). The gateway is the source
+  // of truth for which deployment is live; verify with
+  // `cast call <address> "eip712Domain()(bytes1,string,string,uint256,address,bytes32,uint256[])"`
+  // which must return the domain name "Vana Data Portability".
   DataPortabilityPermissions: {
     addresses: {
-      14800: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
-      1480: "0xD54523048AdD05b4d734aFaE7C68324Ebb7373eF",
+      14800: "0x4d3FA76064D88e0454cFc4CaD7e5FeC3e3124011",
+      1480: "0x4d3FA76064D88e0454cFc4CaD7e5FeC3e3124011",
     },
   },
+  // V2 deployment (DataPortabilityServersV2Proxy) on both chains.
   DataPortabilityServers: {
     addresses: {
       14800: "0xCae2CE0e9caa6643ed28186cF57bd40Bd9E17Eab",
-      1480: "0x1483B1F634DBA75AeaE60da7f01A679aabd5ee2c",
+      1480: "0xCae2CE0e9caa6643ed28186cF57bd40Bd9E17Eab",
     },
   },
   DataPortabilityGrantees: {

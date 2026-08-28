@@ -24,9 +24,19 @@
  * `X-Vana-Write-Signature` Web3Signed proof over every request, carrying the
  * grant id as a signed claim. These helpers own that: they open one session
  * per `{ signer, Personal Server, grant }`, reuse it across calls, sign a new
- * proof per request, and re-open the session once when a call comes back 401
- * (the Personal Server keeps sessions in memory and forgets them when it
- * restarts).
+ * proof per request, and re-open the session once when a call comes back a
+ * 401 the session is responsible for (the Personal Server keeps sessions in
+ * memory and forgets them when it restarts; a 401 about the PROOF is
+ * surfaced as it is, since a new session would not change it).
+ *
+ * Two rules govern the proof on these routes, and both are the server's
+ * (`personal-server-ts` d91124d and later):
+ *
+ * - the signed `uri` claim covers the query string, not just the path,
+ *   because `?derivedScope=` is what the list route authorizes against;
+ * - every call carries a fresh `nonce` claim, which becomes the server's
+ *   replay key. Without one the whole proof is the key, so two identical
+ *   polls signed inside the same second are refused as a replay.
  *
  * @category Protocol
  */
@@ -36,6 +46,7 @@ import { buildWeb3SignedHeader } from "../auth/web3-signed-builder";
 import {
   DerivativeComputeUnavailableError,
   DerivativeCycleError,
+  DerivativeDerivedScopeRequiredError,
   DerivativeQuestionFailedError,
   DerivativeQuestionInvalidError,
   DerivativeQuestionNotFoundError,
@@ -49,7 +60,10 @@ import {
   type PersonalServerWriteError,
 } from "../errors";
 import { assertDerivedScopeNaming } from "./lineage";
-import { readPersonalServerErrorBody } from "./personal-server-error-body";
+import {
+  readPersonalServerErrorBody,
+  type PersonalServerErrorBody,
+} from "./personal-server-error-body";
 import {
   readPersonalServerData,
   type ReadPersonalServerDataParams,
@@ -62,6 +76,7 @@ import {
 } from "./personal-server-write";
 import {
   errorMessage,
+  freshProofNonce,
   normalizeBaseUrl,
   proofKeyFor,
   resolveFetch,
@@ -164,18 +179,20 @@ const QuestionListSchema = z.object({
   questions: z.array(DerivativeQuestionSchema),
 });
 
-/** The 202 answer of a recompute request. */
-export const QuestionRecomputeResultSchema = z.object({
-  questionId: z.string().min(1),
-  derivedScope: z.string().min(1),
-  /** `pending` when the question was never computed, else `stale`. */
-  status: QuestionStatusSchema,
-});
+/**
+ * The 202 answer of a recompute request: the same registration view every
+ * other question route answers, so a client needs one schema.
+ *
+ * @remarks
+ * Older Personal Servers answered only
+ * `{ questionId, derivedScope, status }` here. The full view is a superset
+ * of those three fields, so code reading them is unaffected, but the answer
+ * of a server before `personal-server-ts` d91124d no longer parses.
+ */
+export const QuestionRecomputeResultSchema = DerivativeQuestionSchema;
 
 /** @see {@link QuestionRecomputeResultSchema} */
-export type QuestionRecomputeResult = z.infer<
-  typeof QuestionRecomputeResultSchema
->;
+export type QuestionRecomputeResult = DerivativeQuestion;
 
 /** The answer of a delete request. */
 export const QuestionDeleteResultSchema = z.object({
@@ -388,12 +405,36 @@ async function resolveSession(
   return session;
 }
 
-/** Map a non-2xx question answer onto the SDK's typed errors. */
+/**
+ * The 401s a re-handshake cannot fix. They are failures of the per-request
+ * PROOF, not of the session, so the same call signed under a brand new
+ * session fails exactly the same way: replaying it would burn a second
+ * proof, add a pointless handshake, and report the wrong problem. Every
+ * other 401 is treated as the session the Personal Server forgot.
+ */
+const PROOF_FAILURE_CODES = new Set([
+  "WRITE_ATTRIBUTION_REQUIRED",
+  "WRITE_ATTRIBUTION_INVALID",
+  "WRITE_ATTRIBUTION_SIGNER_MISMATCH",
+  "WRITE_ATTRIBUTION_GRANT_MISMATCH",
+  "WRITE_ATTRIBUTION_REPLAY",
+]);
+
+function isStaleSession(errorCode: string | null): boolean {
+  return errorCode === null || !PROOF_FAILURE_CODES.has(errorCode);
+}
+
+/**
+ * Map a non-2xx question answer onto the SDK's typed errors. `body` is the
+ * already-read error body, for the caller that had to peek at it (a response
+ * body can only be read once).
+ */
 async function questionErrorFromResponse(
   response: Response,
+  body?: PersonalServerErrorBody,
 ): Promise<PersonalServerWriteError> {
   const { errorCode, message, details } =
-    await readPersonalServerErrorBody(response);
+    body ?? (await readPersonalServerErrorBody(response));
   const text =
     message ??
     `Derivative question request failed: ${response.status} ${response.statusText}`;
@@ -414,6 +455,8 @@ async function questionErrorFromResponse(
       );
     case "DERIVATIVE_QUESTION_NOT_FOUND":
       return new DerivativeQuestionNotFoundError(text, errorCode, details);
+    case "DERIVATIVE_DERIVED_SCOPE_REQUIRED":
+      return new DerivativeDerivedScopeRequiredError(text, errorCode, details);
     default:
       break;
   }
@@ -438,10 +481,13 @@ async function questionErrorFromResponse(
 
 interface QuestionRequestSpec {
   method: "GET" | "POST" | "DELETE";
-  /** Path without the query string: the proof only covers this. */
-  path: string;
-  /** Query string including the leading `?`, or `""`. */
-  query?: string;
+  /**
+   * The whole request target, path AND query string. The Personal Server
+   * verifies the proof against it (the query decides the authorization on
+   * the list route), so it is built once and used for both the signed `uri`
+   * claim and the `fetch` URL, where the two cannot drift apart.
+   */
+  target: string;
   /** JSON body; sent (and signed) as compact JSON. */
   body?: Record<string, unknown>;
   label: string;
@@ -461,7 +507,7 @@ async function sendOnce(
     proofKeyFor({
       aud: session.audience,
       method: spec.method,
-      uri: spec.path,
+      uri: spec.target,
       grantId: session.grantId,
       signedBytes: bodyBytes,
     }),
@@ -477,17 +523,22 @@ async function sendOnce(
         await buildWeb3SignedHeader({
           signMessage: session.signer.signMessage,
           aud: session.audience,
-          // The Personal Server verifies the proof against the request's
-          // path only, so the signed `uri` must not carry the query string.
-          uri: spec.path,
+          // The proof commits to the whole request target, query included:
+          // `?derivedScope=` is what the list route authorizes against, and a
+          // proof that did not cover it would authorize any other scope.
+          uri: spec.target,
           method: spec.method,
           body: bodyBytes,
           grantId: session.grantId,
+          // Fresh per attempt, so a retry after a thrown `fetch` is never the
+          // proof the server may already have consumed, and so two identical
+          // polls inside one second stay distinct.
+          nonce: freshProofNonce(),
           iat,
         }),
       );
       return {
-        url: `${resolved.baseUrl}${spec.path}${spec.query ?? ""}`,
+        url: `${resolved.baseUrl}${spec.target}`,
         init: {
           method: spec.method,
           headers,
@@ -520,16 +571,22 @@ async function sendQuestionRequest<T>(
 
   let session = await resolveSession(params, resolved, false);
   let response = await sendOnce(params, resolved, session, spec, bodyBytes);
+  // Read once, kept for the throw below: a body cannot be read twice.
+  let errorBody: PersonalServerErrorBody | undefined;
   if (response.status === 401) {
-    // The Personal Server keeps write sessions in memory: a restart (or an
-    // expiry the client did not see) invalidates the bearer, not the grant.
-    // Open a new session once and replay the call with a fresh proof.
-    session = await resolveSession(params, resolved, true);
-    response = await sendOnce(params, resolved, session, spec, bodyBytes);
+    errorBody = await readPersonalServerErrorBody(response);
+    if (isStaleSession(errorBody.errorCode)) {
+      // The Personal Server keeps write sessions in memory: a restart (or an
+      // expiry the client did not see) invalidates the bearer, not the grant.
+      // Open a new session once and replay the call with a fresh proof.
+      session = await resolveSession(params, resolved, true);
+      response = await sendOnce(params, resolved, session, spec, bodyBytes);
+      errorBody = undefined;
+    }
   }
 
   if (!response.ok) {
-    throw await questionErrorFromResponse(response);
+    throw await questionErrorFromResponse(response, errorBody);
   }
   let body: unknown;
   try {
@@ -554,6 +611,7 @@ async function sendQuestionRequest<T>(
   return parsed.data;
 }
 
+/** The request target for one question id: no query, so the bare path. */
 function assertQuestionId(questionId: string): string {
   if (typeof questionId !== "string" || questionId.length === 0) {
     throw new WriteRequestError("questionId is required");
@@ -674,7 +732,7 @@ export async function registerQuestion(
     params,
     {
       method: "POST",
-      path: DERIVATIVE_QUESTIONS_PATH,
+      target: DERIVATIVE_QUESTIONS_PATH,
       body,
       label: "Register derivative question",
     },
@@ -697,10 +755,10 @@ export async function registerQuestion(
 export async function getQuestion(
   params: GetQuestionParams,
 ): Promise<DerivativeQuestion> {
-  const path = assertQuestionId(params.questionId);
+  const target = assertQuestionId(params.questionId);
   return sendQuestionRequest(
     params,
-    { method: "GET", path, label: "Read derivative question" },
+    { method: "GET", target, label: "Read derivative question" },
     DerivativeQuestionSchema,
   );
 }
@@ -710,10 +768,15 @@ export async function getQuestion(
  *
  * @remarks
  * Sends `GET /v1/derivatives/questions?derivedScope=...`. The scope is
- * required for a builder: it is what the call is authorized against. Note
- * that the query string is outside the signed proof, which covers the path.
+ * required for a builder: it is what the call is authorized against, which
+ * is exactly why the signed proof commits to the query string as well as the
+ * path. The target is built once and used for both, so the signature and the
+ * request can never name different scopes.
  *
  * @returns The registrations, newest state included.
+ * @throws {DerivativeDerivedScopeRequiredError} 400
+ *   `DERIVATIVE_DERIVED_SCOPE_REQUIRED` when the server saw no
+ *   `?derivedScope=` (the SDK refuses an empty one before sending).
  */
 export async function listQuestions(
   params: ListQuestionsParams,
@@ -726,12 +789,12 @@ export async function listQuestions(
       "derivedScope is required; a builder may only list its own questions on a scope it may write",
     );
   }
+  const target = `${DERIVATIVE_QUESTIONS_PATH}?derivedScope=${encodeURIComponent(params.derivedScope)}`;
   const { questions } = await sendQuestionRequest(
     params,
     {
       method: "GET",
-      path: DERIVATIVE_QUESTIONS_PATH,
-      query: `?derivedScope=${encodeURIComponent(params.derivedScope)}`,
+      target,
       label: "List derivative questions",
     },
     QuestionListSchema,
@@ -748,17 +811,18 @@ export async function listQuestions(
  * period. Use it to retry a `failed` question; a source change recomputes on
  * its own.
  *
- * @returns `{ questionId, derivedScope, status }` with the status the
- *   question was put into (`pending` when it had never computed, else
- *   `stale`).
+ * @returns The full registration view, with the status the question was put
+ *   into (`pending` when it had never computed, else `stale`). Servers
+ *   before `personal-server-ts` d91124d answered only
+ *   `{ questionId, derivedScope, status }` here, which no longer parses.
  */
 export async function recomputeQuestion(
   params: RecomputeQuestionParams,
 ): Promise<QuestionRecomputeResult> {
-  const path = `${assertQuestionId(params.questionId)}/recompute`;
+  const target = `${assertQuestionId(params.questionId)}/recompute`;
   return sendQuestionRequest(
     params,
-    { method: "POST", path, label: "Recompute derivative question" },
+    { method: "POST", target, label: "Recompute derivative question" },
     QuestionRecomputeResultSchema,
   );
 }
@@ -776,10 +840,10 @@ export async function recomputeQuestion(
 export async function deleteQuestion(
   params: DeleteQuestionParams,
 ): Promise<QuestionDeleteResult> {
-  const path = assertQuestionId(params.questionId);
+  const target = assertQuestionId(params.questionId);
   return sendQuestionRequest(
     params,
-    { method: "DELETE", path, label: "Delete derivative question" },
+    { method: "DELETE", target, label: "Delete derivative question" },
     QuestionDeleteResultSchema,
   );
 }

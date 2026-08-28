@@ -520,14 +520,27 @@ What the SDK does for you:
   (`POST /v1/write/session`) and reuses it for every question call, including
   each poll of `waitForQuestion`.
 - Signs a fresh, single-use `X-Vana-Write-Signature` proof for every request
-  (the grant id is a signed claim). Identical requests signed inside the same
-  second get distinct proofs, so polling never trips the replay guard.
+  (the grant id is a signed claim).
+- Puts a fresh `nonce` claim on every proof. **Polling needs it**: a proof
+  payload is otherwise fully determined by
+  `{aud, method, uri, bodyHash, grantId, iat, exp}`, so two identical
+  `GET /questions/:id` polls signed inside the same second are byte-identical
+  and the Personal Server refuses the second as a replay
+  (`WRITE_ATTRIBUTION_REPLAY`). With a nonce the replay key is
+  `(builder, nonce)` instead, and each poll is distinct. Every helper here
+  does it for you, `waitForQuestion` included; a hand-built question request
+  must pass `nonce` to `buildWeb3SignedHeader` itself.
+- Signs the whole request **target**, query string included, because
+  `?derivedScope=` is what the list route authorizes against. The target is
+  built once and used for both the signed `uri` claim and the URL, so the
+  signature and the request can never name different scopes.
 - Re-opens the session once and replays the call when the Personal Server
-  answers 401: it keeps sessions in memory and forgets them when it restarts.
+  answers a 401 the **session** is responsible for: it keeps sessions in
+  memory and forgets them when it restarts. A 401 about the **proof** (it
+  does not cover this request, its nonce is spent, it recovers to another
+  key) is surfaced as it is, since a new session would not change it.
 - Sends bodies as compact JSON, which the server requires
-  (`WRITE_BODY_NOT_CANONICAL` otherwise), and signs the request **path**: the
-  `?derivedScope=` of a list call is outside the proof, as the server verifies
-  it.
+  (`WRITE_BODY_NOT_CANONICAL` otherwise).
 - Validates the registration (scope list, question length, model id, the
   naming rule) before anything is signed.
 
@@ -544,15 +557,20 @@ Errors are typed and carry the server's `status`, `errorCode` and `details`:
 sources), `DerivativeCycleError` (409, the question would make the derived
 scope a transitive source of itself), `DerivativeQuestionNotFoundError` (404,
 including another builder's question on the same scope),
-`DerivativeQuestionInvalidError` (400), `DerivativeComputeUnavailableError`
-(503, no compute layer on that server), `DerivativeQuestionTimeoutError`,
-`DerivativeQuestionFailedError`, and `DerivativeQuestionRejectedError` for
-anything else. Authentication failures are the Write API's own
-`WriteUnauthorizedError`, `WriteForbiddenError`, `WriteRequestError` (refused
-before sending) and `WriteTransportError`. One thing to know: an **unknown**
-question id is answered by the Personal Server after owner authentication, so
-a builder polling an id that no longer exists sees a 401
-(`WriteUnauthorizedError`), not a 404.
+`DerivativeQuestionInvalidError` (400), `DerivativeDerivedScopeRequiredError`
+(400 `DERIVATIVE_DERIVED_SCOPE_REQUIRED`, a builder list with no
+`?derivedScope=`; the SDK refuses an empty one before signing),
+`DerivativeComputeUnavailableError` (503, no compute layer on that server),
+`DerivativeQuestionTimeoutError`, `DerivativeQuestionFailedError`, and
+`DerivativeQuestionRejectedError` for anything else. Authentication failures
+are the Write API's own `WriteUnauthorizedError`, `WriteForbiddenError`,
+`WriteRequestError` (refused before sending) and `WriteTransportError`. An
+**unknown** question id is a `DerivativeQuestionNotFoundError` (404), the
+same as another builder's question.
+
+These helpers require `personal-server-ts` main `d91124d` or later, which is
+where the query-in-the-signed-uri rule, the `nonce` claim, the 404 for an
+unknown id and the full-view `recompute` answer landed.
 
 ## Networks
 

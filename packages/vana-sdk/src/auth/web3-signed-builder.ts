@@ -70,6 +70,20 @@ export async function buildWeb3SignedHeader(params: {
   exp?: number;
   /** Optional grant id, attached as the `grantId` claim. */
   grantId?: string;
+  /**
+   * Optional uniqueness claim, attached as the `nonce` claim (a uuid is the
+   * intended shape; the Personal Server bounds it at 128 characters).
+   *
+   * @remarks
+   * A payload is otherwise fully determined by
+   * `{ aud, bodyHash, exp, grantId, iat, method, uri }`, so two identical
+   * requests signed inside the same second produce the same bytes and the
+   * Personal Server refuses the second as a replay. With a nonce the replay
+   * key becomes `(signer, nonce)` instead, which is what lets a poll loop
+   * send the same request twice. The nonce is then single use itself:
+   * re-using one is a replay even when the rest of the payload changed.
+   */
+  nonce?: string;
   /** Pre-computed `bodyHash` claim — overrides `body`. */
   bodyHash?: string;
 }): Promise<string> {
@@ -88,6 +102,12 @@ export async function buildWeb3SignedHeader(params: {
 
   if (params.grantId !== undefined) {
     payload["grantId"] = params.grantId;
+  }
+
+  // Merged before the sort, so the nonce sits in its alphabetical place like
+  // every other claim and the payload stays deterministic.
+  if (params.nonce !== undefined) {
+    payload["nonce"] = params.nonce;
   }
 
   // Sort keys for deterministic serialization.

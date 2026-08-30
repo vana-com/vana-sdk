@@ -14,12 +14,15 @@
 import type {
   AccessRequest,
   AccessRequestClient,
+  AccessRequestQuestion,
   AccessRequestStatus,
   AccessRequestStatusValue,
   DirectEnv,
 } from "./types";
 import { normalizeMobileContinuationUrl } from "./types";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
+import { parseScope, type ParsedScope } from "../protocol/scopes";
+import { DirectConfigError } from "./errors";
 
 /** Minimal `fetch` signature so the client is testable without a global fetch. */
 export type FetchLike = (
@@ -165,6 +168,132 @@ export function buildApprovalUrl(
   )}?mode=page`;
 }
 
+/** The `recompute` values the question contract defines today. */
+const RECOMPUTE_VALUES: readonly string[] = ["snapshot", "on-change"];
+
+function parseConcreteScope(field: string, value: unknown): ParsedScope {
+  if (typeof value !== "string") {
+    throw new DirectConfigError(`${field} must be a string`, { field });
+  }
+  try {
+    return parseScope(value);
+  } catch {
+    throw new DirectConfigError(
+      `${field} "${value}" is not a concrete scope. Use {source}.{category}[.{subcategory}] with no wildcard and no operation prefix.`,
+      { field, value },
+    );
+  }
+}
+
+/**
+ * Validate the derivative questions on a create input against the request
+ * scope entries.
+ *
+ * @remarks
+ * Client-side mirror of the access-request service rules so builders fail
+ * fast, before the create request is signed and sent; the service remains
+ * authoritative. Rules: 1 to 4 questions; every `derivedScope` and every
+ * `sourceScope` is a concrete scope (wildcards rejected); 1 to 16 source
+ * scopes per question with no duplicates and none equal to the derived scope;
+ * the first dot-segment of the derived scope differs from the first
+ * dot-segment of every source scope; the derived scope appears verbatim in
+ * `scopes` as a bare read entry; no two questions share a derived scope; the
+ * question text is 1 to 4000 characters after trimming; `recompute`, when
+ * present, is `"snapshot"` or `"on-change"`.
+ *
+ * @param questions - The `questions` array from the create input.
+ * @param scopes - The request's grant scope entries, verbatim.
+ * @throws {DirectConfigError} - When any rule is violated. The message names
+ * the offending question index and field.
+ */
+export function validateAccessRequestQuestions(
+  questions: readonly AccessRequestQuestion[],
+  scopes: readonly string[],
+): void {
+  if (questions.length === 0 || questions.length > 4) {
+    throw new DirectConfigError(
+      `questions must contain 1 to 4 entries when present, got ${questions.length}. Omit the field to send no questions.`,
+      { count: questions.length },
+    );
+  }
+  const seenDerived = new Set<string>();
+  questions.forEach((question, index) => {
+    const label = `questions[${index}]`;
+    const derived = parseConcreteScope(
+      `${label}.derivedScope`,
+      question.derivedScope,
+    );
+    if (seenDerived.has(question.derivedScope)) {
+      throw new DirectConfigError(
+        `${label}.derivedScope "${question.derivedScope}" is already used by an earlier question. Each question must target its own derived scope.`,
+        { derivedScope: question.derivedScope },
+      );
+    }
+    seenDerived.add(question.derivedScope);
+    // The bare entry (no operation prefix) is what makes the answer readable
+    // by the app: `write:coach.weekly` alone would not grant the read back.
+    if (!scopes.includes(question.derivedScope)) {
+      throw new DirectConfigError(
+        `${label}.derivedScope "${question.derivedScope}" must also appear in scopes as a bare read entry, so the app can read the answer it asked for.`,
+        { derivedScope: question.derivedScope, scopes: [...scopes] },
+      );
+    }
+    if (
+      question.sourceScopes.length === 0 ||
+      question.sourceScopes.length > 16
+    ) {
+      throw new DirectConfigError(
+        `${label}.sourceScopes must contain 1 to 16 entries, got ${question.sourceScopes.length}.`,
+        { count: question.sourceScopes.length },
+      );
+    }
+    const seenSources = new Set<string>();
+    for (const sourceScope of question.sourceScopes) {
+      const source = parseConcreteScope(`${label}.sourceScopes`, sourceScope);
+      if (seenSources.has(sourceScope)) {
+        throw new DirectConfigError(
+          `${label}.sourceScopes contains "${sourceScope}" more than once. Deduplicate the source scopes.`,
+          { sourceScope },
+        );
+      }
+      seenSources.add(sourceScope);
+      if (sourceScope === question.derivedScope) {
+        throw new DirectConfigError(
+          `${label}.sourceScopes must not contain the derived scope "${question.derivedScope}".`,
+          { sourceScope },
+        );
+      }
+      if (source.source === derived.source) {
+        throw new DirectConfigError(
+          `${label}.derivedScope "${question.derivedScope}" must not share its first dot-segment "${derived.source}" with source scope "${sourceScope}". Name the derived scope under the app's own namespace.`,
+          { derivedScope: question.derivedScope, sourceScope },
+        );
+      }
+    }
+    if (typeof question.question !== "string") {
+      throw new DirectConfigError(`${label}.question must be a string`, {
+        field: `${label}.question`,
+      });
+    }
+    const trimmedLength = question.question.trim().length;
+    if (trimmedLength === 0 || trimmedLength > 4000) {
+      throw new DirectConfigError(
+        `${label}.question must be 1 to 4000 characters after trimming, got ${trimmedLength}.`,
+        { length: trimmedLength },
+      );
+    }
+    if (
+      question.recompute !== undefined &&
+      !RECOMPUTE_VALUES.includes(question.recompute)
+    ) {
+      throw new DirectConfigError(
+        `${label}.recompute must be "snapshot" or "on-change" when present, got "${String(question.recompute)}".`,
+        { recompute: question.recompute },
+      );
+    }
+  });
+}
+
 /**
  * Create the default {@link AccessRequestClient} for the Vana Account
  * access-request API.
@@ -185,6 +314,9 @@ export function createDefaultAccessRequestClient(
 
   return {
     async createAccessRequest(input): Promise<AccessRequest> {
+      if (input.questions !== undefined) {
+        validateAccessRequestQuestions(input.questions, input.scopes);
+      }
       const path = "/api/data-connection-requests";
       // Every call is an independent logical create, so it gets its own key.
       // The client cannot tell two look-alike creates apart — one shared backend
@@ -204,6 +336,9 @@ export function createDefaultAccessRequestClient(
         network: input.network,
         ...(input.foregroundDelivery !== undefined
           ? { foregroundDelivery: input.foregroundDelivery }
+          : {}),
+        ...(input.questions !== undefined
+          ? { questions: input.questions }
           : {}),
         idempotencyKey,
       });

@@ -5,6 +5,8 @@ import {
   createDefaultAccessRequestClient,
   type FetchLike,
 } from "./access-request-client";
+import { DirectConfigError } from "./errors";
+import type { AccessRequestQuestion } from "./types";
 
 describe("buildApprovalUrl", () => {
   it("matches the documented format", () => {
@@ -642,4 +644,225 @@ describe("createDefaultAccessRequestClient", () => {
       /Access request ack service error/,
     );
   });
+});
+
+describe("createDefaultAccessRequestClient - questions", () => {
+  const QUESTIONS: AccessRequestQuestion[] = [
+    {
+      derivedScope: "coach.weekly",
+      sourceScopes: ["oura.sleep", "linkedin.profile"],
+      question: "How consistent was my sleep this week?",
+      recompute: "snapshot",
+    },
+    {
+      derivedScope: "insights.summary",
+      sourceScopes: ["chatgpt.conversations"],
+      question: "Summarize my week in one paragraph.",
+    },
+  ];
+
+  const CREATE_INPUT = {
+    appAddress: "0xabc",
+    app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+    source: "oura",
+    scopes: ["oura.sleep", "coach.weekly", "insights.summary"],
+    returnUrl: "https://a.example/return",
+    network: "moksha" as const,
+  };
+
+  it("serializes questions verbatim into the create body and the signed message", async () => {
+    const bodies: string[] = [];
+    const signedMessages: string[] = [];
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      appAddress: "0xabc",
+      now: () => 123,
+      signMessage: async (message) => {
+        signedMessages.push(message);
+        return "0xsig" as `0x${string}`;
+      },
+      createIdempotencyKey: () => "idem-questions",
+      fetchFn: fakeFetch((_url, init) => {
+        bodies.push(init?.body ?? "");
+        return { status: 200, body: { requestId: "dcr_q" } };
+      }),
+    });
+
+    await client.createAccessRequest({ ...CREATE_INPUT, questions: QUESTIONS });
+
+    const createBody = bodies[0] ?? "";
+    expect(JSON.parse(createBody).questions).toEqual(QUESTIONS);
+    // The EIP-191 message embeds the exact body string, so the signature
+    // covers the questions field with no signature-scheme change.
+    expect(createBody).toContain('"questions"');
+    expect(signedMessages[0]).toBe(
+      buildDirectAccessRequestAuthMessage({
+        body: createBody,
+        method: "POST",
+        path: "/api/data-connection-requests",
+        timestamp: "123",
+      }),
+    );
+  });
+
+  it("leaves the create body byte-identical to the pre-questions shape when questions are omitted", async () => {
+    const bodies: string[] = [];
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      createIdempotencyKey: () => "idem-fixed",
+      fetchFn: fakeFetch((_url, init) => {
+        bodies.push(init?.body ?? "");
+        return { status: 200, body: { requestId: "dcr_q" } };
+      }),
+    });
+
+    await client.createAccessRequest(CREATE_INPUT);
+
+    expect(bodies[0]).toBe(
+      JSON.stringify({
+        appAddress: "0xabc",
+        app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+        source: "oura",
+        scopes: ["oura.sleep", "coach.weekly", "insights.summary"],
+        returnUrl: "https://a.example/return",
+        network: "moksha",
+        idempotencyKey: "idem-fixed",
+      }),
+    );
+  });
+
+  it("rejects invalid questions before any request is sent", async () => {
+    let fetchCalls = 0;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => {
+        fetchCalls++;
+        return { status: 200, body: { requestId: "dcr_q" } };
+      }),
+    });
+
+    await expect(
+      client.createAccessRequest({ ...CREATE_INPUT, questions: [] }),
+    ).rejects.toThrow(DirectConfigError);
+    expect(fetchCalls).toBe(0);
+  });
+
+  const VALID_QUESTION: AccessRequestQuestion = {
+    derivedScope: "coach.weekly",
+    sourceScopes: ["oura.sleep"],
+    question: "How did I sleep this week?",
+  };
+
+  it.each([
+    {
+      name: "an empty questions array",
+      questions: [] as AccessRequestQuestion[],
+      message: /1 to 4 entries/,
+    },
+    {
+      name: "more than four questions",
+      questions: Array.from({ length: 5 }, () => VALID_QUESTION),
+      message: /1 to 4 entries/,
+    },
+    {
+      name: "a wildcard derived scope",
+      questions: [{ ...VALID_QUESTION, derivedScope: "coach.*" }],
+      scopes: ["coach.*"],
+      message: /not a concrete scope/,
+    },
+    {
+      name: "a wildcard source scope",
+      questions: [{ ...VALID_QUESTION, sourceScopes: ["oura.*"] }],
+      message: /not a concrete scope/,
+    },
+    {
+      name: "an empty sourceScopes array",
+      questions: [{ ...VALID_QUESTION, sourceScopes: [] }],
+      message: /1 to 16 entries/,
+    },
+    {
+      name: "more than sixteen source scopes",
+      questions: [
+        {
+          ...VALID_QUESTION,
+          sourceScopes: Array.from({ length: 17 }, (_, i) => `src${i}.data`),
+        },
+      ],
+      message: /1 to 16 entries/,
+    },
+    {
+      name: "a duplicated source scope",
+      questions: [
+        { ...VALID_QUESTION, sourceScopes: ["oura.sleep", "oura.sleep"] },
+      ],
+      message: /more than once/,
+    },
+    {
+      name: "a source scope equal to the derived scope",
+      questions: [
+        {
+          ...VALID_QUESTION,
+          sourceScopes: ["oura.sleep", "coach.weekly"],
+        },
+      ],
+      message: /must not contain the derived scope/,
+    },
+    {
+      name: "a derived scope sharing its first dot-segment with a source",
+      questions: [{ ...VALID_QUESTION, sourceScopes: ["coach.daily"] }],
+      scopes: ["coach.weekly", "coach.daily"],
+      message: /first dot-segment/,
+    },
+    {
+      name: "a derived scope missing from scopes as a bare read entry",
+      questions: [VALID_QUESTION],
+      scopes: ["write:coach.weekly", "oura.sleep"],
+      message: /bare read entry/,
+    },
+    {
+      name: "two questions sharing a derived scope",
+      questions: [VALID_QUESTION, { ...VALID_QUESTION, question: "Again?" }],
+      message: /already used by an earlier question/,
+    },
+    {
+      name: "a question that is empty after trimming",
+      questions: [{ ...VALID_QUESTION, question: "   " }],
+      message: /1 to 4000 characters/,
+    },
+    {
+      name: "a question longer than 4000 characters after trimming",
+      questions: [{ ...VALID_QUESTION, question: "q".repeat(4001) }],
+      message: /1 to 4000 characters/,
+    },
+    {
+      name: "an unknown recompute value",
+      questions: [{ ...VALID_QUESTION, recompute: "weekly" as "snapshot" }],
+      message: /recompute must be "snapshot" or "on-change"/,
+    },
+  ])(
+    "rejects $name with a DirectConfigError",
+    async ({ questions, scopes, message }) => {
+      let fetchCalls = 0;
+      const client = createDefaultAccessRequestClient({
+        baseUrl: "https://app.vana.org",
+        approvalBaseUrl: "https://app.vana.org",
+        fetchFn: fakeFetch(() => {
+          fetchCalls++;
+          return { status: 200, body: { requestId: "dcr_q" } };
+        }),
+      });
+
+      const create = client.createAccessRequest({
+        ...CREATE_INPUT,
+        scopes: scopes ?? ["coach.weekly", "oura.sleep"],
+        questions,
+      });
+      await expect(create).rejects.toThrow(DirectConfigError);
+      await expect(create).rejects.toThrow(message);
+      expect(fetchCalls).toBe(0);
+    },
+  );
 });

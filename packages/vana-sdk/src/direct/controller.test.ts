@@ -1084,3 +1084,71 @@ describe("createDirectDataController — multi-scope read safety (codex review)"
     expect(seen).toEqual(["https://ps.example.com/v1/data/linkedin.profile"]);
   });
 });
+
+describe("createDirectDataController - questions", () => {
+  const QUESTION = {
+    derivedScope: "coach.weekly",
+    sourceScopes: ["oura.sleep"],
+    question: "How did I sleep this week?",
+    recompute: "snapshot" as const,
+  };
+
+  function questionsFixture(scopes: string[]) {
+    const spy = vi.fn(async () => ({
+      requestId: "dcr_q",
+      approvalUrl: "https://app.vana.org/data-connection-requests/dcr_q",
+      appAddress: APP_ADDRESS,
+    }));
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: spy,
+      getAccessRequestStatus: vi.fn(),
+    };
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "oura",
+      scopes,
+      accessRequestClient,
+    });
+    return { vana, spy };
+  }
+
+  it("passes questions through to the client verbatim", async () => {
+    const { vana, spy } = questionsFixture(["oura.sleep", "coach.weekly"]);
+
+    await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/return",
+      questions: [QUESTION],
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ questions: [QUESTION] }),
+    );
+  });
+
+  it("rejects a derived scope missing from the configured scopes before calling the client", async () => {
+    // "coach.weekly" is not among the controller scopes, so the app could
+    // never read the answer it asked for.
+    const { vana, spy } = questionsFixture(["oura.sleep"]);
+
+    await expect(
+      vana.createAccessRequest({
+        returnUrl: "https://notes-lens.example/return",
+        questions: [QUESTION],
+      }),
+    ).rejects.toThrow(DirectConfigError);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("rejects more than four questions before calling the client", async () => {
+    const { vana, spy } = questionsFixture(["oura.sleep", "coach.weekly"]);
+
+    await expect(
+      vana.createAccessRequest({
+        returnUrl: "https://notes-lens.example/return",
+        questions: Array.from({ length: 5 }, () => QUESTION),
+      }),
+    ).rejects.toThrow(DirectConfigError);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});

@@ -34,6 +34,7 @@ export {
 export {
   createDefaultAccessRequestClient,
   buildApprovalUrl,
+  validateAccessRequestQuestions,
   type DefaultAccessRequestClientOptions,
   type FetchLike,
 } from "./direct/access-request-client";
@@ -113,6 +114,7 @@ export type {
   AppIdentity,
   DirectServiceEndpoints,
   AccessRequest,
+  AccessRequestQuestion,
   AccessRequestStatus,
   AccessRequestStatusValue,
   ApprovedDataResult,

@@ -30,6 +30,7 @@ import { createEscrowGatewayClient } from "../protocol/escrow";
 import { CONTRACTS } from "../generated/addresses";
 import {
   createDefaultAccessRequestClient,
+  validateAccessRequestQuestions,
   type FetchLike,
 } from "./access-request-client";
 import {
@@ -54,6 +55,7 @@ import {
 import type {
   AccessRequest,
   AccessRequestClient,
+  AccessRequestQuestion,
   AccessRequestStatus,
   AccessRequestStatusValue,
   ApprovedDataResult,
@@ -200,6 +202,15 @@ export interface DirectDataController {
     returnUrl: string;
     /** Optional foreground mobile delivery callback. */
     foregroundDelivery?: ForegroundDelivery;
+    /**
+     * Derivative questions to carry on the request (1 to 4). Each question
+     * asks the user's Personal Server to compute its `derivedScope` from
+     * `sourceScopes` the app never reads; the derived scope must also appear
+     * in the controller's `scopes` as a bare read entry. Validated eagerly
+     * against the configured scopes before the request is sent. See
+     * {@link AccessRequestQuestion}.
+     */
+    questions?: AccessRequestQuestion[];
     /**
      * Stable retry key when the caller retries after an uncertain response.
      * Each create without one gets its own generated key.
@@ -392,6 +403,12 @@ export function createDirectDataController(
     },
 
     async createAccessRequest(input): Promise<AccessRequest> {
+      // Fail fast even with an injected client: a malformed question would be
+      // rejected by the access-request service anyway, after a signed round
+      // trip.
+      if (input.questions !== undefined) {
+        validateAccessRequestQuestions(input.questions, config.scopes);
+      }
       return accessRequestClient.createAccessRequest({
         appAddress: account.address,
         app: config.app,
@@ -401,6 +418,9 @@ export function createDirectDataController(
         network,
         ...(input.foregroundDelivery !== undefined
           ? { foregroundDelivery: input.foregroundDelivery }
+          : {}),
+        ...(input.questions !== undefined
+          ? { questions: input.questions }
           : {}),
         ...(input.idempotencyKey !== undefined
           ? { idempotencyKey: input.idempotencyKey }

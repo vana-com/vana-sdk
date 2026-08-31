@@ -62,6 +62,46 @@ export interface ForegroundDelivery {
 }
 
 /**
+ * One derivative question carried on an access request.
+ *
+ * @remarks
+ * A question asks the user's Personal Server to compute an answer scope
+ * (`derivedScope`) from source scopes the app never reads. On approval, the
+ * Vana app registers the question on the Personal Server as the owner and the
+ * grant covers only the derived scope, so the raw sources stay private to the
+ * user. The SDK validates each question before the create request is signed
+ * (see `validateAccessRequestQuestions`); the access-request service remains
+ * authoritative and re-validates server-side.
+ */
+export interface AccessRequestQuestion {
+  /**
+   * Concrete scope the computed answer is written to and read from (no
+   * wildcards, no operation prefix). It must also appear verbatim in the
+   * request `scopes` as a bare read entry, and its first dot-segment must
+   * differ from the first dot-segment of every entry in
+   * {@link AccessRequestQuestion.sourceScopes}.
+   */
+  derivedScope: string;
+  /**
+   * Concrete scopes the answer is computed from: 1 to 16 entries, no
+   * duplicates, none equal to {@link AccessRequestQuestion.derivedScope}.
+   * These scopes are never granted to the app.
+   */
+  sourceScopes: string[];
+  /**
+   * Natural-language question the Personal Server answers from the source
+   * scopes. Must be 1 to 4000 characters after trimming.
+   */
+  question: string;
+  /**
+   * When the Personal Server recomputes the answer. `"snapshot"` computes
+   * once at registration; `"on-change"` also recomputes when a source scope
+   * changes. When omitted, the server-side default applies.
+   */
+  recompute?: "snapshot" | "on-change";
+}
+
+/**
  * Resolved service URLs and chain id for a given {@link DirectEnv}.
  *
  * @remarks
@@ -263,6 +303,12 @@ export interface AccessRequestClient {
     network: DirectNetwork;
     /** Optional foreground mobile delivery callback. */
     foregroundDelivery?: ForegroundDelivery;
+    /**
+     * Derivative questions to carry on the request (1 to 4). When present,
+     * the array is validated client-side and serialized into the signed
+     * create body verbatim. See {@link AccessRequestQuestion}.
+     */
+    questions?: AccessRequestQuestion[];
     /**
      * Optional retry key. The default client generates a fresh key per call
      * when omitted; pass a stable key to retry a create whose response was

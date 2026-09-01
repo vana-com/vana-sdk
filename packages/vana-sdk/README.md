@@ -666,9 +666,13 @@ is `failed`.
 from one that is over: `inference_unavailable` is the one transient class, and
 the Personal Server retries it on its own schedule. `waitForDerivativeStatus`
 returns as soon as the scope is `ready` or has failed with no retry pending,
-keeps waiting through a retrying failure, and honours the server's
-`retryAfterSeconds` over `pollIntervalMs` — polling faster than the next
-compute only spends requests. A failed status is returned, not thrown; branch
+keeps waiting through a retrying failure, and takes the server's
+`retryAfterSeconds` as the cadence in place of `pollIntervalMs`, longer or
+shorter — it is when the next compute actually happens, so asking sooner sees
+nothing new and asking later sits on an answer that already exists. Once the
+remaining budget cannot cover the next cadence it raises the timeout rather
+than spending one more request that cannot carry new data. `signal` aborts
+the wait and the request in flight with it. A failed status is returned, not thrown; branch
 on `errorCode`. `isDerivativeStatusSettled` is the same predicate, exported
 for callers that poll on their own.
 

@@ -113,6 +113,8 @@ export interface GetDerivativeStatusParams extends ResolveWriteSignerOptions {
   fetch?: typeof fetch;
   /** Extra request headers. */
   headers?: HeadersInit;
+  /** Aborts the request in flight. */
+  signal?: AbortSignal;
 }
 
 /** What {@link waitForDerivativeStatus} polls with. */
@@ -121,11 +123,15 @@ export interface WaitForDerivativeStatusParams extends GetDerivativeStatusParams
   timeoutMs?: number;
   /**
    * Wait between polls when the server names no retry time (default 2s).
-   * A `retryAfterSeconds` from the server always wins over this: there is
-   * nothing to see before the retry the server has already scheduled.
+   * A `retryAfterSeconds` from the server replaces this outright, longer or
+   * shorter: it is when the next compute actually happens.
    */
   pollIntervalMs?: number;
-  /** Abort the wait. */
+  /**
+   * Aborts the wait, and the request in flight with it: the signal is passed
+   * to every poll, so an abort during a stalled request does not sit until
+   * the transport gives up.
+   */
   signal?: AbortSignal;
 }
 
@@ -178,6 +184,22 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     };
     signal?.addEventListener("abort", onAbort, { once: true });
   });
+}
+
+function timeoutError(
+  latest: DerivativeStatus,
+  timeoutMs: number,
+): DerivativeQuestionTimeoutError {
+  return new DerivativeQuestionTimeoutError(
+    `Derived scope ${latest.derivedScope} was still ${latest.status} after ${timeoutMs}ms`,
+    {
+      derivedScope: latest.derivedScope,
+      status: latest.status,
+      errorCode: latest.errorCode,
+      retryAfterSeconds: latest.retryAfterSeconds,
+      timeoutMs,
+    },
+  );
 }
 
 function abortError(signal?: AbortSignal): Error {
@@ -266,6 +288,7 @@ export async function getDerivativeStatus(
       {
         method: "GET",
         headers,
+        ...(params.signal ? { signal: params.signal } : {}),
       },
     );
   } catch (err) {
@@ -348,24 +371,23 @@ export async function waitForDerivativeStatus(
     const latest = await getDerivativeStatus(params);
     if (isDerivativeStatusSettled(latest)) return latest;
     const remaining = deadline - Date.now();
-    if (remaining <= 0) {
-      throw new DerivativeQuestionTimeoutError(
-        `Derived scope ${latest.derivedScope} was still ${latest.status} after ${timeoutMs}ms`,
-        {
-          derivedScope: latest.derivedScope,
-          status: latest.status,
-          errorCode: latest.errorCode,
-          retryAfterSeconds: latest.retryAfterSeconds,
-          timeoutMs,
-        },
-      );
-    }
-    // The server's scheduled retry wins: nothing changes before it fires.
+    if (remaining <= 0) throw timeoutError(latest, timeoutMs);
+    // The server's scheduled retry decides the cadence outright, in both
+    // directions: a caller's longer pollIntervalMs would sit past a retry
+    // that has already produced an answer, and a shorter one would ask
+    // before anything can have changed. pollIntervalMs is the cadence for
+    // the case where the server named none.
     const waitMs =
       latest.retryAfterSeconds === null
         ? pollIntervalMs
-        : Math.max(pollIntervalMs, latest.retryAfterSeconds * 1000);
-    await sleep(Math.min(waitMs, remaining), params.signal);
+        : latest.retryAfterSeconds * 1000;
+    if (waitMs > remaining) {
+      // The budget cannot cover the next cadence, so the poll after this
+      // sleep would land before anything could have changed. Give up now
+      // instead of spending a request to say the same thing.
+      throw timeoutError(latest, timeoutMs);
+    }
+    await sleep(waitMs, params.signal);
   }
 }
 

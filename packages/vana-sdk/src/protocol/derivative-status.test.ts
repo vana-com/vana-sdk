@@ -392,6 +392,94 @@ describe("waitForDerivativeStatus", () => {
     }
   });
 
+  it("lets the server's retry replace a longer caller interval", async () => {
+    const server = makeServer();
+    const questionId = await registerOne(server);
+    server.settleQuestion(questionId, {
+      status: "failed",
+      error: "relay 503",
+      errorCode: "inference_unavailable",
+      retryAfterSeconds: 5,
+    });
+    let polls = 0;
+    const countingFetch: typeof fetch = (input, init) => {
+      const url = typeof input === "string" ? input : String(input);
+      if (url.includes(DERIVATIVE_STATUS_PATH)) polls += 1;
+      return server.fetch(input, init);
+    };
+    vi.useFakeTimers();
+
+    try {
+      const waiting = waitForDerivativeStatus({
+        ...readerParams(server),
+        fetch: countingFetch,
+        timeoutMs: 120_000,
+        // Longer than the server's retry: the server's 5s is when the answer
+        // can actually appear, so sitting for the caller's 60s would sit on
+        // an answer that already exists.
+        pollIntervalMs: 60_000,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(polls).toBe(1);
+
+      server.settleQuestion(questionId, { status: "ready" });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(polls).toBe(2);
+
+      await expect(waiting).resolves.toMatchObject({ status: "ready" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up instead of polling when the budget cannot cover the next retry", async () => {
+    const server = makeServer();
+    const questionId = await registerOne(server);
+    server.settleQuestion(questionId, {
+      status: "failed",
+      error: "relay 503",
+      errorCode: "inference_unavailable",
+      retryAfterSeconds: 1_800,
+    });
+    let polls = 0;
+    const countingFetch: typeof fetch = (input, init) => {
+      const url = typeof input === "string" ? input : String(input);
+      if (url.includes(DERIVATIVE_STATUS_PATH)) polls += 1;
+      return server.fetch(input, init);
+    };
+
+    await expect(
+      waitForDerivativeStatus({
+        ...readerParams(server),
+        fetch: countingFetch,
+        // The next compute is 30 minutes out; a poll inside this budget would
+        // only re-read the same row.
+        timeoutMs: 10_000,
+        pollIntervalMs: 0,
+      }),
+    ).rejects.toBeInstanceOf(DerivativeQuestionTimeoutError);
+    expect(polls).toBe(1);
+  });
+
+  it("hands the abort signal to the request in flight", async () => {
+    const server = makeServer();
+    await registerOne(server);
+    const controller = new AbortController();
+    let seen: AbortSignal | null | undefined;
+    const capturingFetch: typeof fetch = (input, init) => {
+      seen = init?.signal;
+      return server.fetch(input, init);
+    };
+
+    await getDerivativeStatus({
+      ...readerParams(server),
+      fetch: capturingFetch,
+      signal: controller.signal,
+    });
+
+    expect(seen).toBe(controller.signal);
+  });
+
   it("times out while the question is still computing", async () => {
     const server = makeServer();
     await registerOne(server);

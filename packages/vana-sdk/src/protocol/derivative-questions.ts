@@ -120,6 +120,31 @@ export const QUESTION_STATUSES = [
  * explicit recompute puts a computed question back to `stale`, which
  * settles as `ready` or `failed` again.
  */
+/**
+ * Every failure class a question can carry. A closed vocabulary, because the
+ * status route serves it to a reader of the derived scope: it never carries a
+ * scope name, the question or provider detail.
+ *
+ * - `inference_unavailable` — the provider or relay failed. The only
+ *   transient class: the Personal Server retries it on its own.
+ * - `source_missing` — a source scope is deleted or holds no local data.
+ * - `grant_invalid` — the registering builder's grant no longer covers what
+ *   the question reads.
+ * - `internal` — anything else, including a permanent provider 4xx.
+ */
+export const DERIVATIVE_ERROR_CODES = [
+  "inference_unavailable",
+  "source_missing",
+  "grant_invalid",
+  "internal",
+] as const;
+
+/** @see {@link DERIVATIVE_ERROR_CODES} */
+export const DerivativeErrorCodeSchema = z.enum(DERIVATIVE_ERROR_CODES);
+
+/** @see {@link DERIVATIVE_ERROR_CODES} */
+export type DerivativeErrorCode = z.infer<typeof DerivativeErrorCodeSchema>;
+
 export const QuestionStatusSchema = z.enum(QUESTION_STATUSES);
 
 /** @see {@link QuestionStatusSchema} */
@@ -160,6 +185,14 @@ export const DerivativeQuestionSchema = z.object({
   status: QuestionStatusSchema,
   /** A short reason, set only while `status` is `failed`. */
   error: nullableString,
+  /**
+   * The coarse failure class behind `error`, set only while `status` is
+   * `failed`. `null` from a Personal Server that predates the class
+   * (`personal-server-ts` before the status route).
+   */
+  errorCode: DerivativeErrorCodeSchema.nullish().transform(
+    (value) => value ?? null,
+  ),
   createdAt: z.string(),
   updatedAt: nullableString,
   /** When the last compute finished, or `null` while `pending`. */
@@ -478,6 +511,18 @@ async function questionErrorFromResponse(
       );
   }
 }
+
+/**
+ * The typed error for a non-2xx answer of any `/v1/derivatives` route.
+ *
+ * @remarks
+ * Shared with the reader-facing status client so both surfaces map the same
+ * `errorCode` to the same error class. Not part of the package's public API.
+ *
+ * @internal
+ */
+export const personalServerErrorFromQuestionResponse =
+  questionErrorFromResponse;
 
 interface QuestionRequestSpec {
   method: "GET" | "POST" | "DELETE";

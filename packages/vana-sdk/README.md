@@ -621,6 +621,66 @@ These helpers require `personal-server-ts` main `d91124d` or later, which is
 where the query-in-the-signed-uri rule, the `nonce` claim, the 404 for an
 unknown id and the full-view `recompute` answer landed.
 
+### Watching a derived scope as the reader
+
+The helpers above are the builder's: every one of them needs a write session,
+which an app holding only a bare read entry on the derived scope cannot open.
+That reader sees `GET /v1/data/<derivedScope>` answer 404 whether the compute
+is running, retrying, or finished failing.
+
+`getDerivativeStatus` is the reader's view of the same question. It
+authenticates like a data read — a live grant covering the derived scope, or
+the owner — and nothing is charged, so a priced grant raises no 402 here.
+
+```typescript
+import {
+  getDerivativeStatus,
+  waitForDerivativeStatus,
+} from "@opendatalabs/vana-sdk";
+
+const status = await getDerivativeStatus({
+  personalServerUrl: "https://ps.example.com",
+  derivedScope: "coach.weekly",
+  grantId,
+  signer,
+});
+// { derivedScope, status, lastComputedAt, derivedVersion,
+//   derivedCollectedAt, errorCode, retryAfterSeconds }
+
+const settled = await waitForDerivativeStatus({
+  personalServerUrl: "https://ps.example.com",
+  derivedScope: "coach.weekly",
+  grantId,
+  signer,
+  timeoutMs: 60_000,
+});
+```
+
+The view is lifecycle only: the question text, the source scopes, the question
+id, the registrar and the server's raw `error` string stay owner-only.
+`errorCode` is a closed vocabulary — `inference_unavailable`,
+`source_missing`, `grant_invalid`, `internal` — and is `null` unless `status`
+is `failed`.
+
+`retryAfterSeconds` is what separates a failure that is still being worked on
+from one that is over: `inference_unavailable` is the one transient class, and
+the Personal Server retries it on its own schedule. `waitForDerivativeStatus`
+returns as soon as the scope is `ready` or has failed with no retry pending,
+keeps waiting through a retrying failure, and honours the server's
+`retryAfterSeconds` over `pollIntervalMs` — polling faster than the next
+compute only spends requests. A failed status is returned, not thrown; branch
+on `errorCode`. `isDerivativeStatusSettled` is the same predicate, exported
+for callers that poll on their own.
+
+When several questions write the same derived scope, the most optimistic true
+state answers (`ready`, then `stale`, then `pending`, then `failed`), because
+serving data is registration-agnostic: a duplicate that never wrote anything
+must not report away an answer the scope has.
+
+The status route needs a Personal Server that ships it; an older one answers
+404 for the route itself, which arrives as `DerivativeQuestionNotFoundError`
+— the same error as a covered scope with no question behind it.
+
 ## Networks
 
 | Network        | Chain ID | RPC URL                     |

@@ -358,6 +358,9 @@ export {
   DEFAULT_QUESTION_TIMEOUT_MS,
   DEFAULT_QUESTION_POLL_INTERVAL_MS,
   QUESTION_STATUSES,
+  DERIVATIVE_ERROR_CODES,
+  DerivativeErrorCodeSchema,
+  type DerivativeErrorCode,
   registerQuestion,
   getQuestion,
   listQuestions,
@@ -385,6 +388,19 @@ export {
   type AskPersonalServerParams,
   type AskPersonalServerResult,
 } from "./protocol/derivative-questions";
+export {
+  DERIVATIVE_STATUS_PATH,
+  DEFAULT_DERIVATIVE_STATUS_TIMEOUT_MS,
+  DEFAULT_DERIVATIVE_STATUS_POLL_INTERVAL_MS,
+  derivativeStatusTarget,
+  getDerivativeStatus,
+  waitForDerivativeStatus,
+  isDerivativeStatusSettled,
+  DerivativeStatusSchema,
+  type DerivativeStatus,
+  type GetDerivativeStatusParams,
+  type WaitForDerivativeStatusParams,
+} from "./protocol/derivative-status";
 export {
   deriveDataPointId,
   isDataPointId,

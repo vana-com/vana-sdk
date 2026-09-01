@@ -90,6 +90,18 @@ export interface MockQuestion {
     | { kind: "builder"; builder: Address; grantId: string };
   status: "pending" | "ready" | "failed" | "stale";
   error: string | null;
+  /** The coarse failure class the status route serves; null unless failed. */
+  errorCode:
+    | "inference_unavailable"
+    | "source_missing"
+    | "grant_invalid"
+    | "internal"
+    | null;
+  /**
+   * What the status route reports as the next automatic retry. The mock has
+   * no scheduler, so a test sets it through `settleQuestion`.
+   */
+  retryAfterSeconds: number | null;
   createdAt: string;
   updatedAt: string;
   lastComputedAt: string | null;
@@ -132,7 +144,12 @@ export interface MockPersonalServer {
     questionId: string,
     outcome:
       | { status: "ready"; data?: Record<string, unknown> }
-      | { status: "failed"; error: string }
+      | {
+          status: "failed";
+          error: string;
+          errorCode?: MockQuestion["errorCode"];
+          retryAfterSeconds?: number | null;
+        }
       | { status: "stale" | "pending" },
   ): void;
 }
@@ -913,7 +930,108 @@ export function createMockPersonalServer(
   }
 
   function questionView(row: MockQuestion): Record<string, unknown> {
-    return { ...row, sourceScopes: [...row.sourceScopes] };
+    // `retryAfterSeconds` is the status route's own field, computed from the
+    // scheduler; the registration view the question routes answer carries the
+    // stored row only, `errorCode` included.
+    const stored: Record<string, unknown> = {
+      ...row,
+      sourceScopes: [...row.sourceScopes],
+    };
+    delete stored.retryAfterSeconds;
+    return stored;
+  }
+
+  /**
+   * `GET /v1/derivatives/status?derivedScope=`: the reader's lifecycle view.
+   * Authorized like a data read (a live grant covering the derived scope, or
+   * the owner), NOT through the write-session path, and signed over the bare
+   * path — the query carries the scope.
+   */
+  async function handleDerivativeStatus(
+    headers: Headers,
+    method: string,
+    url: URL,
+  ): Promise<Response> {
+    if (method !== "GET") {
+      return protocolError(405, "METHOD_NOT_ALLOWED", "Method not allowed");
+    }
+    const derivedScope = url.searchParams.get("derivedScope");
+    if (!derivedScope) {
+      return protocolError(
+        400,
+        "DERIVATIVE_DERIVED_SCOPE_REQUIRED",
+        "Listing questions as a builder needs a derived scope: add ?derivedScope=<scope>. The unfiltered list is the owner's",
+      );
+    }
+    let verified;
+    try {
+      verified = await verifyWeb3Signed({
+        headerValue: headers.get("authorization") ?? undefined,
+        expectedOrigin: options.origin,
+        expectedMethod: "GET",
+        expectedPath: url.pathname,
+        now: Math.floor(now() / 1000),
+      });
+    } catch (err) {
+      return protocolError(
+        401,
+        "INVALID_SIGNATURE",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    const isOwner =
+      verified.signer.toLowerCase() === options.owner.toLowerCase();
+    if (!isOwner) {
+      const grantId =
+        verified.payload.grantId ??
+        url.searchParams.get("grantId") ??
+        undefined;
+      const grant = grantId ? grantsById.get(grantId) : undefined;
+      if (
+        !grant ||
+        grant.granteeId.toLowerCase() !== verified.signer.toLowerCase()
+      ) {
+        return protocolError(403, "GRANT_REQUIRED", "Grant required");
+      }
+      if (
+        !readPatterns(grant).some((pattern) =>
+          scopeMatchesPattern(derivedScope, pattern),
+        )
+      ) {
+        // Before any lookup: an uncovered caller must not learn which scopes
+        // have questions behind them.
+        return protocolError(403, "SCOPE_MISMATCH", "Scope not granted");
+      }
+    }
+    const rows = [...questions.values()].filter(
+      (row) => row.derivedScope === derivedScope,
+    );
+    if (rows.length === 0) {
+      return protocolError(
+        404,
+        "DERIVATIVE_QUESTION_NOT_FOUND",
+        "Question not found",
+        { derivedScope },
+      );
+    }
+    // The most optimistic true state answers, most recently updated within a
+    // class: serving data is registration-agnostic, so a duplicate that never
+    // wrote anything must not report an answer away.
+    const precedence = { ready: 0, stale: 1, pending: 2, failed: 3 };
+    const row = rows.reduce((best, candidate) => {
+      const byStatus = precedence[candidate.status] - precedence[best.status];
+      if (byStatus !== 0) return byStatus < 0 ? candidate : best;
+      return candidate.updatedAt >= best.updatedAt ? candidate : best;
+    });
+    return jsonResponse(200, {
+      derivedScope: row.derivedScope,
+      status: row.status,
+      lastComputedAt: row.lastComputedAt,
+      derivedVersion: row.derivedVersion,
+      derivedCollectedAt: row.derivedCollectedAt,
+      errorCode: row.status === "failed" ? row.errorCode : null,
+      retryAfterSeconds: row.status === "failed" ? row.retryAfterSeconds : null,
+    });
   }
 
   /** `parseQuestionInput` + `findDerivationCycle`, as the server runs them. */
@@ -1093,6 +1211,8 @@ export function createMockPersonalServer(
             grantId: auth.session.grantId,
           },
           status: "pending",
+          errorCode: null,
+          retryAfterSeconds: null,
           error: null,
           createdAt: at,
           updatedAt: at,
@@ -1383,6 +1503,16 @@ export function createMockPersonalServer(
     if (method === "POST" && url.pathname === "/v1/write/session") {
       return handleSession(headers, url.pathname, body);
     }
+    if (url.pathname === "/v1/derivatives/status") {
+      if (options.computeUnavailable) {
+        return protocolError(
+          503,
+          "DERIVATIVE_COMPUTE_UNAVAILABLE",
+          "This server has no derivative compute configured",
+        );
+      }
+      return handleDerivativeStatus(headers, method, url);
+    }
     if (url.pathname.startsWith("/v1/derivatives/")) {
       return handleQuestions(headers, method, url, body);
     }
@@ -1457,9 +1587,13 @@ export function createMockPersonalServer(
       row.updatedAt = at;
       if (outcome.status === "failed") {
         row.error = outcome.error;
+        row.errorCode = outcome.errorCode ?? "internal";
+        row.retryAfterSeconds = outcome.retryAfterSeconds ?? null;
         row.lastComputedAt = at;
         return;
       }
+      row.errorCode = null;
+      row.retryAfterSeconds = null;
       if (outcome.status !== "ready") return;
       row.error = null;
       row.lastComputedAt = at;

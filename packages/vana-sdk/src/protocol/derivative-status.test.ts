@@ -329,26 +329,23 @@ describe("waitForDerivativeStatus", () => {
       errorCode: "inference_unavailable",
       retryAfterSeconds: 60,
     });
-    let polls = 0;
-    const recoveringFetch: typeof fetch = (input, init) => {
-      const url = typeof input === "string" ? input : String(input);
-      if (url.includes(DERIVATIVE_STATUS_PATH)) {
-        polls += 1;
-        if (polls === 2) server.settleQuestion(questionId, { status: "ready" });
-      }
-      return server.fetch(input, init);
-    };
+    vi.useFakeTimers();
 
-    const status = await waitForDerivativeStatus({
-      ...readerParams(server),
-      fetch: recoveringFetch,
-      // The server's 60s retry would otherwise decide the cadence; the budget
-      // caps the sleep, so the second poll still happens inside the test.
-      timeoutMs: 5,
-      pollIntervalMs: 0,
-    });
+    try {
+      const waiting = waitForDerivativeStatus({
+        ...readerParams(server),
+        timeoutMs: 120_000,
+        pollIntervalMs: 0,
+      });
+      // The first poll sees the retrying failure, which is not a result.
+      await vi.advanceTimersByTimeAsync(0);
+      server.settleQuestion(questionId, { status: "ready" });
+      await vi.advanceTimersByTimeAsync(60_000);
 
-    expect(status.status).toBe("ready");
+      await expect(waiting).resolves.toMatchObject({ status: "ready" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("waits for the server's retry time rather than the poll interval", async () => {

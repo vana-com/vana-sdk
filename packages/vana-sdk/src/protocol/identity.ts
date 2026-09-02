@@ -18,6 +18,7 @@ import {
   keccak256,
   recoverPublicKey,
   toBytes,
+  toHex,
   type Address,
   type Hex,
 } from "viem";
@@ -165,33 +166,34 @@ export function userPsId(chainId: number, ownerAddress: Address): UserPsId {
   return keccak256(packed);
 }
 
+function compressPublicKey(publicKey: Hex): Uint8Array {
+  return secp256k1.ProjectivePoint.fromHex(
+    fromHex(publicKey, "bytes"),
+  ).toRawBytes(true);
+}
+
 /**
- * Builds keccak256(purpose || ":" || hex(pubkey)) for signature-chain link 0.
+ * Builds keccak256(utf8(purpose || ":" || lowercase hex(compressed pubkey))).
  *
- * ASSUMPTION: hex(pubkey) is lowercase, without 0x, for the 65-byte key.
- * TODO(verify-against-dstack-vector): pin with a captured CVM chain
- * (dstack kms/src/crypto.rs).
+ * Matches `dstack/guest-agent/src/rpc_service.rs:612-628`.
  */
 export function appRootPreimage(purpose: string, publicKey: Hex): Hex {
-  const keyHex = publicKey.slice(2).toLowerCase();
+  const keyHex = toHex(compressPublicKey(publicKey)).slice(2);
   return keccak256(toBytes(`${purpose}${PREIMAGE_SEPARATOR}${keyHex}`));
 }
 
 /**
- * Builds the dstack KMS issuance digest for signature-chain link 1.
+ * Hashes the KMS prefix, raw app ID bytes, and compressed app-root public key.
  *
- * ASSUMPTION: appId is lowercase hex without 0x encoded as UTF-8; the app-root
- * key is appended as 33 raw SEC1-compressed bytes.
- * TODO(verify-against-dstack-vector): pin with a captured CVM chain.
+ * Matches `dstack/kms/src/crypto.rs:23-40`; there is no separator between the
+ * raw 20-byte app ID and the compressed key.
  */
 export function kmsIssuedPreimage(appId: Hex, appRootPublicKey: Hex): Hex {
-  const appIdHex = appId.slice(2).toLowerCase();
-  const prefix = toBytes(
-    `${KMS_ISSUED_PREFIX}${PREIMAGE_SEPARATOR}${appIdHex}`,
-  );
-  const compressed = secp256k1.ProjectivePoint.fromHex(
-    fromHex(appRootPublicKey, "bytes"),
-  ).toRawBytes(true);
+  const prefix = concat([
+    toBytes(`${KMS_ISSUED_PREFIX}${PREIMAGE_SEPARATOR}`),
+    fromHex(appId, "bytes"),
+  ]);
+  const compressed = compressPublicKey(appRootPublicKey);
 
   return keccak256(concat([prefix, compressed]));
 }

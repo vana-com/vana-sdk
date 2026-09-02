@@ -135,12 +135,13 @@ describe("userPsId", () => {
 });
 
 describe("signature-chain preimages", () => {
-  it("encodes link 0 as lowercase public-key hex in UTF-8", () => {
+  it("encodes link 0 as lowercase compressed-key hex in UTF-8", () => {
     const publicKey = privateKeyToAccount(APP_ROOT_PRIVATE_KEY).publicKey;
+    const compressed = secp256k1.ProjectivePoint.fromHex(
+      fromHex(publicKey, "bytes"),
+    ).toRawBytes(true);
     const expected = keccak256(
-      stringToHex(
-        `${ENCLAVE_WALLET_PURPOSE}:${publicKey.slice(2).toLowerCase()}`,
-      ),
+      stringToHex(`${ENCLAVE_WALLET_PURPOSE}:${toHex(compressed).slice(2)}`),
     );
 
     expect(appRootPreimage(ENCLAVE_WALLET_PURPOSE, publicKey)).toBe(expected);
@@ -152,10 +153,7 @@ describe("signature-chain preimages", () => {
       fromHex(publicKey, "bytes"),
     ).toRawBytes(true);
     const expected = keccak256(
-      concatHex([
-        stringToHex(`dstack-kms-issued:${APP_ID.slice(2).toLowerCase()}`),
-        toHex(compressed),
-      ]),
+      concatHex([stringToHex("dstack-kms-issued:"), APP_ID, toHex(compressed)]),
     );
 
     expect(kmsIssuedPreimage(APP_ID, publicKey)).toBe(expected);

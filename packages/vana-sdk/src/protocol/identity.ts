@@ -2,8 +2,8 @@
  * Enclave identity and consent primitives for Personal Servers.
  *
  * Owner/Web -> Gateway -> Agent(CVM): derive wallet and quote
- * Web verifies evidence; Account encrypts the EIP-191 master signature to the
- * enclave public key; Gateway relays it blind; Agent decrypts and seals it.
+ * Web verifies evidence; Account authenticates and encrypts the EIP-191 master
+ * signature to the enclave key; Gateway relays it blind; Agent decrypts/seals.
  *
  * @category Protocol
  */
@@ -14,6 +14,7 @@ import {
   encodePacked,
   fromHex,
   getAddress,
+  isAddressEqual,
   keccak256,
   recoverPublicKey,
   toBytes,
@@ -22,7 +23,7 @@ import {
 } from "viem";
 import { publicKeyToAddress } from "viem/accounts";
 import { serializeECIES, type ECIESProvider } from "../crypto/ecies/interface";
-import { deriveMasterKey } from "../crypto/keys/derive";
+import { deriveMasterKey, recoverServerOwner } from "../crypto/keys/derive";
 import type { ServerRegistrationMessage } from "./eip712";
 
 export const ENCLAVE_IDENTITY_EVIDENCE_VERSION = 1;
@@ -56,6 +57,12 @@ export interface EnclaveIdentityEvidence {
   quote: Hex;
   eventLog?: string;
   kmsRootFingerprint: Hex;
+}
+
+export interface ExpectedIdentity {
+  ownerAddress: Address;
+  chainId: number;
+  epoch: number;
 }
 
 export interface IdentityRequest {
@@ -206,11 +213,19 @@ async function recoverChainKey(
  *
  * @param evidence - Identity evidence returned by the enclave agent.
  * @param anchors - Pinned KMS root and allowed dstack app IDs.
+ * @param expected - Owner, chain, and epoch requested by the caller.
+ *
+ * @remarks
+ * The dstack chain signs only `purpose || publicKey` and `appId || appRootPub`;
+ * owner, chain and epoch are bound to the key by the TDX quote report_data
+ * (`keccak256(userPsId || address)`), which v1 stores but does not verify
+ * (DCAP is step 4). Until then the agent's derivation check is the backstop.
  * @throws When any identity binding or trust check fails.
  */
 export async function verifyEnclaveIdentityEvidence(
   evidence: EnclaveIdentityEvidence,
   anchors: EnclaveTrustAnchors,
+  expected: ExpectedIdentity,
 ): Promise<void> {
   if (evidence.v !== ENCLAVE_IDENTITY_EVIDENCE_VERSION) {
     throw new Error("Unsupported enclave identity evidence version");
@@ -218,6 +233,29 @@ export async function verifyEnclaveIdentityEvidence(
 
   if (!Number.isInteger(evidence.epoch) || evidence.epoch < 1) {
     throw new Error("Invalid enclave identity epoch");
+  }
+
+  if (evidence.chainId !== expected.chainId) {
+    throw new Error(
+      "Enclave identity chain ID does not match expected chain ID",
+    );
+  }
+
+  if (!isAddressEqual(evidence.ownerAddress, expected.ownerAddress)) {
+    throw new Error("Enclave identity owner does not match expected owner");
+  }
+
+  if (evidence.epoch !== expected.epoch) {
+    throw new Error("Enclave identity epoch does not match expected epoch");
+  }
+
+  const expectedUserPsId = userPsId(expected.chainId, expected.ownerAddress);
+  if (evidence.userPsId.toLowerCase() !== expectedUserPsId.toLowerCase()) {
+    throw new Error("Enclave userPsId does not match expected identity");
+  }
+
+  if (evidence.purpose !== ENCLAVE_WALLET_PURPOSE) {
+    throw new Error("Unexpected enclave wallet purpose");
   }
 
   const derivedAddress = publicKeyToAddress(evidence.publicKey);
@@ -265,14 +303,20 @@ export async function verifyEnclaveIdentityEvidence(
  * @param evidence - Verified enclave identity evidence.
  * @param masterSignature - EIP-191 signature over the master-key message.
  * @param now - Issuance time in Unix seconds.
- * @returns The plaintext delivery object.
+ * @returns The authenticated plaintext delivery object.
+ * @throws When the signature is malformed or does not belong to the owner.
  */
-export function buildMasterSignatureDelivery(
+export async function buildMasterSignatureDelivery(
   evidence: EnclaveIdentityEvidence,
   masterSignature: Hex,
   now = Math.floor(Date.now() / 1000),
-): MasterSignatureDelivery {
+): Promise<MasterSignatureDelivery> {
   deriveMasterKey(masterSignature);
+  const signerAddress = await recoverServerOwner(masterSignature);
+
+  if (!isAddressEqual(signerAddress, evidence.ownerAddress)) {
+    throw new Error("Master signature signer does not match evidence owner");
+  }
 
   return {
     v: MASTER_SIGNATURE_DELIVERY_VERSION,

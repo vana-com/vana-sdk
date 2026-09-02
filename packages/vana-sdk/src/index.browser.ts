@@ -180,6 +180,7 @@ export {
   encryptMasterSignatureDelivery,
   type UserPsId,
   type EnclaveIdentityEvidence,
+  type ExpectedIdentity,
   type IdentityRequest,
   type IdentityState,
   type IdentityResponse,

@@ -260,6 +260,29 @@ describe("job ECIES envelopes", () => {
     ).resolves.toEqual(result);
   });
 
+  it("round-trips a result with all expected bindings", async () => {
+    const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
+
+    await expect(
+      openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+        jobId: JOB_ID,
+        scope: result.scope,
+        version: result.version,
+      }),
+    ).resolves.toEqual(result);
+  });
+
+  it("round-trips a zero-byte result body", async () => {
+    const emptyResult = { ...result, body: "" };
+    const sealed = await sealJobResult(emptyResult, BUILDER.publicKey, ecies);
+
+    await expect(
+      openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+        jobId: JOB_ID,
+      }),
+    ).resolves.toEqual(emptyResult);
+  });
+
   it("rejects a wrong recipient private key", async () => {
     const ciphertext = await sealJobRequest(
       requestEnvelope,
@@ -283,6 +306,43 @@ describe("job ECIES envelopes", () => {
       `${JOB_ID} does not match expected job ID different-job-id`,
     );
   });
+
+  it("rejects a result whose scope does not match", async () => {
+    const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
+
+    await expect(
+      openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+        jobId: JOB_ID,
+        scope: "profile.name",
+      }),
+    ).rejects.toThrow(
+      `Job result scope ${result.scope} does not match expected scope profile.name`,
+    );
+  });
+
+  it.each([
+    ["7", null],
+    ["8", "7"],
+  ])(
+    "rejects a result version %s when expected version is %s",
+    async (resultVersion, expectedVersion) => {
+      const versionedResult = { ...result, version: resultVersion };
+      const sealed = await sealJobResult(
+        versionedResult,
+        BUILDER.publicKey,
+        ecies,
+      );
+
+      await expect(
+        openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+          jobId: JOB_ID,
+          version: expectedVersion,
+        }),
+      ).rejects.toThrow(
+        `Job result version ${String(resultVersion)} does not match expected version ${String(expectedVersion)}`,
+      );
+    },
+  );
 
   it("hashes and measures the decoded ciphertext bytes", async () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);

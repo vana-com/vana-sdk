@@ -6,6 +6,8 @@
  * ciphertext is base64 of `iv || ephemPub || ct || mac`, as specified by the
  * ECIES provider interface. This ordering is canonical enough for a plaintext
  * hash, although the Gateway hashes the raw ciphertext bytes, not plaintext.
+ * Per the jobs flow in contract section 1, the builder verifies the decrypted
+ * result's job ID, scope, and version bindings.
  *
  * @category Cryptography
  */
@@ -146,8 +148,11 @@ function validateResult(value: Record<string, unknown>): JobResult {
       `Unsupported job result version: ${String(value.v)}`,
     );
   }
-  for (const field of ["jobId", "scope", "contentType", "body"]) {
+  for (const field of ["jobId", "scope", "contentType"]) {
     requireString(value[field], field, "job result");
+  }
+  if (typeof value.body !== "string") {
+    throw new JobEnvelopeError("Invalid job result: missing body");
   }
   if (value.version !== null && typeof value.version !== "string") {
     throw new JobEnvelopeError("Invalid job result: missing version");
@@ -199,7 +204,7 @@ export async function openJobResult(
   ciphertext: string,
   builderPrivateKey: Hex,
   ecies: ECIESProvider,
-  expect: { jobId: string },
+  expect: { jobId: string; scope?: string; version?: string | null },
 ): Promise<JobResult> {
   const plaintext = await ecies.decrypt(
     fromHex(builderPrivateKey, "bytes"),
@@ -209,6 +214,16 @@ export async function openJobResult(
   if (result.jobId !== expect.jobId) {
     throw new JobEnvelopeError(
       `Job result ID ${result.jobId} does not match expected job ID ${expect.jobId}`,
+    );
+  }
+  if (expect.scope !== undefined && result.scope !== expect.scope) {
+    throw new JobEnvelopeError(
+      `Job result scope ${result.scope} does not match expected scope ${expect.scope}`,
+    );
+  }
+  if (expect.version !== undefined && result.version !== expect.version) {
+    throw new JobEnvelopeError(
+      `Job result version ${String(result.version)} does not match expected version ${String(expect.version)}`,
     );
   }
   return result;

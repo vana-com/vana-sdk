@@ -226,6 +226,17 @@ export {
   type TeeNode,
 } from "./protocol/jobs";
 export {
+  createJobsClient,
+  type JobsBuilderAccount,
+  type JobsClientOptions,
+  type SubmitRawReadParams,
+  type SubmitRawReadResult,
+  type WaitForJobOptions,
+  type OpenJobResultOptions,
+  type ReadRawParams,
+  type JobsClient,
+} from "./protocol/jobs-client";
+export {
   JobEnvelopeError,
   canonicalJobRequestBytes,
   sealJobRequest,

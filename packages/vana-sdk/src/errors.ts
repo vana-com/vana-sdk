@@ -765,6 +765,183 @@ export class WriteRejectedError extends PersonalServerWriteError {
   }
 }
 
+/** Gateway error codes surfaced by the builder jobs client. */
+export type JobGatewayErrorCode =
+  | "INVALID_WAIT"
+  | "INVALID_BODY"
+  | "BUILDER_UNKNOWN"
+  | "GRANT_INVALID"
+  | "OWNER_NOT_READY"
+  | "BODY_TOO_LARGE"
+  | "JOB_ID_MISMATCH"
+  | "JOB_ID_TAKEN"
+  | "JOB_NOT_FOUND"
+  | (string & {});
+
+/**
+ * Base class for failures raised by the builder jobs client.
+ *
+ * @remarks
+ * `status` is the Gateway HTTP status when a response arrived, `errorCode`
+ * is the Gateway protocol code when one was supplied, and `details` retains
+ * structured response or client context for diagnostics.
+ *
+ * @param message - Human-readable failure description.
+ * @param code - Stable SDK error code.
+ * @param status - Gateway HTTP status, when available.
+ * @param errorCode - Gateway protocol error code, when available.
+ * @param details - Additional structured context.
+ * @category Error Handling
+ */
+export class JobsClientError extends VanaError {
+  constructor(
+    message: string,
+    code: string,
+    public readonly status?: number,
+    public readonly errorCode: JobGatewayErrorCode | null = null,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message, code);
+  }
+}
+
+/**
+ * Thrown when the Gateway does not recognize the signing builder (403
+ * `BUILDER_UNKNOWN`).
+ *
+ * @param message - Gateway failure description.
+ * @param details - Additional structured Gateway context.
+ * @category Error Handling
+ */
+export class BuilderUnknownError extends JobsClientError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "JOB_BUILDER_UNKNOWN", 403, "BUILDER_UNKNOWN", details);
+  }
+}
+
+/**
+ * Thrown when the supplied grant does not authorize the requested raw read
+ * (403 `GRANT_INVALID`).
+ *
+ * @param message - Gateway failure description.
+ * @param details - Additional structured Gateway context.
+ * @category Error Handling
+ */
+export class GrantInvalidError extends JobsClientError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "JOB_GRANT_INVALID", 403, "GRANT_INVALID", details);
+  }
+}
+
+/**
+ * Thrown when the owner's enclave identity is not ready to accept encrypted
+ * jobs, either locally after the identity lookup or as a 403 Gateway answer.
+ *
+ * @param message - Identity readiness failure description.
+ * @param details - Additional identity or Gateway context.
+ * @category Error Handling
+ */
+export class OwnerNotReadyError extends JobsClientError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "JOB_OWNER_NOT_READY", 403, "OWNER_NOT_READY", details);
+  }
+}
+
+/**
+ * Thrown when a freshly generated job id already exists at the Gateway (409
+ * `JOB_ID_TAKEN`).
+ *
+ * @param message - Gateway conflict description.
+ * @param details - Additional structured Gateway context.
+ * @category Error Handling
+ */
+export class JobIdTakenError extends JobsClientError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "JOB_ID_TAKEN", 409, "JOB_ID_TAKEN", details);
+  }
+}
+
+/**
+ * Thrown when a job is unknown or belongs to another builder (404
+ * `JOB_NOT_FOUND`).
+ *
+ * @param message - Gateway not-found description.
+ * @param details - Additional structured Gateway context.
+ * @category Error Handling
+ */
+export class JobNotFoundError extends JobsClientError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "JOB_NOT_FOUND", 404, "JOB_NOT_FOUND", details);
+  }
+}
+
+/**
+ * Thrown when a job submission exceeds the Gateway request limit (413).
+ *
+ * @param message - Gateway size-limit description.
+ * @param errorCode - Gateway protocol error code.
+ * @param details - Additional structured Gateway context.
+ * @category Error Handling
+ */
+export class JobRequestTooLargeError extends JobsClientError {
+  constructor(
+    message: string,
+    errorCode: JobGatewayErrorCode | null = "BODY_TOO_LARGE",
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "JOB_REQUEST_TOO_LARGE", 413, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a job does not reach a terminal state within the caller's wait
+ * budget or before the job's own deadline.
+ *
+ * @param message - Timeout description.
+ * @param details - Last known job state and timing context.
+ * @category Error Handling
+ */
+export class JobTimeoutError extends JobsClientError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "JOB_TIMEOUT", undefined, null, details);
+  }
+}
+
+/**
+ * Thrown when the Gateway rejects a jobs request, returns an undocumented
+ * response, or client input cannot form a valid jobs request.
+ *
+ * @param message - Rejection description.
+ * @param status - Gateway HTTP status, when available.
+ * @param errorCode - Gateway protocol error code, when available.
+ * @param details - Additional structured context.
+ * @category Error Handling
+ */
+export class JobRejectedError extends JobsClientError {
+  constructor(
+    message: string,
+    status?: number,
+    errorCode: JobGatewayErrorCode | null = null,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "JOB_REJECTED", status, errorCode, details);
+  }
+}
+
+/**
+ * Thrown when a jobs client HTTP request fails before a response arrives.
+ *
+ * @param message - Human-readable transport failure.
+ * @param cause - Original value thrown by `fetch`.
+ * @category Error Handling
+ */
+export class JobTransportError extends JobsClientError {
+  constructor(message: string, cause?: unknown) {
+    super(message, "JOB_TRANSPORT_ERROR");
+    this.cause = cause;
+  }
+}
+
 /**
  * Thrown when a lineage read (Personal Server or gateway) fails: a non-2xx
  * answer, a body that is not a lineage graph, a malformed data point id, or

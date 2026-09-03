@@ -35,13 +35,7 @@ import { fromBase64, toBase64 } from "../../utils/encoding";
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 
-/**
- * Indicates that a job envelope does not match the jobs protocol.
- *
- * @param message - Description of the invalid field or protocol binding.
- * @returns A protocol-specific error instance.
- * @throws {JobEnvelopeError} Thrown by envelope helpers when validation fails.
- */
+/** A job envelope or result did not match the jobs protocol. */
 export class JobEnvelopeError extends Error {
   constructor(message: string) {
     super(message);
@@ -262,8 +256,9 @@ function validateResult(value: unknown): JobResult {
 /**
  * Encrypts a validated job request envelope for a Personal Server enclave.
  *
- * The Gateway and PS worker verify
- * `auth.bodyHash === sha256(canonicalJobRequestBytes(request))`.
+ * The PS worker verifies
+ * `auth.bodyHash === sha256(canonicalJobRequestBytes(request))`; the Gateway
+ * never sees the plaintext.
  *
  * @param envelope - Request and builder Web3Signed authorization to encrypt.
  * @param enclavePublicKey - Public key returned by `GET /v1/identity?owner=`.

@@ -16,16 +16,19 @@
  */
 
 import { sha256 } from "@noble/hashes/sha2";
-import { bytesToHex, fromHex, toHex, type Hex } from "viem";
+import { bytesToHex, fromHex, isAddress, isHex, toHex, type Hex } from "viem";
 import {
   deserializeECIES,
   serializeECIES,
   type ECIESProvider,
 } from "../ecies/interface";
-import type {
-  JobRequest,
-  JobRequestEnvelope,
-  JobResult,
+import {
+  JOB_OPERATIONS,
+  JOB_PROTOCOL_VERSION,
+  type JobOperation,
+  type JobRequest,
+  type JobRequestEnvelope,
+  type JobResult,
 } from "../../protocol/jobs";
 import { fromBase64, toBase64 } from "../../utils/encoding";
 
@@ -63,10 +66,12 @@ function canonicalJsonBytes(value: unknown): Uint8Array {
 
 /** Canonical UTF-8 JSON bytes committed to by a job request's auth body hash. */
 export function canonicalJobRequestBytes(request: JobRequest): Uint8Array {
+  validateJobRequest(request);
   return canonicalJsonBytes(request);
 }
 
 function requestPlaintext(envelope: JobRequestEnvelope): Uint8Array {
+  validateRequestEnvelope(envelope);
   return canonicalJsonBytes(envelope);
 }
 
@@ -109,6 +114,42 @@ function parseObject(
   }
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object") return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function requirePlainObject(
+  value: unknown,
+  field: string,
+  kind: string,
+): asserts value is Record<string, unknown> {
+  if (!isPlainObject(value)) {
+    throw new JobEnvelopeError(`Invalid ${kind}: invalid ${field}`);
+  }
+}
+
+function requireExactKeys(
+  value: Record<string, unknown>,
+  expectedKeys: readonly string[],
+  kind: string,
+): void {
+  for (const key of expectedKeys) {
+    if (!Object.hasOwn(value, key) || value[key] === undefined) {
+      throw new JobEnvelopeError(`Invalid ${kind}: missing ${key}`);
+    }
+  }
+  const expected = new Set<PropertyKey>(expectedKeys);
+  for (const key of Reflect.ownKeys(value)) {
+    if (!expected.has(key)) {
+      throw new JobEnvelopeError(
+        `Invalid ${kind}: unknown field ${String(key)}`,
+      );
+    }
+  }
+}
+
 function requireString(
   value: unknown,
   field: string,
@@ -119,47 +160,77 @@ function requireString(
   }
 }
 
-function validateRequestEnvelope(
-  value: Record<string, unknown>,
-): JobRequestEnvelope {
-  const request = value.request;
-  if (
-    request === null ||
-    typeof request !== "object" ||
-    Array.isArray(request)
-  ) {
-    throw new JobEnvelopeError("Invalid job request envelope: missing request");
-  }
-  const fields = request as Record<string, unknown>;
-  if (fields.v !== 1) {
+function validateJobRequest(value: unknown): JobRequest {
+  requirePlainObject(value, "request", "job request");
+  requireExactKeys(
+    value,
+    [
+      "v",
+      "jobId",
+      "owner",
+      "builder",
+      "builderPublicKey",
+      "grantId",
+      "scope",
+      "operation",
+      "pinnedVersion",
+      "deadline",
+    ],
+    "job request",
+  );
+  if (value.v !== JOB_PROTOCOL_VERSION) {
     throw new JobEnvelopeError(
-      `Unsupported job request version: ${String(fields.v)}`,
+      `Unsupported job request version: ${String(value.v)}`,
     );
   }
-  for (const field of [
-    "jobId",
-    "owner",
-    "builder",
-    "builderPublicKey",
-    "grantId",
-    "scope",
-    "operation",
-    "deadline",
-  ]) {
-    requireString(fields[field], field, "job request");
+  requireString(value.jobId, "jobId", "job request");
+  if (typeof value.owner !== "string" || !isAddress(value.owner)) {
+    throw new JobEnvelopeError("Invalid job request: invalid owner");
+  }
+  if (typeof value.builder !== "string" || !isAddress(value.builder)) {
+    throw new JobEnvelopeError("Invalid job request: invalid builder");
   }
   if (
-    fields.pinnedVersion !== null &&
-    typeof fields.pinnedVersion !== "string"
+    typeof value.builderPublicKey !== "string" ||
+    !isHex(value.builderPublicKey)
   ) {
+    throw new JobEnvelopeError("Invalid job request: invalid builderPublicKey");
+  }
+  if (typeof value.grantId !== "string" || !isHex(value.grantId)) {
+    throw new JobEnvelopeError("Invalid job request: invalid grantId");
+  }
+  requireString(value.scope, "scope", "job request");
+  if (!JOB_OPERATIONS.includes(value.operation as JobOperation)) {
+    throw new JobEnvelopeError("Invalid job request: invalid operation");
+  }
+  if (value.pinnedVersion !== null && typeof value.pinnedVersion !== "string") {
     throw new JobEnvelopeError("Invalid job request: missing pinnedVersion");
   }
+  if (
+    typeof value.deadline !== "string" ||
+    !Number.isFinite(Date.parse(value.deadline))
+  ) {
+    throw new JobEnvelopeError("Invalid job request: invalid deadline");
+  }
+  return value as unknown as JobRequest;
+}
+
+function validateRequestEnvelope(value: unknown): JobRequestEnvelope {
+  requirePlainObject(value, "envelope", "job request envelope");
+  requireExactKeys(value, ["request", "auth"], "job request envelope");
+  validateJobRequest(value.request);
   requireString(value.auth, "auth", "job request envelope");
   return value as unknown as JobRequestEnvelope;
 }
 
-function validateResult(value: Record<string, unknown>): JobResult {
-  if (value.v !== 1) {
+function validateResult(value: unknown): JobResult {
+  requirePlainObject(value, "result", "job result");
+  requireExactKeys(
+    value,
+    ["v", "jobId", "scope", "version", "contentType", "body"],
+    "job result",
+  );
+  if (value.v !== JOB_PROTOCOL_VERSION) {
     throw new JobEnvelopeError(
       `Unsupported job result version: ${String(value.v)}`,
     );
@@ -177,13 +248,13 @@ function validateResult(value: Record<string, unknown>): JobResult {
 }
 
 export async function sealJobRequest(
-  e: JobRequestEnvelope,
+  envelope: JobRequestEnvelope,
   enclavePublicKey: Hex,
   ecies: ECIESProvider,
 ): Promise<string> {
   const encrypted = await ecies.encrypt(
     fromHex(enclavePublicKey, "bytes"),
-    requestPlaintext(e),
+    requestPlaintext(envelope),
   );
   return encryptedBytesToBase64(encrypted);
 }
@@ -203,13 +274,14 @@ export async function openJobRequest(
 }
 
 export async function sealJobResult(
-  r: JobResult,
+  result: JobResult,
   builderPublicKey: Hex,
   ecies: ECIESProvider,
 ): Promise<{ ciphertext: string; hash: Hex; size: number }> {
+  validateResult(result);
   const encrypted = await ecies.encrypt(
     fromHex(builderPublicKey, "bytes"),
-    resultPlaintext(r),
+    resultPlaintext(result),
   );
   const ciphertext = encryptedBytesToBase64(encrypted);
   const bytes = fromBase64(ciphertext);

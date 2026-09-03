@@ -31,6 +31,8 @@ export const ENCLAVE_IDENTITY_EVIDENCE_VERSION = 1;
 export const USER_PS_ID_DOMAIN = "vana.ps-enclave.v1";
 export const ENCLAVE_WALLET_PURPOSE = "vana.ps-enclave.wallet.v1";
 export const MASTER_SIGNATURE_DELIVERY_VERSION = "vana.ps-enclave.delivery.v1";
+/** Agent rejects deliveries when `|now - issuedAt|` exceeds this value. */
+export const MASTER_SIGNATURE_DELIVERY_MAX_AGE_SECONDS = 600;
 export const SEALED_ENVELOPE_VERSION = 1;
 
 const VANA_MAINNET_CHAIN_ID = 1480;
@@ -39,44 +41,61 @@ const KMS_ISSUED_PREFIX = "dstack-kms-issued";
 const PREIMAGE_SEPARATOR = ":";
 const UNCOMPRESSED_PUBLIC_KEY_BYTES = 65;
 const UNCOMPRESSED_PUBLIC_KEY_PREFIX = "04";
+const EMPTY_HEX = "0x";
 
+/** `keccak256(encodePacked([string,uint256,address], [USER_PS_ID_DOMAIN,chainId,owner]))`. */
 export type UserPsId = Hex;
 
+/** Attested identity evidence returned by the enclave agent. */
 export interface EnclaveIdentityEvidence {
   v: typeof ENCLAVE_IDENTITY_EVIDENCE_VERSION;
   userPsId: UserPsId;
   chainId: number;
   ownerAddress: Address;
+  /** Path suffix `users/{id}/wallet/ethereum/secp256k1/v{epoch}`. */
   epoch: number;
   address: Address;
+  /** 65-byte uncompressed `0x04..`; `publicKeyToAddress(publicKey) == address`. */
   publicKey: Hex;
+  /** 20-byte dstack `app_id`. */
   appId: Hex;
+  /** 32-byte compose hash. */
   composeHash: Hex;
+  /** Omitted when the OS does not expose its image hash. */
   osImageHash?: Hex;
+  /** Must equal `ENCLAVE_WALLET_PURPOSE`. */
   purpose: string;
+  /** `[appRoot over link 0, kmsRoot over link 1]`; see `appRootPreimage` and `kmsIssuedPreimage`. */
   signatureChain: [Hex, Hex];
+  /** Raw TDX quote with report_data `keccak256(userPsId || address)`; not parsed. */
   quote: Hex;
   eventLog?: string;
+  /** `keccak256` of the uncompressed KMS root public key. */
   kmsRootFingerprint: Hex;
 }
 
+/** Identity values the caller expects the evidence to bind. */
 export interface ExpectedIdentity {
   ownerAddress: Address;
   chainId: number;
   epoch: number;
 }
 
+/** Request for an owner-scoped enclave identity. */
 export interface IdentityRequest {
   ownerAddress: Address;
   chainId: number;
 }
 
+/** Lifecycle state of an enclave identity. */
 export type IdentityState = "prepared" | "registered" | "sealed" | "retired";
 
+/** Gateway response containing enclave identity state and registration data. */
 export interface IdentityResponse {
   identity: EnclaveIdentityEvidence;
   state: IdentityState;
   created: boolean;
+  /** Exact `ServerRegistration.serverUrl` the owner signs. */
   serverUrl: string;
   serverId?: Hex;
   serverStatus?:
@@ -88,6 +107,7 @@ export interface IdentityResponse {
   sealed: boolean;
 }
 
+/** Versioned server-registration request for an enclave identity. */
 export type IdentityRegistrationRequest =
   | { version: "v2"; message: ServerRegistrationMessage }
   | {
@@ -95,6 +115,7 @@ export type IdentityRegistrationRequest =
       message: ServerRegistrationMessage & { nonce: string; deadline: string };
     };
 
+/** Accepted identity-registration response. */
 export interface IdentityRegistrationResponse {
   serverId: Hex;
   state: "registered";
@@ -108,26 +129,36 @@ export interface MasterSignatureDelivery {
   epoch: number;
   enclaveAddress: Address;
   ownerAddress: Address;
+  /** 65-byte EIP-191 signature over `MASTER_KEY_MESSAGE`. */
   masterSignature: Hex;
+  /** Unix seconds; see `MASTER_SIGNATURE_DELIVERY_MAX_AGE_SECONDS`. */
   issuedAt: number;
 }
 
+/** Enclave-bound ciphertext submitted for sealing. */
 export interface SealedSecretSubmission {
   userPsId: UserPsId;
   epoch: number;
   enclaveAddress: Address;
+  /** `iv(16) || ephemPub(65) || ct || mac(32)` to `evidence.publicKey`. */
   ciphertext: Hex;
 }
 
+/** Confirmation that the enclave sealed a submitted secret. */
 export interface SealedSecretResponse {
   sealed: true;
+  /** `sha256(ciphertext)`. */
   secretHash: Hex;
   sealedAt: string;
 }
 
+/** AES-GCM fields encoded as base64 strings. */
 export interface AesGcmBox {
+  /** Base64 initialization vector. */
   iv: string;
+  /** Base64 ciphertext. */
   ciphertext: string;
+  /** Base64 authentication tag. */
   tag: string;
 }
 
@@ -137,18 +168,28 @@ export interface SealedEnvelope extends AesGcmBox {
   wrappedContentKey: AesGcmBox;
 }
 
+/** Fleet-pinned KMS root and allowed dstack application IDs. */
 export interface EnclaveTrustAnchors {
   kmsRootPubkey: Hex;
-  appIds: Hex[];
+  appIds: readonly Hex[];
+}
+
+function emptyAnchor(): Readonly<EnclaveTrustAnchors> {
+  return Object.freeze({
+    kmsRootPubkey: EMPTY_HEX,
+    appIds: Object.freeze([] as Hex[]),
+  });
 }
 
 /** Fleet-provisioned trust anchors keyed by Vana chain ID. */
-export const ENCLAVE_TRUST_ANCHORS: Record<number, EnclaveTrustAnchors> = {
+export const ENCLAVE_TRUST_ANCHORS: Readonly<
+  Record<number, Readonly<EnclaveTrustAnchors>>
+> = Object.freeze({
   // filled at fleet provisioning; verify fails closed while empty
-  [VANA_MAINNET_CHAIN_ID]: { kmsRootPubkey: "0x", appIds: [] },
+  [VANA_MAINNET_CHAIN_ID]: emptyAnchor(),
   // filled at fleet provisioning; verify fails closed while empty
-  [MOKSHA_CHAIN_ID]: { kmsRootPubkey: "0x", appIds: [] },
-};
+  [MOKSHA_CHAIN_ID]: emptyAnchor(),
+});
 
 /**
  * Derives the deterministic Personal Server ID used by enclave paths.
@@ -275,7 +316,7 @@ export async function verifyEnclaveIdentityEvidence(
     throw new Error("Unexpected enclave wallet purpose");
   }
 
-  if (anchors.kmsRootPubkey === "0x") {
+  if (anchors.kmsRootPubkey === EMPTY_HEX) {
     throw new Error("KMS root trust anchor is not provisioned");
   }
 
@@ -336,6 +377,7 @@ export async function buildMasterSignatureDelivery(
   masterSignature: Hex,
   now = Math.floor(Date.now() / 1000),
 ): Promise<MasterSignatureDelivery> {
+  // Validate signature length and hex encoding before recovery.
   deriveMasterKey(masterSignature);
   const signerAddress = await recoverServerOwner(masterSignature);
 

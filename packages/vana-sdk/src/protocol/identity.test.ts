@@ -161,6 +161,14 @@ describe("signature-chain preimages", () => {
 });
 
 describe("verifyEnclaveIdentityEvidence", () => {
+  it("freezes fleet trust anchors", () => {
+    const anchors = ENCLAVE_TRUST_ANCHORS[CHAIN_ID];
+
+    expect(Object.isFrozen(ENCLAVE_TRUST_ANCHORS)).toBe(true);
+    expect(Object.isFrozen(anchors)).toBe(true);
+    expect(Object.isFrozen(anchors?.appIds)).toBe(true);
+  });
+
   it("accepts a valid two-link dstack signature chain", async () => {
     const { evidence, anchors, expected } = await identityFixture();
 

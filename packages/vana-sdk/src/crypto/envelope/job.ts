@@ -6,10 +6,11 @@
  * wire ciphertext is base64 of `iv || ephemPub || ct || mac`, as specified by
  * the ECIES provider interface. The Gateway hashes raw ciphertext bytes, not
  * plaintext.
- * Per the jobs flow in contract section 1, the builder verifies the decrypted
- * result's job ID, scope, and version bindings.
- * Gateway and PS worker verify
- * `auth.bodyHash === sha256(canonicalJobRequestBytes(request))`.
+ * The builder verifies the decrypted result's job ID, scope, and version
+ * bindings. The PS worker verifies
+ * `auth.bodyHash === sha256(canonicalJobRequestBytes(request))`; the Gateway
+ * never sees the plaintext. Flow: personal-server-ts
+ * `docs/260903-jobs-contract.md`, section 1.
  *
  * @category Cryptography
  */

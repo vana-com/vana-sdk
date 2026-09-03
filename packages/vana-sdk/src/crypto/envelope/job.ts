@@ -1,13 +1,15 @@
 /**
  * ECIES envelopes for encrypted job requests and results.
  *
- * Plaintext is the UTF-8 encoding of `JSON.stringify(value)`, with properties
- * emitted in the order declared by the corresponding interface. The wire
- * ciphertext is base64 of `iv || ephemPub || ct || mac`, as specified by the
- * ECIES provider interface. This ordering is canonical enough for a plaintext
- * hash, although the Gateway hashes the raw ciphertext bytes, not plaintext.
+ * Request plaintext is UTF-8 JSON with object keys sorted recursively and
+ * array order preserved. Result properties follow their interface order. The
+ * wire ciphertext is base64 of `iv || ephemPub || ct || mac`, as specified by
+ * the ECIES provider interface. The Gateway hashes raw ciphertext bytes, not
+ * plaintext.
  * Per the jobs flow in contract section 1, the builder verifies the decrypted
  * result's job ID, scope, and version bindings.
+ * Gateway and PS worker verify
+ * `auth.bodyHash === sha256(canonicalJobRequestBytes(request))`.
  *
  * @category Cryptography
  */
@@ -19,7 +21,11 @@ import {
   serializeECIES,
   type ECIESProvider,
 } from "../ecies/interface";
-import type { JobRequestEnvelope, JobResult } from "../../protocol/jobs";
+import type {
+  JobRequest,
+  JobRequestEnvelope,
+  JobResult,
+} from "../../protocol/jobs";
 import { fromBase64, toBase64 } from "../../utils/encoding";
 
 const textDecoder = new TextDecoder();
@@ -33,25 +39,34 @@ export class JobEnvelopeError extends Error {
   }
 }
 
+function sortJsonKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJsonKeys);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [
+          key,
+          sortJsonKeys((value as Record<string, unknown>)[key]),
+        ]),
+    );
+  }
+  return value;
+}
+
+function canonicalJsonBytes(value: unknown): Uint8Array {
+  return textEncoder.encode(JSON.stringify(sortJsonKeys(value)));
+}
+
+/** Canonical UTF-8 JSON bytes committed to by a job request's auth body hash. */
+export function canonicalJobRequestBytes(request: JobRequest): Uint8Array {
+  return canonicalJsonBytes(request);
+}
+
 function requestPlaintext(envelope: JobRequestEnvelope): Uint8Array {
-  const { request, auth } = envelope;
-  return textEncoder.encode(
-    JSON.stringify({
-      request: {
-        v: request.v,
-        jobId: request.jobId,
-        owner: request.owner,
-        builder: request.builder,
-        builderPublicKey: request.builderPublicKey,
-        grantId: request.grantId,
-        scope: request.scope,
-        operation: request.operation,
-        pinnedVersion: request.pinnedVersion,
-        deadline: request.deadline,
-      },
-      auth,
-    }),
-  );
+  return canonicalJsonBytes(envelope);
 }
 
 function resultPlaintext(result: JobResult): Uint8Array {

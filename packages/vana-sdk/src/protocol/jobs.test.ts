@@ -10,6 +10,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
+  canonicalJobRequestBytes,
   openJobRequest,
   openJobResult,
   sealJobRequest,
@@ -60,6 +61,19 @@ const APP_ID = bytesToHex(new Uint8Array(20).fill(4));
 const COMPOSE_HASH = bytesToHex(new Uint8Array(32).fill(5));
 const JOB_ID = "018f47d2-a321-7e10-b528-24e5ef8a624b";
 const NOW = "2026-09-03T12:00:00.000Z";
+
+const canonicalVectorRequest: JobRequest = {
+  v: 1,
+  jobId: "00000000-0000-4000-8000-000000000001",
+  owner: "0x0000000000000000000000000000000000000001",
+  builder: "0x0000000000000000000000000000000000000002",
+  builderPublicKey: "0x1234",
+  grantId: "0x0000000000000000000000000000000000000000000000000000000000000000",
+  scope: "profile.email",
+  operation: "raw_read",
+  pinnedVersion: null,
+  deadline: "2026-01-01T00:00:00.000Z",
+};
 
 const request: JobRequest = {
   v: 1,
@@ -235,6 +249,39 @@ describe("job protocol constants", () => {
   });
 });
 
+describe("canonicalJobRequestBytes", () => {
+  it("matches the Gateway and PS worker wire pin", () => {
+    const bytes = canonicalJobRequestBytes(canonicalVectorRequest);
+
+    // Wire pins shared by the Gateway and PS worker; update only with the protocol.
+    expect(new TextDecoder().decode(bytes)).toBe(
+      '{"builder":"0x0000000000000000000000000000000000000002","builderPublicKey":"0x1234","deadline":"2026-01-01T00:00:00.000Z","grantId":"0x0000000000000000000000000000000000000000000000000000000000000000","jobId":"00000000-0000-4000-8000-000000000001","operation":"raw_read","owner":"0x0000000000000000000000000000000000000001","pinnedVersion":null,"scope":"profile.email","v":1}',
+    );
+    expect(bytesToHex(sha256(bytes))).toBe(
+      "0xc610d7c24e7a8b952db6e7f2ce902fec090016e44bf30a8908021432678d81a0",
+    );
+  });
+
+  it("is independent of request property insertion order", () => {
+    const reorderedRequest: JobRequest = {
+      deadline: canonicalVectorRequest.deadline,
+      scope: canonicalVectorRequest.scope,
+      grantId: canonicalVectorRequest.grantId,
+      owner: canonicalVectorRequest.owner,
+      pinnedVersion: canonicalVectorRequest.pinnedVersion,
+      operation: canonicalVectorRequest.operation,
+      builderPublicKey: canonicalVectorRequest.builderPublicKey,
+      builder: canonicalVectorRequest.builder,
+      jobId: canonicalVectorRequest.jobId,
+      v: canonicalVectorRequest.v,
+    };
+
+    expect(canonicalJobRequestBytes(reorderedRequest)).toEqual(
+      canonicalJobRequestBytes(canonicalVectorRequest),
+    );
+  });
+});
+
 describe("job ECIES envelopes", () => {
   const ecies = new NodeECIESUint8Provider();
 
@@ -248,6 +295,23 @@ describe("job ECIES envelopes", () => {
     await expect(
       openJobRequest(ciphertext, fromHex(ENCLAVE_PRIVATE_KEY, "bytes"), ecies),
     ).resolves.toEqual(requestEnvelope);
+  });
+
+  it("preserves the canonical request bytes through a round trip", async () => {
+    const ciphertext = await sealJobRequest(
+      requestEnvelope,
+      ENCLAVE.publicKey,
+      ecies,
+    );
+    const opened = await openJobRequest(
+      ciphertext,
+      fromHex(ENCLAVE_PRIVATE_KEY, "bytes"),
+      ecies,
+    );
+
+    expect(canonicalJobRequestBytes(opened.request)).toEqual(
+      canonicalJobRequestBytes(requestEnvelope.request),
+    );
   });
 
   it("round-trips a result", async () => {

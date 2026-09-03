@@ -9,7 +9,7 @@
  * Agent -> GW: complete with ciphertext hash and size, or fail the job.
  * GW -> Builder: return inline or polled status and opaque ciphertext.
  * Builder: decrypt and verify the result's job, scope, and version bindings.
- * See HANDOFF-contract.md section 1 for the complete flow.
+ * Full flow: personal-server-ts `docs/260903-jobs-contract.md`, section 1.
  *
  * @category Protocol
  */
@@ -30,6 +30,7 @@ export const JOB_STATES = [
   "cancelled",
 ] as const;
 export type JobState = (typeof JOB_STATES)[number];
+/** Payment lifecycle recorded for a queued job. */
 export type PaymentState = "none" | "reserved" | "settled";
 export const DEFAULT_LEASE_SECONDS = 30;
 export const MAX_LEASE_SECONDS = 300;
@@ -53,9 +54,15 @@ export interface JobRequest {
   pinnedVersion: string | null;
   deadline: string; /* ISO */
 }
+/** Plaintext of the request box; the Gateway never sees it. */
 export interface JobRequestEnvelope {
   request: JobRequest;
-  auth: string; /* "Web3Signed <b64>.<sig>" by builder over uri /v1/jobs/execute, bodyHash = sha256(JSON(request)) */
+  /**
+   * `Web3Signed <b64>.<sig>` by the builder: `aud` = Gateway origin,
+   * `uri` = `/v1/jobs/execute`,
+   * `bodyHash` = `sha256(canonicalJobRequestBytes(request))`.
+   */
+  auth: string;
 }
 /** Outer body of POST /v1/jobs (signed Web3Signed by the builder). */
 export interface JobSubmission {
@@ -64,10 +71,13 @@ export interface JobSubmission {
   scope: string;
   operation: JobOperation;
   idempotencyKey: string;
+  /** Client UUID, echoed in `JobRequest.jobId`. */
   jobId: string;
-  /* client uuid, echoed in JobRequest */ deadline?: string;
-  requestCiphertext: string; /* base64 ECIES */
+  deadline?: string;
+  /** Base64 ECIES from `sealJobRequest`. */
+  requestCiphertext: string;
 }
+/** Response from `GET /v1/jobs/:id`. */
 export interface JobStatus {
   jobId: string;
   state: JobState;
@@ -90,10 +100,12 @@ export interface JobStatus {
   resultSize?: number;
   resultExpiresAt?: string;
 }
+/** Request body for `POST /v1/jobs/claim`. */
 export interface ClaimRequest {
   leaseSeconds?: number;
   capacity?: number;
 }
+/** Claimed job and owner identity returned by `POST /v1/jobs/claim`. */
 export interface ClaimResponse {
   job: {
     jobId: string;
@@ -117,21 +129,27 @@ export interface ClaimResponse {
     sealedEnvelope: SealedEnvelope;
   };
 }
+/** Request body for `POST /v1/jobs/:id/heartbeat`. */
 export interface HeartbeatRequest {
   leaseSeconds?: number;
   fencingToken: number;
 }
+/** Request body for `POST /v1/jobs/:id/complete`. */
 export interface CompleteRequest {
   fencingToken: number;
   resultHash: Hex;
   resultSize: number;
+  /** Inline when the decoded size is <= `MAX_INLINE_RESULT_BYTES`. */
   resultCiphertext?: string;
-  /* inline <= MAX_INLINE_RESULT_BYTES */ resultHandle?: string; /* v1.1, R2 */
+  /** v1.1, R2. */
+  resultHandle?: string;
 }
+/** Request body for `POST /v1/jobs/:id/fail`. */
 export interface FailRequest {
   fencingToken: number;
   reason: string; /* <= 1024, fail.ts:16 */
 }
+/** Successful response from a fenced job write endpoint. */
 export interface FencedResponse {
   success: true;
   jobId: string;
@@ -147,7 +165,9 @@ export interface JobResult {
   contentType: string;
   body: string; /* base64 */
 }
+/** Admission lifecycle of a registered TEE node. */
 export type TeeNodeState = "pending" | "admitted" | "draining" | "removed";
+/** Request body for `POST /v1/tee-nodes`. */
 export interface TeeNodeRegistration {
   nodeId: string;
   appId: Hex;
@@ -156,12 +176,14 @@ export interface TeeNodeRegistration {
   capacity: number;
   secret: string;
 }
+/** Request body for `POST /v1/tee-nodes/:id/heartbeat`. */
 export interface TeeNodeHeartbeat {
   composeHash: Hex;
   instanceId: string;
   activeSandboxes: number;
   capacity: number;
 }
+/** Public registration and capacity state for a TEE node. */
 export interface TeeNode {
   nodeId: string;
   appId: Hex;

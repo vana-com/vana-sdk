@@ -227,6 +227,7 @@ export {
 } from "./protocol/jobs";
 export {
   JobEnvelopeError,
+  canonicalJobRequestBytes,
   sealJobRequest,
   openJobRequest,
   sealJobResult,

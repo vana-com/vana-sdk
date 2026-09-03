@@ -1,5 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
-import { bytesToHex, keccak256, toBytes, type Address } from "viem";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import {
+  bytesToHex,
+  keccak256,
+  toBytes,
+  type Address,
+  type LocalAccount,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { parseWeb3SignedHeader } from "../auth/web3-signed";
 import { computeBodyHash } from "../auth/web3-signed-builder";
@@ -29,7 +35,7 @@ import {
   type JobStatus,
   type JobSubmission,
 } from "./jobs";
-import { createJobsClient } from "./jobs-client";
+import { createJobsClient, type JobsBuilderAccount } from "./jobs-client";
 
 const GATEWAY_URL = "https://gateway.test";
 const CHAIN_ID = 14_800;
@@ -53,7 +59,7 @@ function jsonResponse(status: number, body: unknown): Response {
 function identityResponse(state: string = "sealed"): Response {
   return jsonResponse(200, {
     state,
-    identity: { publicKey: enclave.publicKey },
+    identity: { address: enclave.address, publicKey: enclave.publicKey },
   });
 }
 
@@ -131,6 +137,47 @@ async function completedResponse(init?: RequestInit): Promise<Response> {
 }
 
 describe("createJobsClient", () => {
+  it("only types local accounts with public keys as builderAccount", () => {
+    expectTypeOf<JobsBuilderAccount>().toEqualTypeOf<LocalAccount>();
+  });
+
+  it("allows a local builderAccount to submit but not decrypt", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
+      if (String(input).includes("/v1/identity?")) return identityResponse();
+      const submission = JSON.parse(
+        new TextDecoder().decode(init?.body as Uint8Array),
+      ) as JobSubmission;
+      return jsonResponse(202, {
+        jobId: submission.jobId,
+        state: "queued",
+        created: true,
+      });
+    });
+    const client = createJobsClient({
+      gatewayUrl: GATEWAY_URL,
+      chainId: CHAIN_ID,
+      builderAccount: builder,
+      fetch: fetchFn,
+      ecies,
+      now: () => NOW,
+    });
+
+    const submitted = await client.submitRawRead({
+      owner: OWNER,
+      grantId: GRANT_ID,
+      scope: SCOPE,
+    });
+    expect(submitted.state).toBe("queued");
+    await expect(
+      client.openResult(
+        statusFor(submitted.jobId, "completed", {
+          resultCiphertext: "not-decrypted-without-a-key",
+        }),
+        { expect: { jobId: submitted.jobId } },
+      ),
+    ).rejects.toBeInstanceOf(JobRejectedError);
+  });
+
   it("submits a byte-bound raw read and returns an inline completed job", async () => {
     const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
@@ -163,6 +210,36 @@ describe("createJobsClient", () => {
       uri: "/v1/jobs",
       bodyHash: computeBodyHash(post?.[1]?.body as Uint8Array),
     });
+  });
+
+  it("rejects an inline job whose id differs from the submitted id", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async (input) => {
+      if (String(input).includes("/v1/identity?")) return identityResponse();
+      return jsonResponse(200, {
+        job: statusFor("00000000-0000-4000-8000-000000000099", "completed"),
+      });
+    });
+    const client = makeClient(fetchFn);
+
+    await expect(
+      client.submitRawRead({ owner: OWNER, grantId: GRANT_ID, scope: SCOPE }),
+    ).rejects.toBeInstanceOf(JobRejectedError);
+  });
+
+  it.each([
+    "https://gateway.test/api",
+    "https://gateway.test/?region=ca",
+    "https://gateway.test/#jobs",
+  ])("rejects a gateway URL that is not a bare origin: %s", (gatewayUrl) => {
+    expect(() =>
+      createJobsClient({
+        gatewayUrl,
+        chainId: CHAIN_ID,
+        builderPrivateKey: BUILDER_PRIVATE_KEY,
+        fetch: vi.fn<typeof fetch>(),
+        ecies,
+      }),
+    ).toThrow(JobRejectedError);
   });
 
   it("performs an inline submit and decrypt as one readRaw call", async () => {
@@ -288,6 +365,57 @@ describe("createJobsClient", () => {
       JobNotFoundError,
     );
   });
+
+  it.each([
+    { owner: "" },
+    { grantId: "" },
+    { scope: "" },
+    { operation: "unknown" },
+  ])("rejects a truncated or invalid job status: %o", async (override) => {
+    const fetchFn = vi.fn<typeof fetch>(async () =>
+      jsonResponse(200, {
+        job: { ...statusFor("job-1", "running"), ...override },
+      }),
+    );
+    const client = makeClient(fetchFn);
+
+    await expect(client.getJob("job-1")).rejects.toBeInstanceOf(
+      JobRejectedError,
+    );
+  });
+
+  it.each([
+    {
+      address: "not-an-address",
+      publicKey: enclave.publicKey,
+    },
+    {
+      address: enclave.address,
+      publicKey: builder.publicKey,
+    },
+  ])(
+    "rejects a malformed or mismatched enclave identity: %o",
+    async (identity) => {
+      const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
+        if (String(input).includes("/v1/identity?")) {
+          return jsonResponse(200, { state: "sealed", identity });
+        }
+        const submission = JSON.parse(
+          new TextDecoder().decode(init?.body as Uint8Array),
+        ) as JobSubmission;
+        return jsonResponse(202, {
+          jobId: submission.jobId,
+          state: "queued",
+          created: true,
+        });
+      });
+      const client = makeClient(fetchFn);
+
+      await expect(
+        client.submitRawRead({ owner: OWNER, grantId: GRANT_ID, scope: SCOPE }),
+      ).rejects.toBeInstanceOf(JobRejectedError);
+    },
+  );
 
   it("wraps a fetch failure in JobTransportError", async () => {
     const fetchFn = vi.fn<typeof fetch>(async () => {

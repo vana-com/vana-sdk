@@ -13,6 +13,8 @@ export const NODE_ENTRY_POINTS = [
   // Server-only direct read/payment helpers.
   "src/direct/escrow-payment.ts",
   "src/direct/personal-server-read.ts",
+  // Builder jobs client (server-side; encrypts with a builder private key).
+  "src/protocol/jobs-client.ts",
   // Session Relay service integration (builder and app handoff clients).
   "src/session-relay.ts",
 ];

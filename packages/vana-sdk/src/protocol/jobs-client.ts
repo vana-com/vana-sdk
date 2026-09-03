@@ -10,8 +10,14 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { isHex, type Address, type Hex, type LocalAccount } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import {
+  isAddress,
+  isHex,
+  type Address,
+  type Hex,
+  type LocalAccount,
+} from "viem";
+import { privateKeyToAccount, publicKeyToAddress } from "viem/accounts";
 import {
   buildWeb3SignedHeader,
   computeBodyHash,
@@ -40,6 +46,7 @@ import type { IdentityResponse } from "./identity";
 import {
   CLAIM_POLL_FLOOR_MS,
   DEFAULT_JOB_DEADLINE_SECONDS,
+  JOB_OPERATIONS,
   JOB_PROTOCOL_VERSION,
   JOB_STATES,
   MAX_INLINE_RESULT_BYTES,
@@ -47,15 +54,12 @@ import {
   MAX_WAIT_SECONDS,
   type JobRequest,
   type JobResult,
+  type JobOperation,
   type JobState,
   type JobStatus,
   type JobSubmission,
 } from "./jobs";
-import {
-  resolveWriteSigner,
-  type ViemWriteWalletClient,
-  type WriteSignerSource,
-} from "./write-signer";
+import { resolveWriteSigner, type WriteSignerSource } from "./write-signer";
 
 const IDENTITY_PATH = "/v1/identity";
 const JOBS_PATH = "/v1/jobs";
@@ -83,8 +87,8 @@ const TERMINAL_JOB_STATES: ReadonlySet<JobState> = new Set([
   "cancelled",
 ]);
 
-/** A viem local account or wallet client accepted as the builder signer. */
-export type JobsBuilderAccount = LocalAccount | ViemWriteWalletClient;
+/** A viem local account that exposes the public key required by job requests. */
+export type JobsBuilderAccount = Extract<LocalAccount, WriteSignerSource>;
 
 /** Configuration captured by {@link createJobsClient}. */
 export interface JobsClientOptions {
@@ -94,7 +98,11 @@ export interface JobsClientOptions {
   chainId: number;
   /** Raw builder private key, used for signing and result decryption. */
   builderPrivateKey?: Hex;
-  /** viem local account or wallet client used for signing. */
+  /**
+   * viem local account used for signing. Its public key supports submission,
+   * but without `builderPrivateKey` this client cannot decrypt results:
+   * `openResult` and `readRaw` reject while submit/status/wait remain usable.
+   */
   builderAccount?: JobsBuilderAccount;
   /** HTTP implementation; defaults to `globalThis.fetch`. */
   fetch?: typeof fetch;
@@ -189,6 +197,8 @@ export interface JobsClient {
    * @param job - Terminal job status containing `resultCiphertext`.
    * @param options - Expected plaintext job, scope, and version bindings.
    * @returns The validated plaintext job result.
+   * @remarks Decryption requires `builderPrivateKey`; `builderAccount` alone
+   *   only supports submission, status reads, and waiting.
    * @throws {JobRejectedError} When ciphertext or a raw private key is unavailable.
    * @throws {JobEnvelopeError} When decrypted protocol fields or bindings differ.
    */
@@ -199,6 +209,9 @@ export interface JobsClient {
    *
    * @param params - Raw-read request plus polling controls.
    * @returns The decrypted, binding-checked job result.
+   * @remarks This convenience flow decrypts the result and therefore requires
+   *   `builderPrivateKey`; a client configured only with `builderAccount`
+   *   cannot call `readRaw`.
    * @throws {JobsClientError} When submission, polling, or decryption setup fails.
    * @throws {JobEnvelopeError} When decrypted result bindings differ.
    *
@@ -237,11 +250,17 @@ function normalizeGateway(gatewayUrl: string): {
 } {
   try {
     const url = new URL(gatewayUrl);
+    if (url.pathname !== "/" || url.search !== "" || url.hash !== "") {
+      throw new JobRejectedError(
+        "gatewayUrl must be an origin without a path, query, or fragment",
+      );
+    }
     return {
-      baseUrl: gatewayUrl.replace(/\/+$/, ""),
+      baseUrl: url.origin,
       audience: url.origin,
     };
   } catch (error) {
+    if (error instanceof JobRejectedError) throw error;
     throw new JobRejectedError(
       "gatewayUrl must be an absolute URL",
       undefined,
@@ -265,10 +284,7 @@ function sourcePublicKey(source: WriteSignerSource): Hex | undefined {
   if (isRecord(source) && typeof source["publicKey"] === "string") {
     return source["publicKey"] as Hex;
   }
-  const account = isRecord(source) ? source["account"] : undefined;
-  return isRecord(account) && typeof account["publicKey"] === "string"
-    ? (account["publicKey"] as Hex)
-    : undefined;
+  return undefined;
 }
 
 function resolveBuilder(options: JobsClientOptions): {
@@ -393,9 +409,14 @@ async function rejectedResponse(
 function requireStatus(value: unknown, status: number): JobStatus {
   if (
     !isRecord(value) ||
-    typeof value["jobId"] !== "string" ||
+    !isNonEmptyString(value["jobId"]) ||
     typeof value["state"] !== "string" ||
-    !JOB_STATES.includes(value["state"] as JobState)
+    !JOB_STATES.includes(value["state"] as JobState) ||
+    !isNonEmptyString(value["owner"]) ||
+    !isNonEmptyString(value["grantId"]) ||
+    !isNonEmptyString(value["scope"]) ||
+    !isNonEmptyString(value["operation"]) ||
+    !JOB_OPERATIONS.includes(value["operation"] as JobOperation)
   ) {
     throw new JobRejectedError(
       "Gateway response did not contain a job status",
@@ -403,6 +424,30 @@ function requireStatus(value: unknown, status: number): JobStatus {
     );
   }
   return value as unknown as JobStatus;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function hasMatchingIdentityKey(value: Record<string, unknown>): boolean {
+  const address = value["address"];
+  const publicKey = value["publicKey"];
+  if (
+    typeof address !== "string" ||
+    !isAddress(address) ||
+    typeof publicKey !== "string" ||
+    !isHex(publicKey)
+  ) {
+    return false;
+  }
+  try {
+    return (
+      publicKeyToAddress(publicKey).toLowerCase() === address.toLowerCase()
+    );
+  } catch {
+    return false;
+  }
 }
 
 function jobDeadline(job: JobStatus): number | undefined {
@@ -433,6 +478,11 @@ function requireFiniteDuration(value: number, field: string): number {
  * @param options - Gateway, chain, builder signer, and injectable adapters.
  * @returns A client bound to the configured builder and Gateway.
  * @throws {JobRejectedError} When configuration or signer shape is invalid.
+ *
+ * @remarks
+ * This client is Node-only. `builderPrivateKey` supports the complete flow;
+ * `builderAccount` alone supports submit/status/wait but cannot decrypt, so
+ * `openResult` and `readRaw` require the raw private key.
  *
  * @example
  * ```typescript
@@ -485,14 +535,19 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
     if (
       !isRecord(body) ||
       body["state"] !== SEALED_IDENTITY_STATE ||
-      !isRecord(body["identity"]) ||
-      typeof body["identity"]["publicKey"] !== "string" ||
-      !isHex(body["identity"]["publicKey"])
+      !isRecord(body["identity"])
     ) {
       throw new OwnerNotReadyError("Owner identity is not sealed", {
         state: isRecord(body) ? body["state"] : undefined,
       });
     }
+    if (!hasMatchingIdentityKey(body["identity"])) {
+      throw new JobRejectedError(
+        "Gateway returned a malformed or mismatched owner identity",
+        response.status,
+      );
+    }
+    // Full TDX/KMS evidence verification awaits provisioned trust anchors and is intentionally outside this driver-matching client.
     return body["identity"] as unknown as IdentityResponse["identity"];
   }
 
@@ -577,6 +632,12 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
       const body = await responseBody(response);
       if (response.status === HTTP_OK && isRecord(body)) {
         const job = requireStatus(body["job"], response.status);
+        if (job.jobId !== jobId) {
+          throw new JobRejectedError(
+            "Gateway returned a job id that does not match the submission",
+            response.status,
+          );
+        }
         return { jobId, state: job.state, job };
       }
       if (

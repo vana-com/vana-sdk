@@ -16,8 +16,9 @@ import {
   sealJobRequest,
   sealJobResult,
 } from "../crypto/envelope/job";
+import { serializeECIES } from "../crypto/ecies/interface";
 import { NodeECIESUint8Provider } from "../crypto/ecies/node";
-import { fromBase64 } from "../utils/encoding";
+import { fromBase64, toBase64 } from "../utils/encoding";
 import {
   CLAIM_POLL_FLOOR_MS,
   DEFAULT_JOB_DEADLINE_SECONDS,
@@ -61,6 +62,13 @@ const APP_ID = bytesToHex(new Uint8Array(20).fill(4));
 const COMPOSE_HASH = bytesToHex(new Uint8Array(32).fill(5));
 const JOB_ID = "018f47d2-a321-7e10-b528-24e5ef8a624b";
 const NOW = "2026-09-03T12:00:00.000Z";
+const ecies = new NodeECIESUint8Provider();
+
+// Wire format pin: iv||ephemPub||ct||mac, base64. Regenerate only with the protocol.
+const REQUEST_CIPHERTEXT_FIXTURE =
+  "PLB8RPVnQTshYNvvb7WwDwSDwusNTuFVlHZMTsNRO9fW8Ii8dxJCGD2ipHGS0edmoKrLJjdQ6LgJFbXiAG2LhWqWdLjGcELAcG0M4VllgjDS8/TSzPuA4DK4Iwa76EZbl1T6V9Tf40kBCXfFhkOjyvw3hZW/cyvFk49I1jjXLqYrBJzwxzUha/G1wehWaZgOs30UiMC3zuPJYizspSTCTOucLxyvr+ojGJw6q4bBx5O53lhy7Wv7XUjdEwVf/XwSYLabwKBhNvvXr3yaZ0Bo/9vRIlIj+DMdRdm+xO+JHX4knypGiqBa3z0jxH5Z+R8dgSC6DrBiC+8nc/l+oVuhwqfKcVkMcDnDaOpAZW6XxSbX3AErwgj9Qq00EqJ7zvH03xoBHT6bPAYKM36XpDP/njVQjNH4/Z137DO50HU/Wi2k/jtbSNsv12OLPFURjje+J5VAvUQ/lZk/EXMdzhq5NMeUxOYWmmvDgKoTHo3ZZF8ca3rHZ9YDp6QnptT6acQwXyQFK9KPN5+U6tX/LUuHAOlOIkDAgukIx2NOFTATYcLnZd2h5NQ4sxZxLEhiiGZ0eAGkthSwNmb8805aDL8PIpklqE4k/eRSGuNmqvkiSf6hVSp6ssXarDf9U+kM3r+lWVkV55hTZZp6y7ujrjfhFqe0GV5mDB1Ok1o+c51ysoG0YL77YrFT1azhkR1QT1Sq+XLZSnNkkSx8sAyE56HH9H977yGbtU+Hd4u1Dyq08b0Pfa3cd2T6khJEgVjd9y6+cQ8HGqJVT6w0IEsz5MtOVuT7vot08L+o7uv54PMrbJo66lcx1Pxy8pzBe69pY6vDvN7oiQaXLjXdnC5YBkfu/ShaVWFSfCg0tFEMJu14xn+CBlXvWSCuEaQ/S4s8jsir9Q==";
+const RESULT_CIPHERTEXT_FIXTURE =
+  "0T4gw2djHW/Ps2fCLYDxeQQSQNSqi7NvLfy2ALLQt4Gclhn+tCwNJsZ09K1jGnZ+UGVyPj/8I+FcIhIiE88F8QdEhO/lJziE7O7nc4ie6AcVfCpY08S8jOOT41G487Lar+cvpLHH7UbA0avDOO2+rqF66JrL0np68sKE5JTzdYSw8gqGzGSHxQBgu21cUmwlGw5nbfwvJxeCnT3G5L5jIZYOV2WFOEfwtKISt3+XJKnmmD62Y0TmnfGFiyT3NEz8d66TVC+w8QVGMssA5qzZmHd1q0mrXk2jlNAbks6gbTyTJLxTf3YkxDq3UBtoV5GkCLpSXtGGjaBrwmOnKmMF80OdJQzsSAyakJoYDk2N/Llls8C6gMQ/4aqnbaMl5nzbag==";
 
 const canonicalVectorRequest: JobRequest = {
   v: 1,
@@ -206,6 +214,20 @@ const teeNode: TeeNode = {
   lastHeartbeatAt: NOW,
 };
 
+async function encryptRaw(plaintext: string, publicKey: Hex): Promise<string> {
+  const encrypted = await ecies.encrypt(
+    fromHex(publicKey, "bytes"),
+    new TextEncoder().encode(plaintext),
+  );
+  return toBase64(fromHex(`0x${serializeECIES(encrypted)}` as Hex, "bytes"));
+}
+
+function tamperCiphertext(ciphertext: string): string {
+  const bytes = fromBase64(ciphertext);
+  bytes[bytes.length - 1] ^= 1;
+  return toBase64(bytes);
+}
+
 describe("job protocol constants", () => {
   it("matches the contract literals", () => {
     expect(JOB_PROTOCOL_VERSION).toBe(1);
@@ -280,11 +302,57 @@ describe("canonicalJobRequestBytes", () => {
       canonicalJobRequestBytes(canonicalVectorRequest),
     );
   });
+
+  it("pins non-ASCII scope as UTF-8", () => {
+    const unicodeRequest: JobRequest = {
+      ...canonicalVectorRequest,
+      scope: "profilé.ｅmail",
+    };
+    const bytes = canonicalJobRequestBytes(unicodeRequest);
+
+    // Wire pins shared by the Gateway and PS worker; update only with the protocol.
+    expect(new TextDecoder().decode(bytes)).toBe(
+      '{"builder":"0x0000000000000000000000000000000000000002","builderPublicKey":"0x1234","deadline":"2026-01-01T00:00:00.000Z","grantId":"0x0000000000000000000000000000000000000000000000000000000000000000","jobId":"00000000-0000-4000-8000-000000000001","operation":"raw_read","owner":"0x0000000000000000000000000000000000000001","pinnedVersion":null,"scope":"profilé.ｅmail","v":1}',
+    );
+    expect(bytesToHex(sha256(bytes))).toBe(
+      "0xa0207ad59041c224b1deb24439ac2055da66fdb77884dcee15ad08d5fb594b37",
+    );
+  });
+
+  it.each([
+    [
+      "absent",
+      {
+        v: request.v,
+        jobId: request.jobId,
+        owner: request.owner,
+        builder: request.builder,
+        builderPublicKey: request.builderPublicKey,
+        grantId: request.grantId,
+        scope: request.scope,
+        operation: request.operation,
+        deadline: request.deadline,
+      },
+    ],
+    ["undefined", { ...request, pinnedVersion: undefined }],
+  ])("rejects pinnedVersion when %s", async (_kind, invalidRequest) => {
+    expect(() =>
+      canonicalJobRequestBytes(invalidRequest as unknown as JobRequest),
+    ).toThrow("missing pinnedVersion");
+    await expect(
+      sealJobRequest(
+        {
+          request: invalidRequest as unknown as JobRequest,
+          auth: requestEnvelope.auth,
+        },
+        ENCLAVE.publicKey,
+        ecies,
+      ),
+    ).rejects.toThrow("missing pinnedVersion");
+  });
 });
 
 describe("job ECIES envelopes", () => {
-  const ecies = new NodeECIESUint8Provider();
-
   it("round-trips a request", async () => {
     const ciphertext = await sealJobRequest(
       requestEnvelope,
@@ -294,6 +362,16 @@ describe("job ECIES envelopes", () => {
 
     await expect(
       openJobRequest(ciphertext, fromHex(ENCLAVE_PRIVATE_KEY, "bytes"), ecies),
+    ).resolves.toEqual(requestEnvelope);
+  });
+
+  it("opens the pinned request ciphertext fixture", async () => {
+    await expect(
+      openJobRequest(
+        REQUEST_CIPHERTEXT_FIXTURE,
+        fromHex(ENCLAVE_PRIVATE_KEY, "bytes"),
+        ecies,
+      ),
     ).resolves.toEqual(requestEnvelope);
   });
 
@@ -319,6 +397,14 @@ describe("job ECIES envelopes", () => {
 
     await expect(
       openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+        jobId: JOB_ID,
+      }),
+    ).resolves.toEqual(result);
+  });
+
+  it("opens the pinned result ciphertext fixture", async () => {
+    await expect(
+      openJobResult(RESULT_CIPHERTEXT_FIXTURE, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
       }),
     ).resolves.toEqual(result);
@@ -357,6 +443,127 @@ describe("job ECIES envelopes", () => {
     await expect(
       openJobRequest(ciphertext, fromHex(OTHER_PRIVATE_KEY, "bytes"), ecies),
     ).rejects.toThrow();
+  });
+
+  it("rejects a result opened with the wrong private key", async () => {
+    const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
+
+    await expect(
+      openJobResult(sealed.ciphertext, OTHER_PRIVATE_KEY, ecies, {
+        jobId: JOB_ID,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects tampered request and result ciphertext", async () => {
+    const requestCiphertext = await sealJobRequest(
+      requestEnvelope,
+      ENCLAVE.publicKey,
+      ecies,
+    );
+    const sealedResult = await sealJobResult(result, BUILDER.publicKey, ecies);
+
+    await expect(
+      openJobRequest(
+        tamperCiphertext(requestCiphertext),
+        fromHex(ENCLAVE_PRIVATE_KEY, "bytes"),
+        ecies,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      openJobResult(
+        tamperCiphertext(sealedResult.ciphertext),
+        BUILDER_PRIVATE_KEY,
+        ecies,
+        { jobId: JOB_ID },
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("rejects non-JSON and array request plaintext", async () => {
+    const notJson = await encryptRaw("not JSON", ENCLAVE.publicKey);
+    const array = await encryptRaw("[]", ENCLAVE.publicKey);
+
+    await expect(
+      openJobRequest(notJson, fromHex(ENCLAVE_PRIVATE_KEY, "bytes"), ecies),
+    ).rejects.toThrow("malformed JSON");
+    await expect(
+      openJobRequest(array, fromHex(ENCLAVE_PRIVATE_KEY, "bytes"), ecies),
+    ).rejects.toThrow("expected an object");
+  });
+
+  it("rejects envelopes missing request or auth", async () => {
+    const missingRequest = await encryptRaw(
+      JSON.stringify({ auth: requestEnvelope.auth }),
+      ENCLAVE.publicKey,
+    );
+    const missingAuth = await encryptRaw(
+      JSON.stringify({ request }),
+      ENCLAVE.publicKey,
+    );
+
+    await expect(
+      openJobRequest(
+        missingRequest,
+        fromHex(ENCLAVE_PRIVATE_KEY, "bytes"),
+        ecies,
+      ),
+    ).rejects.toThrow("missing request");
+    await expect(
+      openJobRequest(missingAuth, fromHex(ENCLAVE_PRIVATE_KEY, "bytes"), ecies),
+    ).rejects.toThrow("missing auth");
+  });
+
+  it.each([
+    ["unknownField", { ...request, unknownField: true }],
+    ["operation", { ...request, operation: "unknown" }],
+    ["deadline", { ...request, deadline: "not-a-date" }],
+    ["owner", { ...request, owner: "not-an-address" }],
+  ])("rejects an invalid request %s on open", async (field, invalidRequest) => {
+    const ciphertext = await encryptRaw(
+      JSON.stringify({ auth: requestEnvelope.auth, request: invalidRequest }),
+      ENCLAVE.publicKey,
+    );
+
+    await expect(
+      openJobRequest(ciphertext, fromHex(ENCLAVE_PRIVATE_KEY, "bytes"), ecies),
+    ).rejects.toThrow(field);
+  });
+
+  it("rejects a Date deadline on seal", async () => {
+    await expect(
+      sealJobRequest(
+        {
+          ...requestEnvelope,
+          request: {
+            ...request,
+            deadline: new Date(),
+          } as unknown as JobRequest,
+        },
+        ENCLAVE.publicKey,
+        ecies,
+      ),
+    ).rejects.toThrow("deadline");
+  });
+
+  it("rejects an unknown result field on seal and open", async () => {
+    const resultWithUnknown = { ...result, unknownField: true };
+
+    await expect(
+      sealJobResult(
+        resultWithUnknown as unknown as JobResult,
+        BUILDER.publicKey,
+        ecies,
+      ),
+    ).rejects.toThrow("unknownField");
+
+    const ciphertext = await encryptRaw(
+      JSON.stringify(resultWithUnknown),
+      BUILDER.publicKey,
+    );
+    await expect(
+      openJobResult(ciphertext, BUILDER_PRIVATE_KEY, ecies, { jobId: JOB_ID }),
+    ).rejects.toThrow("unknownField");
   });
 
   it("rejects a result whose job ID does not match", async () => {
@@ -408,12 +615,49 @@ describe("job ECIES envelopes", () => {
     },
   );
 
-  it("hashes and measures the decoded ciphertext bytes", async () => {
+  it("accepts an expected null version and skips an undefined version", async () => {
+    const nullResult = { ...result, version: null };
+    const sealedNull = await sealJobResult(
+      nullResult,
+      BUILDER.publicKey,
+      ecies,
+    );
+    const sealedString = await sealJobResult(result, BUILDER.publicKey, ecies);
+
+    await expect(
+      openJobResult(sealedNull.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+        jobId: JOB_ID,
+        version: null,
+      }),
+    ).resolves.toEqual(nullResult);
+    await expect(
+      openJobResult(sealedString.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+        jobId: JOB_ID,
+        version: undefined,
+      }),
+    ).resolves.toEqual(result);
+  });
+
+  it("pins the result ciphertext hash and CBC wire size", async () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
     const rawCiphertext = fromBase64(sealed.ciphertext);
+    const plaintext = new TextEncoder().encode(
+      JSON.stringify({
+        v: result.v,
+        jobId: result.jobId,
+        scope: result.scope,
+        version: result.version,
+        contentType: result.contentType,
+        body: result.body,
+      }),
+    );
+    const blockSize = 16;
+    const ciphertextLength =
+      (Math.floor(plaintext.length / blockSize) + 1) * blockSize;
 
+    expect(sealed.size).toBe(16 + 65 + ciphertextLength + 32);
+    expect(sealed.hash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(sealed.hash).toBe(bytesToHex(sha256(rawCiphertext)));
-    expect(sealed.size).toBe(rawCiphertext.length);
   });
 
   it("rejects unsupported versions and missing required fields", async () => {
@@ -421,10 +665,12 @@ describe("job ECIES envelopes", () => {
       ...requestEnvelope,
       request: { ...request, v: 2 },
     } as unknown as JobRequestEnvelope;
-    const requestCiphertext = await sealJobRequest(
-      badRequest,
+    await expect(
+      sealJobRequest(badRequest, ENCLAVE.publicKey, ecies),
+    ).rejects.toThrow("Unsupported job request version: 2");
+    const requestCiphertext = await encryptRaw(
+      JSON.stringify(badRequest),
       ENCLAVE.publicKey,
-      ecies,
     );
     await expect(
       openJobRequest(
@@ -435,13 +681,15 @@ describe("job ECIES envelopes", () => {
     ).rejects.toThrow("Unsupported job request version: 2");
 
     const badResult = { ...result, body: undefined } as unknown as JobResult;
-    const sealedResult = await sealJobResult(
-      badResult,
+    await expect(
+      sealJobResult(badResult, BUILDER.publicKey, ecies),
+    ).rejects.toThrow("Invalid job result: missing body");
+    const resultCiphertext = await encryptRaw(
+      JSON.stringify(badResult),
       BUILDER.publicKey,
-      ecies,
     );
     await expect(
-      openJobResult(sealedResult.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(resultCiphertext, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
       }),
     ).rejects.toThrow("Invalid job result: missing body");

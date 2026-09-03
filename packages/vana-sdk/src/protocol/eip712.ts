@@ -111,6 +111,19 @@ export function escrowPaymentDomain(
   );
 }
 
+/**
+ * Domain for a gateway-authorized escrow withdrawal.
+ *
+ * Withdrawals use the escrow contract as their verifying contract, just like
+ * generic payments. The distinct primary type prevents a payment signature
+ * from authorizing a withdrawal.
+ */
+export function withdrawAuthorizationDomain(
+  config: DataPortabilityGatewayConfig,
+): TypedDataDomain {
+  return escrowPaymentDomain(config);
+}
+
 // grantVersion is a monotonic uint256 nonce per (grantor, grantee) pair. The
 // gateway rejects any registration whose version is <= the stored value,
 // which is the replay-attack defence now that re-registering the same pair
@@ -168,6 +181,23 @@ export const GENERIC_PAYMENT_TYPES = {
     { name: "asset", type: "address" },
     { name: "amount", type: "uint256" },
     { name: "paymentNonce", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * Authorization consumed by `POST /v1/escrow/withdraw`.
+ *
+ * The current escrow contract always pays `account` itself. Do not add an
+ * unsigned recipient field: a future recipient capability must be introduced
+ * as a new, signed protocol type after the contract and gateway support it.
+ */
+export const WITHDRAW_AUTHORIZATION_TYPES = {
+  WithdrawAuthorization: [
+    { name: "account", type: "address" },
+    { name: "asset", type: "address" },
+    { name: "amount", type: "uint256" },
+    { name: "withdrawNonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
   ],
 } as const;
 
@@ -238,6 +268,33 @@ export interface GenericPaymentMessage {
   asset: `0x${string}`;
   amount: bigint;
   paymentNonce: bigint;
+}
+
+/** EIP-712 message authorizing a withdrawal of an account's escrow balance. */
+export interface WithdrawAuthorizationMessage {
+  /** The escrow account to debit and the withdrawal recipient. */
+  account: `0x${string}`;
+  /** Native VANA sentinel or the ERC-20 asset contract. */
+  asset: `0x${string}`;
+  /** Base-unit amount. */
+  amount: bigint;
+  /** Caller-managed, strictly increasing nonce for newly accepted intents. */
+  withdrawNonce: bigint;
+  /** Unix seconds. Bounds first acceptance; exact accepted retries remain valid. */
+  deadline: bigint;
+}
+
+/** Builds the typed data a wallet must sign before calling the withdraw API. */
+export function buildWithdrawAuthorizationTypedData(
+  config: DataPortabilityGatewayConfig,
+  message: WithdrawAuthorizationMessage,
+) {
+  return {
+    domain: withdrawAuthorizationDomain(config),
+    types: WITHDRAW_AUTHORIZATION_TYPES,
+    primaryType: "WithdrawAuthorization" as const,
+    message,
+  };
 }
 
 export interface AddDataMessage {

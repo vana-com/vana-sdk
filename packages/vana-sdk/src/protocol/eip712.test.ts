@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { keccak256, recoverTypedDataAddress, toBytes } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import {
   ADD_DATA_TYPES,
   BUILDER_REGISTRATION_TYPES,
@@ -8,12 +10,15 @@ import {
   NATIVE_VANA_ASSET,
   RECORD_DATA_ACCESS_TYPES,
   SERVER_REGISTRATION_TYPES,
+  WITHDRAW_AUTHORIZATION_TYPES,
   builderRegistrationDomain,
+  buildWithdrawAuthorizationTypedData,
   dataRegistryDomain,
   escrowPaymentDomain,
   grantRegistrationDomain,
   grantRevocationDomain,
   serverRegistrationDomain,
+  withdrawAuthorizationDomain,
   type DataPortabilityGatewayConfig,
 } from "./eip712";
 
@@ -52,6 +57,9 @@ describe("Data Portability EIP-712 helpers", () => {
     expect(escrowPaymentDomain(CONFIG)).toMatchObject({
       verifyingContract: CONFIG.contracts.dataPortabilityEscrow,
     });
+    expect(withdrawAuthorizationDomain(CONFIG)).toEqual(
+      escrowPaymentDomain(CONFIG),
+    );
   });
 
   it("exposes the native VANA asset sentinel", () => {
@@ -93,6 +101,13 @@ describe("Data Portability EIP-712 helpers", () => {
       { name: "amount", type: "uint256" },
       { name: "paymentNonce", type: "uint256" },
     ]);
+    expect(WITHDRAW_AUTHORIZATION_TYPES.WithdrawAuthorization).toEqual([
+      { name: "account", type: "address" },
+      { name: "asset", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "withdrawNonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ]);
     expect(ADD_DATA_TYPES.AddData).toEqual([
       { name: "ownerAddress", type: "address" },
       { name: "scope", type: "string" },
@@ -107,5 +122,27 @@ describe("Data Portability EIP-712 helpers", () => {
       { name: "accessor", type: "address" },
       { name: "recordId", type: "bytes32" },
     ]);
+  });
+
+  it("builds a signed withdrawal authorization without a recipient", async () => {
+    const account = privateKeyToAccount(
+      keccak256(toBytes("vana-sdk-escrow-test")),
+    );
+    const typedData = buildWithdrawAuthorizationTypedData(CONFIG, {
+      account: account.address,
+      asset: NATIVE_VANA_ASSET,
+      amount: 42n,
+      withdrawNonce: 7n,
+      deadline: 1_800_000_000n,
+    });
+
+    expect(typedData.message).not.toHaveProperty("recipient");
+    const signature = await account.signTypedData(typedData);
+    const recovered = await recoverTypedDataAddress({
+      ...typedData,
+      signature,
+    });
+
+    expect(recovered).toBe(account.address);
   });
 });

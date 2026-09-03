@@ -107,4 +107,27 @@ if [[ ! -d "$policy_dir/.git" ]]; then
   trap - EXIT
 fi
 
+# `.husky/pre-push` (run) and `npm run setup` (prepare) predate the thin stub
+# and call modes the central bootstrap does not have; its install mode also
+# refuses husky's core.hooksPath. Serve both from the validated cache here.
+case "${1:-}" in
+  prepare)
+    exec "$policy_dir/scripts/install-pre-push.sh" prepare \
+      --shared-dir "$policy_dir" \
+      --repo "$(git rev-parse --show-toplevel)" \
+      --ref "$CENTRAL_POLICY_SHA"
+    ;;
+  run)
+    shift
+    "$policy_dir/scripts/verify-gitleaks.sh" "$policy_dir/.tools/gitleaks" >/dev/null 2>&1 || {
+      printf 'Policy is not prepared; run `npm run setup` before pushing.\n' >&2
+      exit 2
+    }
+    exec env \
+      VANA_SECRET_SCAN_HOME="$policy_dir" \
+      VANA_SECRET_SCAN_EXPECTED_SHA="$CENTRAL_POLICY_SHA" \
+      "$policy_dir/hooks/pre-push" "$@"
+    ;;
+esac
+
 exec env VANA_POLICY_SHA="$CENTRAL_POLICY_SHA" "$policy_dir/scripts/bootstrap.sh" "$@"

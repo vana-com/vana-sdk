@@ -767,7 +767,8 @@ describe("createGatewayClient", () => {
           balance: "1000",
           pendingAmount: "200",
           authorizedAmount: "300",
-          availableAmount: "700",
+          withdrawingAmount: "100",
+          availableAmount: "600",
           updatedAt: "2026-05-08T00:00:00.000Z",
         },
       ],
@@ -776,9 +777,13 @@ describe("createGatewayClient", () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(balanceBody));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      createGatewayClient("https://g").getEscrowBalance("0xpayer"),
-    ).resolves.toEqual(balanceBody);
+    const balance =
+      await createGatewayClient("https://g").getEscrowBalance("0xpayer");
+    expect(balance).toEqual(balanceBody);
+    expect(balance.balances[0]).toMatchObject({
+      withdrawingAmount: "100",
+      availableAmount: "600",
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://g/v1/escrow/balance?account=0xpayer",
     );

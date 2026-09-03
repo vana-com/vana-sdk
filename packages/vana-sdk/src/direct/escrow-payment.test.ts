@@ -139,9 +139,6 @@ describe("authorizeGrantPayment", () => {
     const signTypedData = vi.fn(async () => "0xsig" as `0x${string}`);
     const cfg: EscrowPaymentConfig = {
       client: {
-        submitDeposit: vi.fn(),
-        getEscrowBalance: vi.fn(),
-        syncEscrowBalance: vi.fn(),
         payForOp,
       },
       escrowContract: ESCROW,
@@ -262,9 +259,6 @@ describe("generic escrow payment operations", () => {
     const signTypedData = vi.fn(async () => "0xsig" as `0x${string}`);
     const cfg: EscrowPaymentConfig = {
       client: {
-        submitDeposit: vi.fn(),
-        getEscrowBalance: vi.fn(),
-        syncEscrowBalance: vi.fn(),
         payForOp,
       },
       escrowContract: ESCROW,

@@ -50,6 +50,8 @@ const OWNER_KEY = testKey("owner");
 const OWNER_ACCOUNT = privateKeyToAccount(OWNER_KEY);
 const MASTER_SIGNATURE = `0x${"ab".repeat(65)}` as Hex;
 const ZERO_HASH = `0x${"00".repeat(32)}` as Hex;
+const R_NIBBLE_INDEX = 3;
+const NIBBLE_FLIP_MASK = 1;
 
 function dstackSignature(signature: Hex): Hex {
   const v = Number.parseInt(signature.slice(-2), 16);
@@ -57,8 +59,10 @@ function dstackSignature(signature: Hex): Hex {
 }
 
 function tamper(signature: Hex): Hex {
-  const replacement = signature[2] === "0" ? "1" : "0";
-  return `0x${replacement}${signature.slice(3)}` as Hex;
+  const flipped = (
+    Number.parseInt(signature[R_NIBBLE_INDEX], 16) ^ NIBBLE_FLIP_MASK
+  ).toString(16);
+  return `${signature.slice(0, R_NIBBLE_INDEX)}${flipped}${signature.slice(R_NIBBLE_INDEX + 1)}` as Hex;
 }
 
 async function identityFixture(): Promise<{
@@ -161,11 +165,36 @@ describe("signature-chain preimages", () => {
 });
 
 describe("verifyEnclaveIdentityEvidence", () => {
+  it("freezes fleet trust anchors", () => {
+    const anchors = ENCLAVE_TRUST_ANCHORS[CHAIN_ID];
+
+    expect(Object.isFrozen(ENCLAVE_TRUST_ANCHORS)).toBe(true);
+    expect(Object.isFrozen(anchors)).toBe(true);
+    expect(Object.isFrozen(anchors?.appIds)).toBe(true);
+  });
+
   it("accepts a valid two-link dstack signature chain", async () => {
     const { evidence, anchors, expected } = await identityFixture();
 
     await expect(
       verifyEnclaveIdentityEvidence(evidence, anchors, expected),
+    ).resolves.toBeUndefined();
+  });
+
+  it("accepts a compressed KMS root anchor", async () => {
+    const { evidence, anchors, expected } = await identityFixture();
+    const kmsRootPubkey = toHex(
+      secp256k1.ProjectivePoint.fromHex(
+        fromHex(anchors.kmsRootPubkey, "bytes"),
+      ).toRawBytes(true),
+    );
+
+    await expect(
+      verifyEnclaveIdentityEvidence(
+        evidence,
+        { ...anchors, kmsRootPubkey },
+        expected,
+      ),
     ).resolves.toBeUndefined();
   });
 
@@ -189,16 +218,41 @@ describe("verifyEnclaveIdentityEvidence", () => {
     ).rejects.toThrow("Invalid enclave identity epoch");
   });
 
-  it("rejects a malformed public key", async () => {
+  it.each(["0xzz", "compressed"])(
+    "rejects a malformed public key (%s)",
+    async (kind) => {
+      const { evidence, anchors, expected } = await identityFixture();
+      const publicKey =
+        kind === "compressed"
+          ? toHex(
+              secp256k1.ProjectivePoint.fromHex(
+                fromHex(evidence.publicKey, "bytes"),
+              ).toRawBytes(true),
+            )
+          : (kind as Hex);
+
+      await expect(
+        verifyEnclaveIdentityEvidence(
+          { ...evidence, publicKey },
+          anchors,
+          expected,
+        ),
+      ).rejects.toThrow(
+        "Public key must be a 65-byte uncompressed secp256k1 key",
+      );
+    },
+  );
+
+  it("rejects a malformed KMS root anchor", async () => {
     const { evidence, anchors, expected } = await identityFixture();
 
     await expect(
       verifyEnclaveIdentityEvidence(
-        { ...evidence, publicKey: "0xzz" },
-        anchors,
+        evidence,
+        { ...anchors, kmsRootPubkey: "0x1234" },
         expected,
       ),
-    ).rejects.toThrow("Enclave public key does not match its address");
+    ).rejects.toThrow("KMS root trust anchor is malformed");
   });
 
   it("rejects an address that does not match the public key", async () => {
@@ -227,7 +281,7 @@ describe("verifyEnclaveIdentityEvidence", () => {
         anchors,
         expected,
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow("KMS root public key does not match the trust anchor");
   });
 
   it("rejects an invalid link 0 encoding", async () => {
@@ -256,7 +310,7 @@ describe("verifyEnclaveIdentityEvidence", () => {
         anchors,
         expected,
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow("KMS root public key does not match the trust anchor");
   });
 
   it("rejects an invalid link 1 encoding", async () => {
@@ -315,10 +369,15 @@ describe("verifyEnclaveIdentityEvidence", () => {
   it("fails closed while fleet anchors are empty", async () => {
     const { evidence, expected } = await identityFixture();
     const anchors = ENCLAVE_TRUST_ANCHORS[CHAIN_ID];
+    const signatureChain: [Hex, Hex] = ["0x", "0x"];
 
     expect(anchors).toBeDefined();
     await expect(
-      verifyEnclaveIdentityEvidence(evidence, anchors, expected),
+      verifyEnclaveIdentityEvidence(
+        { ...evidence, signatureChain },
+        anchors,
+        expected,
+      ),
     ).rejects.toThrow("KMS root trust anchor is not provisioned");
   });
 
@@ -429,7 +488,7 @@ describe("master-signature delivery", () => {
 
     await expect(
       buildMasterSignatureDelivery(evidence, MASTER_SIGNATURE),
-    ).rejects.toThrow();
+    ).rejects.toThrow("Invalid yParityOrV value");
   });
 
   it("encrypts and decrypts an exact JSON delivery round trip", async () => {
@@ -480,4 +539,26 @@ describe("master-signature delivery", () => {
       );
     },
   );
+
+  it("rejects a public key that is not the delivery enclave", async () => {
+    const { evidence } = await identityFixture();
+    const masterSignature = await OWNER_ACCOUNT.signMessage({
+      message: MASTER_KEY_MESSAGE,
+    });
+    const delivery = await buildMasterSignatureDelivery(
+      evidence,
+      masterSignature,
+    );
+    const publicKey = privateKeyToAccount(OTHER_PRIVATE_KEY).publicKey;
+
+    await expect(
+      encryptMasterSignatureDelivery(
+        delivery,
+        publicKey,
+        new NodeECIESUint8Provider(),
+      ),
+    ).rejects.toThrow(
+      "Public key does not belong to the delivery's enclave address",
+    );
+  });
 });

@@ -50,6 +50,8 @@ const OWNER_KEY = testKey("owner");
 const OWNER_ACCOUNT = privateKeyToAccount(OWNER_KEY);
 const MASTER_SIGNATURE = `0x${"ab".repeat(65)}` as Hex;
 const ZERO_HASH = `0x${"00".repeat(32)}` as Hex;
+const R_NIBBLE_INDEX = 3;
+const NIBBLE_FLIP_MASK = 1;
 
 function dstackSignature(signature: Hex): Hex {
   const v = Number.parseInt(signature.slice(-2), 16);
@@ -57,8 +59,10 @@ function dstackSignature(signature: Hex): Hex {
 }
 
 function tamper(signature: Hex): Hex {
-  const replacement = signature[2] === "0" ? "1" : "0";
-  return `0x${replacement}${signature.slice(3)}` as Hex;
+  const flipped = (
+    Number.parseInt(signature[R_NIBBLE_INDEX], 16) ^ NIBBLE_FLIP_MASK
+  ).toString(16);
+  return `${signature.slice(0, R_NIBBLE_INDEX)}${flipped}${signature.slice(R_NIBBLE_INDEX + 1)}` as Hex;
 }
 
 async function identityFixture(): Promise<{
@@ -277,7 +281,7 @@ describe("verifyEnclaveIdentityEvidence", () => {
         anchors,
         expected,
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow("KMS root public key does not match the trust anchor");
   });
 
   it("rejects an invalid link 0 encoding", async () => {
@@ -306,7 +310,7 @@ describe("verifyEnclaveIdentityEvidence", () => {
         anchors,
         expected,
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow("KMS root public key does not match the trust anchor");
   });
 
   it("rejects an invalid link 1 encoding", async () => {
@@ -484,7 +488,7 @@ describe("master-signature delivery", () => {
 
     await expect(
       buildMasterSignatureDelivery(evidence, MASTER_SIGNATURE),
-    ).rejects.toThrow();
+    ).rejects.toThrow("Invalid yParityOrV value");
   });
 
   it("encrypts and decrypts an exact JSON delivery round trip", async () => {

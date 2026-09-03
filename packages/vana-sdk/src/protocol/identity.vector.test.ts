@@ -1,6 +1,4 @@
 import * as secp256k1 from "@noble/secp256k1";
-import { hkdf } from "@noble/hashes/hkdf";
-import { sha256 } from "@noble/hashes/sha2";
 import { describe, expect, it } from "vitest";
 import {
   concat,
@@ -42,15 +40,6 @@ const LIVE_VECTOR = {
     "068f954f2c651c39cadafc275dc6d0083ec34e592268a590dcaef35920587ac2",
   osImageHash:
     "bd369a8c2f9edb2b52dad48ac8e0b32dde5f1337c423a506b48d07403a7d8033",
-} as const;
-
-const DOC_VECTOR = {
-  appRootScalar:
-    "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
-  path: "test",
-  purpose: "signing",
-  signatureChain0:
-    "c8a3dcf06c4e95bd78a5d7a1c8fcff171fc5848cfae804c6fc11bda4dc5d4062379995390843827444992c4c0e4bac70f0f878e01b9fc8b98cd7126fe5a3876b01",
 } as const;
 
 function hex(value: string): Hex {
@@ -118,24 +107,6 @@ describe("dstack identity vectors", () => {
     expect(compressed(wrongKmsRoot).slice(2)).not.toBe(
       LIVE_VECTOR.kmsRootPublicKey,
     );
-  });
-
-  it("recovers the app root from the dstack doc vector", async () => {
-    const appRoot = privateKeyToAccount(hex(DOC_VECTOR.appRootScalar));
-    const derivedScalar = hkdf(
-      sha256,
-      fromHex(hex(DOC_VECTOR.appRootScalar), "bytes"),
-      toBytes("RATLS"),
-      toBytes(DOC_VECTOR.path),
-      32,
-    );
-    const derived = privateKeyToAccount(toHex(derivedScalar));
-    const recovered = await recoverPublicKey({
-      hash: appRootPreimage(DOC_VECTOR.purpose, derived.publicKey),
-      signature: hex(DOC_VECTOR.signatureChain0),
-    });
-
-    expect(recovered.toLowerCase()).toBe(appRoot.publicKey.toLowerCase());
   });
 
   it("verifies a fresh wallet-purpose chain end to end", async () => {

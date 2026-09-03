@@ -35,7 +35,13 @@ import { fromBase64, toBase64 } from "../../utils/encoding";
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 
-/** A decrypted job envelope did not match the jobs protocol. */
+/**
+ * Indicates that a job envelope does not match the jobs protocol.
+ *
+ * @param message - Description of the invalid field or protocol binding.
+ * @returns A protocol-specific error instance.
+ * @throws {JobEnvelopeError} Thrown by envelope helpers when validation fails.
+ */
 export class JobEnvelopeError extends Error {
   constructor(message: string) {
     super(message);
@@ -64,7 +70,13 @@ function canonicalJsonBytes(value: unknown): Uint8Array {
   return textEncoder.encode(JSON.stringify(sortJsonKeys(value)));
 }
 
-/** Canonical UTF-8 JSON bytes committed to by a job request's auth body hash. */
+/**
+ * Returns the canonical UTF-8 JSON bytes committed to by the auth body hash.
+ *
+ * @param request - Job request to validate and serialize canonically.
+ * @returns Recursively key-sorted, whitespace-free UTF-8 JSON bytes.
+ * @throws {JobEnvelopeError} If the request does not match the protocol schema.
+ */
 export function canonicalJobRequestBytes(request: JobRequest): Uint8Array {
   validateJobRequest(request);
   return canonicalJsonBytes(request);
@@ -247,6 +259,35 @@ function validateResult(value: unknown): JobResult {
   return value as unknown as JobResult;
 }
 
+/**
+ * Encrypts a validated job request envelope for a Personal Server enclave.
+ *
+ * The Gateway and PS worker verify
+ * `auth.bodyHash === sha256(canonicalJobRequestBytes(request))`.
+ *
+ * @param envelope - Request and builder Web3Signed authorization to encrypt.
+ * @param enclavePublicKey - Public key returned by `GET /v1/identity?owner=`.
+ * @param ecies - Injected ECIES implementation.
+ * @returns Base64 ciphertext encoded as `iv || ephemPub || ct || mac`.
+ * @throws {JobEnvelopeError} If the envelope or request is invalid.
+ * @throws If ECIES encryption fails or the enclave public key is invalid.
+ *
+ * @example
+ * ```ts
+ * const identity = await fetch(`/v1/identity?owner=${owner}`).then((response) =>
+ *   response.json(),
+ * );
+ * const requestCiphertext = await sealJobRequest(
+ *   requestEnvelope,
+ *   identity.publicKey,
+ *   ecies,
+ * );
+ * await fetch("/v1/jobs", {
+ *   method: "POST",
+ *   body: JSON.stringify({ ...submission, requestCiphertext }),
+ * });
+ * ```
+ */
 export async function sealJobRequest(
   envelope: JobRequestEnvelope,
   enclavePublicKey: Hex,
@@ -259,6 +300,16 @@ export async function sealJobRequest(
   return encryptedBytesToBase64(encrypted);
 }
 
+/**
+ * Decrypts and validates a job request envelope inside the enclave.
+ *
+ * @param ciphertext - Base64 `iv || ephemPub || ct || mac` ciphertext.
+ * @param privateKey - Enclave key bytes, supplied as `Uint8Array` so the agent can zero them after use.
+ * @param ecies - Injected ECIES implementation.
+ * @returns The validated request envelope exactly as parsed from plaintext.
+ * @throws {JobEnvelopeError} If plaintext is malformed or fails schema validation.
+ * @throws If ciphertext decoding or ECIES decryption fails.
+ */
 export async function openJobRequest(
   ciphertext: string,
   privateKey: Uint8Array,
@@ -273,6 +324,20 @@ export async function openJobRequest(
   );
 }
 
+/**
+ * Encrypts a validated job result for its builder and describes the ciphertext.
+ *
+ * `hash` is lowercase `0x` SHA-256 of decoded ciphertext bytes, not the
+ * `sha256:` prefix used by Web3Signed `bodyHash`. `size` is that decoded byte
+ * length. They equal the Gateway's `resultHash` and `resultSize`.
+ *
+ * @param result - Job result to validate and encrypt.
+ * @param builderPublicKey - Builder wallet public key recorded in the request.
+ * @param ecies - Injected ECIES implementation.
+ * @returns Base64 ciphertext plus its Gateway-compatible hash and size.
+ * @throws {JobEnvelopeError} If the result does not match the protocol schema.
+ * @throws If ECIES encryption fails or the builder public key is invalid.
+ */
 export async function sealJobResult(
   result: JobResult,
   builderPublicKey: Hex,
@@ -288,6 +353,31 @@ export async function sealJobResult(
   return { ciphertext, hash: bytesToHex(sha256(bytes)), size: bytes.length };
 }
 
+/**
+ * Decrypts a job result and verifies its builder-visible protocol bindings.
+ *
+ * The builder private key is a `Hex` wallet key. For `expect.version`,
+ * `undefined` skips the check while `null` requires a null result version.
+ *
+ * @param ciphertext - Base64 `iv || ephemPub || ct || mac` ciphertext.
+ * @param builderPrivateKey - Builder's wallet private key as hex.
+ * @param ecies - Injected ECIES implementation.
+ * @param expect - Required job ID and optional scope and version bindings.
+ * @returns The validated result when every supplied binding matches.
+ * @throws {JobEnvelopeError} If plaintext is malformed, invalid, or a binding differs.
+ * @throws If ciphertext decoding or ECIES decryption fails.
+ *
+ * @example
+ * ```ts
+ * const result = await openJobResult(
+ *   status.resultCiphertext,
+ *   key,
+ *   ecies,
+ *   { jobId, scope },
+ * );
+ * const body = fromBase64(result.body);
+ * ```
+ */
 export async function openJobResult(
   ciphertext: string,
   builderPrivateKey: Hex,

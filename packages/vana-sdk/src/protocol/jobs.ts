@@ -30,6 +30,7 @@ export const JOB_STATES = [
   "cancelled",
 ] as const;
 export type JobState = (typeof JOB_STATES)[number];
+/** Payment lifecycle recorded for a queued job. */
 export type PaymentState = "none" | "reserved" | "settled";
 export const DEFAULT_LEASE_SECONDS = 30;
 export const MAX_LEASE_SECONDS = 300;
@@ -76,6 +77,7 @@ export interface JobSubmission {
   /** Base64 ECIES from `sealJobRequest`. */
   requestCiphertext: string;
 }
+/** Response from `GET /v1/jobs/:id`. */
 export interface JobStatus {
   jobId: string;
   state: JobState;
@@ -98,10 +100,12 @@ export interface JobStatus {
   resultSize?: number;
   resultExpiresAt?: string;
 }
+/** Request body for `POST /v1/jobs/claim`. */
 export interface ClaimRequest {
   leaseSeconds?: number;
   capacity?: number;
 }
+/** Claimed job and owner identity returned by `POST /v1/jobs/claim`. */
 export interface ClaimResponse {
   job: {
     jobId: string;
@@ -125,10 +129,12 @@ export interface ClaimResponse {
     sealedEnvelope: SealedEnvelope;
   };
 }
+/** Request body for `POST /v1/jobs/:id/heartbeat`. */
 export interface HeartbeatRequest {
   leaseSeconds?: number;
   fencingToken: number;
 }
+/** Request body for `POST /v1/jobs/:id/complete`. */
 export interface CompleteRequest {
   fencingToken: number;
   resultHash: Hex;
@@ -138,10 +144,12 @@ export interface CompleteRequest {
   /** v1.1, R2. */
   resultHandle?: string;
 }
+/** Request body for `POST /v1/jobs/:id/fail`. */
 export interface FailRequest {
   fencingToken: number;
   reason: string; /* <= 1024, fail.ts:16 */
 }
+/** Successful response from a fenced job write endpoint. */
 export interface FencedResponse {
   success: true;
   jobId: string;
@@ -157,7 +165,9 @@ export interface JobResult {
   contentType: string;
   body: string; /* base64 */
 }
+/** Admission lifecycle of a registered TEE node. */
 export type TeeNodeState = "pending" | "admitted" | "draining" | "removed";
+/** Request body for `POST /v1/tee-nodes`. */
 export interface TeeNodeRegistration {
   nodeId: string;
   appId: Hex;
@@ -166,12 +176,14 @@ export interface TeeNodeRegistration {
   capacity: number;
   secret: string;
 }
+/** Request body for `POST /v1/tee-nodes/:id/heartbeat`. */
 export interface TeeNodeHeartbeat {
   composeHash: Hex;
   instanceId: string;
   activeSandboxes: number;
   capacity: number;
 }
+/** Public registration and capacity state for a TEE node. */
 export interface TeeNode {
   nodeId: string;
   appId: Hex;

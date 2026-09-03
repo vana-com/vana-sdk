@@ -172,6 +172,21 @@ function compressPublicKey(publicKey: Hex): Uint8Array {
   ).toRawBytes(true);
 }
 
+function sameKey(a: Hex, b: Hex): boolean {
+  return toHex(compressPublicKey(a)) === toHex(compressPublicKey(b));
+}
+
+function assertUncompressedKey(publicKey: Hex): void {
+  const hex = publicKey.slice(2);
+  if (
+    hex.length !== UNCOMPRESSED_PUBLIC_KEY_BYTES * 2 ||
+    !hex.startsWith(UNCOMPRESSED_PUBLIC_KEY_PREFIX) ||
+    !/^[0-9a-fA-F]+$/.test(hex)
+  ) {
+    throw new Error("Public key must be a 65-byte uncompressed secp256k1 key");
+  }
+}
+
 /**
  * Builds keccak256(utf8(purpose || ":" || lowercase hex(compressed pubkey))).
  *
@@ -260,6 +275,11 @@ export async function verifyEnclaveIdentityEvidence(
     throw new Error("Unexpected enclave wallet purpose");
   }
 
+  if (anchors.kmsRootPubkey === "0x") {
+    throw new Error("KMS root trust anchor is not provisioned");
+  }
+
+  assertUncompressedKey(evidence.publicKey);
   const derivedAddress = publicKeyToAddress(evidence.publicKey);
 
   if (getAddress(derivedAddress) !== getAddress(evidence.address)) {
@@ -277,11 +297,14 @@ export async function verifyEnclaveIdentityEvidence(
     1,
   );
 
-  if (anchors.kmsRootPubkey === "0x") {
-    throw new Error("KMS root trust anchor is not provisioned");
+  let matchesAnchor: boolean;
+  try {
+    matchesAnchor = sameKey(kmsRootPublicKey, anchors.kmsRootPubkey);
+  } catch {
+    throw new Error("KMS root trust anchor is malformed");
   }
 
-  if (kmsRootPublicKey !== anchors.kmsRootPubkey.toLowerCase()) {
+  if (!matchesAnchor) {
     throw new Error("KMS root public key does not match the trust anchor");
   }
 
@@ -331,17 +354,6 @@ export async function buildMasterSignatureDelivery(
   };
 }
 
-function assertUncompressedKey(publicKey: Hex): void {
-  const hex = publicKey.slice(2);
-  if (
-    hex.length !== UNCOMPRESSED_PUBLIC_KEY_BYTES * 2 ||
-    !hex.startsWith(UNCOMPRESSED_PUBLIC_KEY_PREFIX) ||
-    !/^[0-9a-fA-F]+$/.test(hex)
-  ) {
-    throw new Error("Public key must be a 65-byte uncompressed secp256k1 key");
-  }
-}
-
 /**
  * Encrypts a master-signature delivery in the SDK's ECIES wire format.
  *
@@ -349,6 +361,7 @@ function assertUncompressedKey(publicKey: Hex): void {
  * @param publicKey - Enclave 65-byte uncompressed public key.
  * @param ecies - Platform-specific ECIES provider.
  * @returns The 0x-prefixed serialized ciphertext.
+ * @throws When the public key is malformed or belongs to another enclave.
  */
 export async function encryptMasterSignatureDelivery(
   delivery: MasterSignatureDelivery,
@@ -356,6 +369,12 @@ export async function encryptMasterSignatureDelivery(
   ecies: ECIESProvider,
 ): Promise<Hex> {
   assertUncompressedKey(publicKey);
+
+  if (!isAddressEqual(publicKeyToAddress(publicKey), delivery.enclaveAddress)) {
+    throw new Error(
+      "Public key does not belong to the delivery's enclave address",
+    );
+  }
 
   const plaintext = toBytes(JSON.stringify(delivery));
   const encrypted = await ecies.encrypt(fromHex(publicKey, "bytes"), plaintext);

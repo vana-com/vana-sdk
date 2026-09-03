@@ -169,6 +169,23 @@ describe("verifyEnclaveIdentityEvidence", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("accepts a compressed KMS root anchor", async () => {
+    const { evidence, anchors, expected } = await identityFixture();
+    const kmsRootPubkey = toHex(
+      secp256k1.ProjectivePoint.fromHex(
+        fromHex(anchors.kmsRootPubkey, "bytes"),
+      ).toRawBytes(true),
+    );
+
+    await expect(
+      verifyEnclaveIdentityEvidence(
+        evidence,
+        { ...anchors, kmsRootPubkey },
+        expected,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("rejects an unsupported evidence version", async () => {
     const { evidence, anchors, expected } = await identityFixture();
 
@@ -189,16 +206,41 @@ describe("verifyEnclaveIdentityEvidence", () => {
     ).rejects.toThrow("Invalid enclave identity epoch");
   });
 
-  it("rejects a malformed public key", async () => {
+  it.each(["0xzz", "compressed"])(
+    "rejects a malformed public key (%s)",
+    async (kind) => {
+      const { evidence, anchors, expected } = await identityFixture();
+      const publicKey =
+        kind === "compressed"
+          ? toHex(
+              secp256k1.ProjectivePoint.fromHex(
+                fromHex(evidence.publicKey, "bytes"),
+              ).toRawBytes(true),
+            )
+          : (kind as Hex);
+
+      await expect(
+        verifyEnclaveIdentityEvidence(
+          { ...evidence, publicKey },
+          anchors,
+          expected,
+        ),
+      ).rejects.toThrow(
+        "Public key must be a 65-byte uncompressed secp256k1 key",
+      );
+    },
+  );
+
+  it("rejects a malformed KMS root anchor", async () => {
     const { evidence, anchors, expected } = await identityFixture();
 
     await expect(
       verifyEnclaveIdentityEvidence(
-        { ...evidence, publicKey: "0xzz" },
-        anchors,
+        evidence,
+        { ...anchors, kmsRootPubkey: "0x1234" },
         expected,
       ),
-    ).rejects.toThrow("Enclave public key does not match its address");
+    ).rejects.toThrow("KMS root trust anchor is malformed");
   });
 
   it("rejects an address that does not match the public key", async () => {
@@ -315,10 +357,15 @@ describe("verifyEnclaveIdentityEvidence", () => {
   it("fails closed while fleet anchors are empty", async () => {
     const { evidence, expected } = await identityFixture();
     const anchors = ENCLAVE_TRUST_ANCHORS[CHAIN_ID];
+    const signatureChain: [Hex, Hex] = ["0x", "0x"];
 
     expect(anchors).toBeDefined();
     await expect(
-      verifyEnclaveIdentityEvidence(evidence, anchors, expected),
+      verifyEnclaveIdentityEvidence(
+        { ...evidence, signatureChain },
+        anchors,
+        expected,
+      ),
     ).rejects.toThrow("KMS root trust anchor is not provisioned");
   });
 
@@ -480,4 +527,26 @@ describe("master-signature delivery", () => {
       );
     },
   );
+
+  it("rejects a public key that is not the delivery enclave", async () => {
+    const { evidence } = await identityFixture();
+    const masterSignature = await OWNER_ACCOUNT.signMessage({
+      message: MASTER_KEY_MESSAGE,
+    });
+    const delivery = await buildMasterSignatureDelivery(
+      evidence,
+      masterSignature,
+    );
+    const publicKey = privateKeyToAccount(OTHER_PRIVATE_KEY).publicKey;
+
+    await expect(
+      encryptMasterSignatureDelivery(
+        delivery,
+        publicKey,
+        new NodeECIESUint8Provider(),
+      ),
+    ).rejects.toThrow(
+      "Public key does not belong to the delivery's enclave address",
+    );
+  });
 });

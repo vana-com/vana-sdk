@@ -794,6 +794,18 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
               timeoutMs: params.timeoutMs,
               pollMs: params.pollMs,
             });
+      if (job.state !== "completed") {
+        throw new JobRejectedError(
+          `Job ${job.jobId} ended in state ${job.state}${job.failureReason ? `: ${job.failureReason}` : ""}`,
+          undefined,
+          null,
+          {
+            jobId: job.jobId,
+            state: job.state,
+            ...(job.failureReason ? { failureReason: job.failureReason } : {}),
+          },
+        );
+      }
       return client.openResult(job, {
         expect: {
           jobId: submitted.jobId,

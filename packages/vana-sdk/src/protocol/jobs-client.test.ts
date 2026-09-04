@@ -275,6 +275,43 @@ describe("createJobsClient", () => {
     });
   });
 
+  it.each([
+    ["failed", "enclave execution failed", "enclave execution failed"],
+    ["failed", null, undefined],
+    ["expired", null, undefined],
+    ["cancelled", null, undefined],
+  ] as const)(
+    "surfaces a %s job failure from readRaw",
+    async (state, failureReason, expectedReason) => {
+      const client = makeClient(vi.fn<typeof fetch>());
+      client.submitRawRead = vi.fn(async () => ({
+        jobId: "job-1",
+        state,
+        job: statusFor("job-1", state, { failureReason }),
+      }));
+
+      const rejected = client.readRaw({
+        owner: OWNER,
+        grantId: GRANT_ID,
+        scope: SCOPE,
+      });
+
+      await expect(rejected).rejects.toMatchObject({
+        name: "JobRejectedError",
+        code: "JOB_REJECTED",
+        message: expect.stringContaining(state),
+        details: {
+          jobId: "job-1",
+          state,
+          ...(expectedReason ? { failureReason: expectedReason } : {}),
+        },
+      });
+      if (expectedReason) {
+        await expect(rejected).rejects.toThrow(expectedReason);
+      }
+    },
+  );
+
   it("returns 202 and polls through running to a terminal job", async () => {
     let submittedJobId = "";
     let reads = 0;

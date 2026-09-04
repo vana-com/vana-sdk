@@ -371,8 +371,21 @@ describe("createJobsClient", () => {
       }
       if (url === `${GATEWAY_URL}/v1/jobs/${submittedJobId}`) {
         reads += 1;
+        const state = reads === 1 ? "running" : "completed";
         return jsonResponse(200, {
-          job: statusFor(submittedJobId, reads === 1 ? "running" : "completed"),
+          job: statusFor(
+            submittedJobId,
+            state,
+            state === "completed"
+              ? {
+                  result: makeHandle(submittedJobId, {
+                    bytes: new Uint8Array(),
+                    hash: bytesToHex(new Uint8Array(32)),
+                    size: 0,
+                  }),
+                }
+              : {},
+          ),
         });
       }
       throw new Error(`Unexpected request ${url}`);
@@ -521,6 +534,58 @@ describe("createJobsClient", () => {
     await expect(client.getJob("job-1")).rejects.toBeInstanceOf(
       JobRejectedError,
     );
+  });
+
+  it.each([
+    [
+      "missing hash",
+      {
+        ...makeHandle("job-1", {
+          bytes: new Uint8Array(),
+          hash: bytesToHex(new Uint8Array(32)),
+          size: 0,
+        }),
+        hash: undefined,
+      },
+    ],
+    [
+      "non-numeric size",
+      {
+        ...makeHandle("job-1", {
+          bytes: new Uint8Array(),
+          hash: bytesToHex(new Uint8Array(32)),
+          size: 0,
+        }),
+        size: "0",
+      },
+    ],
+  ])("rejects a completed job result handle with %s", async (_case, result) => {
+    const fetchFn = vi.fn<typeof fetch>(async () =>
+      jsonResponse(200, {
+        job: { ...statusFor("job-1", "completed"), result },
+      }),
+    );
+    const client = makeClient(fetchFn);
+
+    await expect(client.getJob("job-1")).rejects.toBeInstanceOf(
+      JobRejectedError,
+    );
+  });
+
+  it("accepts a completed job with a valid result handle", async () => {
+    const result = makeHandle("job-1", {
+      bytes: new Uint8Array(),
+      hash: bytesToHex(new Uint8Array(32)),
+      size: 0,
+    });
+    const fetchFn = vi.fn<typeof fetch>(async () =>
+      jsonResponse(200, {
+        job: statusFor("job-1", "completed", { result }),
+      }),
+    );
+    const client = makeClient(fetchFn);
+
+    await expect(client.getJob("job-1")).resolves.toMatchObject({ result });
   });
 
   it.each([

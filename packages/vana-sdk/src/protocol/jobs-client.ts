@@ -436,7 +436,8 @@ function requireStatus(value: unknown, status: number): JobStatus {
     !isNonEmptyString(value["grantId"]) ||
     !isNonEmptyString(value["scope"]) ||
     !isNonEmptyString(value["operation"]) ||
-    !JOB_OPERATIONS.includes(value["operation"] as JobOperation)
+    !JOB_OPERATIONS.includes(value["operation"] as JobOperation) ||
+    (value["state"] === "completed" && !isResultHandle(value["result"]))
   ) {
     throw new JobRejectedError(
       "Gateway response did not contain a job status",
@@ -448,6 +449,29 @@ function requireStatus(value: unknown, status: number): JobStatus {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+function isResultHandle(value: unknown): value is ResultHandle {
+  if (
+    !isRecord(value) ||
+    !isNonEmptyString(value["objectKey"]) ||
+    !isNonEmptyString(value["url"]) ||
+    typeof value["size"] !== "number" ||
+    !Number.isInteger(value["size"]) ||
+    value["size"] < 0 ||
+    typeof value["hash"] !== "string" ||
+    !/^0x[0-9a-fA-F]{64}$/.test(value["hash"]) ||
+    typeof value["expiresAt"] !== "string" ||
+    Number.isNaN(Date.parse(value["expiresAt"]))
+  ) {
+    return false;
+  }
+  try {
+    const url = new URL(value["url"]);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 function hasMatchingIdentityKey(value: Record<string, unknown>): boolean {

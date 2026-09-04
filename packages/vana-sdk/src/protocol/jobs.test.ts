@@ -562,7 +562,8 @@ describe("job ECIES envelopes", () => {
     },
   );
 
-  // The >1 MiB ECIES round trip exceeds Vitest's default under V8 coverage.
+  // This took 8,334 ms locally under coverage; CI runners are slower, and this
+  // test has timed out there twice, so keep a deliberately large safety margin.
   it("round-trips a result body above 1 MiB", async () => {
     const largeResult: JobResult = {
       ...result,
@@ -579,7 +580,7 @@ describe("job ECIES envelopes", () => {
 
     expect(opened.body).toEqual(largeResult.body);
     expect(opened).toEqual(largeResult);
-  }, 20_000);
+  }, 60_000);
 
   it("opens the pinned result ciphertext fixture", async () => {
     await expect(

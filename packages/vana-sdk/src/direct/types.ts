@@ -214,10 +214,18 @@ export type AccessRequestStatusValue =
   | "denied"
   | "expired";
 
+/** Delivery path reported once an access request is ready. */
+export type AccessRequestDelivery = "enclave" | "personal_server";
+
 /** Result of {@link DirectDataController.getAccessRequestStatus}. */
 export interface AccessRequestStatus {
   /** Current lifecycle status of the request. */
   status: AccessRequestStatusValue;
+  /**
+   * Present once ready. `"enclave"` reads through the Gateway jobs API
+   * (`protocol/jobs` client), with no `personalServerUrl`.
+   */
+  delivery?: AccessRequestDelivery;
   /** Personal Server base URL — present once data is ready to read. */
   personalServerUrl?: string;
   /** Grant id covering the approved scope — present once data is ready to read. */

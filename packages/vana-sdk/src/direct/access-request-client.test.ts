@@ -320,6 +320,57 @@ describe("createDefaultAccessRequestClient", () => {
     });
   });
 
+  it("passes through enclave delivery without a Personal Server URL", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: {
+          status: "ready_for_read",
+          delivery: "enclave",
+          grantId: "0xgrant",
+          scope: "icloud_notes.notes",
+        },
+      })),
+    });
+
+    const status = await client.getAccessRequestStatus("dcr_9");
+
+    expect(status.delivery).toBe("enclave");
+    expect(status.personalServerUrl).toBeUndefined();
+  });
+
+  it("leaves delivery undefined when omitted", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: { status: "ready_for_read" },
+      })),
+    });
+
+    const status = await client.getAccessRequestStatus("dcr_9");
+
+    expect(status.delivery).toBeUndefined();
+  });
+
+  it("normalizes an unknown delivery to undefined", async () => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({
+        status: 200,
+        body: { status: "ready_for_read", delivery: "unknown" },
+      })),
+    });
+
+    const status = await client.getAccessRequestStatus("dcr_9");
+
+    expect(status.delivery).toBeUndefined();
+  });
+
   it("passes through the terminal completed status without downgrading it", async () => {
     const client = createDefaultAccessRequestClient({
       baseUrl: "https://app.vana.org",

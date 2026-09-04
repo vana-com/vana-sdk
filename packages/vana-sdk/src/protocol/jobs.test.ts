@@ -27,7 +27,6 @@ import {
   JOB_PROTOCOL_VERSION,
   JOB_STATES,
   MAX_ATTEMPTS,
-  MAX_INLINE_RESULT_BYTES,
   MAX_JOB_DEADLINE_SECONDS,
   MAX_LEASE_SECONDS,
   MAX_WAIT_SECONDS,
@@ -64,11 +63,13 @@ const JOB_ID = "018f47d2-a321-7e10-b528-24e5ef8a624b";
 const NOW = "2026-09-03T12:00:00.000Z";
 const ecies = new NodeECIESUint8Provider();
 
-// Wire format pin: iv||ephemPub||ct||mac, base64. Regenerate only with the protocol.
+// Request wire pin: base64(iv||ephemPub||ct||mac). Regenerate only with the protocol.
 const REQUEST_CIPHERTEXT_FIXTURE =
   "PLB8RPVnQTshYNvvb7WwDwSDwusNTuFVlHZMTsNRO9fW8Ii8dxJCGD2ipHGS0edmoKrLJjdQ6LgJFbXiAG2LhWqWdLjGcELAcG0M4VllgjDS8/TSzPuA4DK4Iwa76EZbl1T6V9Tf40kBCXfFhkOjyvw3hZW/cyvFk49I1jjXLqYrBJzwxzUha/G1wehWaZgOs30UiMC3zuPJYizspSTCTOucLxyvr+ojGJw6q4bBx5O53lhy7Wv7XUjdEwVf/XwSYLabwKBhNvvXr3yaZ0Bo/9vRIlIj+DMdRdm+xO+JHX4knypGiqBa3z0jxH5Z+R8dgSC6DrBiC+8nc/l+oVuhwqfKcVkMcDnDaOpAZW6XxSbX3AErwgj9Qq00EqJ7zvH03xoBHT6bPAYKM36XpDP/njVQjNH4/Z137DO50HU/Wi2k/jtbSNsv12OLPFURjje+J5VAvUQ/lZk/EXMdzhq5NMeUxOYWmmvDgKoTHo3ZZF8ca3rHZ9YDp6QnptT6acQwXyQFK9KPN5+U6tX/LUuHAOlOIkDAgukIx2NOFTATYcLnZd2h5NQ4sxZxLEhiiGZ0eAGkthSwNmb8805aDL8PIpklqE4k/eRSGuNmqvkiSf6hVSp6ssXarDf9U+kM3r+lWVkV55hTZZp6y7ujrjfhFqe0GV5mDB1Ok1o+c51ysoG0YL77YrFT1azhkR1QT1Sq+XLZSnNkkSx8sAyE56HH9H977yGbtU+Hd4u1Dyq08b0Pfa3cd2T6khJEgVjd9y6+cQ8HGqJVT6w0IEsz5MtOVuT7vot08L+o7uv54PMrbJo66lcx1Pxy8pzBe69pY6vDvN7oiQaXLjXdnC5YBkfu/ShaVWFSfCg0tFEMJu14xn+CBlXvWSCuEaQ/S4s8jsir9Q==";
-const RESULT_CIPHERTEXT_FIXTURE =
-  "0T4gw2djHW/Ps2fCLYDxeQQSQNSqi7NvLfy2ALLQt4Gclhn+tCwNJsZ09K1jGnZ+UGVyPj/8I+FcIhIiE88F8QdEhO/lJziE7O7nc4ie6AcVfCpY08S8jOOT41G487Lar+cvpLHH7UbA0avDOO2+rqF66JrL0np68sKE5JTzdYSw8gqGzGSHxQBgu21cUmwlGw5nbfwvJxeCnT3G5L5jIZYOV2WFOEfwtKISt3+XJKnmmD62Y0TmnfGFiyT3NEz8d66TVC+w8QVGMssA5qzZmHd1q0mrXk2jlNAbks6gbTyTJLxTf3YkxDq3UBtoV5GkCLpSXtGGjaBrwmOnKmMF80OdJQzsSAyakJoYDk2N/Llls8C6gMQ/4aqnbaMl5nzbag==";
+// Result wire pin: raw iv||ephemPub||ct||mac bytes (base64 only as test source notation).
+const RESULT_SEALED_BYTES_FIXTURE = fromBase64(
+  "0T4gw2djHW/Ps2fCLYDxeQQSQNSqi7NvLfy2ALLQt4Gclhn+tCwNJsZ09K1jGnZ+UGVyPj/8I+FcIhIiE88F8QdEhO/lJziE7O7nc4ie6AcVfCpY08S8jOOT41G487Lar+cvpLHH7UbA0avDOO2+rqF66JrL0np68sKE5JTzdYSw8gqGzGSHxQBgu21cUmwlGw5nbfwvJxeCnT3G5L5jIZYOV2WFOEfwtKISt3+XJKnmmD62Y0TmnfGFiyT3NEz8d66TVC+w8QVGMssA5qzZmHd1q0mrXk2jlNAbks6gbTyTJLxTf3YkxDq3UBtoV5GkCLpSXtGGjaBrwmOnKmMF80OdJQzsSAyakJoYDk2N/Llls8C6gMQ/4aqnbaMl5nzbag==",
+);
 
 const canonicalVectorRequest: JobRequest = {
   v: 1,
@@ -125,10 +126,13 @@ const status: JobStatus = {
   claimedAt: NOW,
   completedAt: NOW,
   failureReason: null,
-  resultCiphertext: "cHVibGlj",
-  resultHash: HASH,
-  resultSize: 6,
-  resultExpiresAt: NOW,
+  result: {
+    objectKey: `jobresults/14800/${JOB_ID}`,
+    url: `https://storage.example.test/jobresults/14800/${JOB_ID}`,
+    size: 6,
+    hash: HASH,
+    expiresAt: NOW,
+  },
 };
 const claimRequest: ClaimRequest = { leaseSeconds: 30, capacity: 1 };
 const claimResponse: ClaimResponse = {
@@ -172,7 +176,7 @@ const completeRequest: CompleteRequest = {
   fencingToken: 1,
   resultHash: HASH,
   resultSize: 6,
-  resultCiphertext: "cHVibGlj",
+  resultObjectKey: `jobresults/14800/${JOB_ID}`,
 };
 const failRequest: FailRequest = { fencingToken: 1, reason: "public failure" };
 const fencedResponse: FencedResponse = {
@@ -222,10 +226,27 @@ async function encryptRaw(plaintext: string, publicKey: Hex): Promise<string> {
   return toBase64(fromHex(`0x${serializeECIES(encrypted)}` as Hex, "bytes"));
 }
 
+async function encryptRawBytes(
+  plaintext: string,
+  publicKey: Hex,
+): Promise<Uint8Array> {
+  const encrypted = await ecies.encrypt(
+    fromHex(publicKey, "bytes"),
+    new TextEncoder().encode(plaintext),
+  );
+  return fromHex(`0x${serializeECIES(encrypted)}` as Hex, "bytes");
+}
+
 function tamperCiphertext(ciphertext: string): string {
   const bytes = fromBase64(ciphertext);
   bytes[bytes.length - 1] ^= 1;
   return toBase64(bytes);
+}
+
+function tamperBytes(bytes: Uint8Array): Uint8Array {
+  const tampered = bytes.slice();
+  tampered[tampered.length - 1] ^= 1;
+  return tampered;
 }
 
 describe("job protocol constants", () => {
@@ -236,7 +257,6 @@ describe("job protocol constants", () => {
     expect(MAX_ATTEMPTS).toBe(3);
     expect(MAX_WAIT_SECONDS).toBe(25);
     expect(CLAIM_POLL_FLOOR_MS).toBe(1000);
-    expect(MAX_INLINE_RESULT_BYTES).toBe(1_048_576);
     expect(DEFAULT_JOB_DEADLINE_SECONDS).toBe(600);
     expect(MAX_JOB_DEADLINE_SECONDS).toBe(3600);
     expect(JOB_OPERATIONS).toEqual(["raw_read", "inference"]);
@@ -396,7 +416,7 @@ describe("job ECIES envelopes", () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
 
     await expect(
-      openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(sealed.bytes, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
       }),
     ).resolves.toEqual(result);
@@ -404,7 +424,7 @@ describe("job ECIES envelopes", () => {
 
   it("opens the pinned result ciphertext fixture", async () => {
     await expect(
-      openJobResult(RESULT_CIPHERTEXT_FIXTURE, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(RESULT_SEALED_BYTES_FIXTURE, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
       }),
     ).resolves.toEqual(result);
@@ -414,7 +434,7 @@ describe("job ECIES envelopes", () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
 
     await expect(
-      openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(sealed.bytes, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
         scope: result.scope,
         version: result.version,
@@ -427,7 +447,7 @@ describe("job ECIES envelopes", () => {
     const sealed = await sealJobResult(emptyResult, BUILDER.publicKey, ecies);
 
     await expect(
-      openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(sealed.bytes, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
       }),
     ).resolves.toEqual(emptyResult);
@@ -449,7 +469,7 @@ describe("job ECIES envelopes", () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
 
     await expect(
-      openJobResult(sealed.ciphertext, OTHER_PRIVATE_KEY, ecies, {
+      openJobResult(sealed.bytes, OTHER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
       }),
     ).rejects.toThrow();
@@ -472,7 +492,7 @@ describe("job ECIES envelopes", () => {
     ).rejects.toThrow();
     await expect(
       openJobResult(
-        tamperCiphertext(sealedResult.ciphertext),
+        tamperBytes(sealedResult.bytes),
         BUILDER_PRIVATE_KEY,
         ecies,
         { jobId: JOB_ID },
@@ -557,12 +577,12 @@ describe("job ECIES envelopes", () => {
       ),
     ).rejects.toThrow("unknownField");
 
-    const ciphertext = await encryptRaw(
+    const sealedBytes = await encryptRawBytes(
       JSON.stringify(resultWithUnknown),
       BUILDER.publicKey,
     );
     await expect(
-      openJobResult(ciphertext, BUILDER_PRIVATE_KEY, ecies, { jobId: JOB_ID }),
+      openJobResult(sealedBytes, BUILDER_PRIVATE_KEY, ecies, { jobId: JOB_ID }),
     ).rejects.toThrow("unknownField");
   });
 
@@ -570,7 +590,7 @@ describe("job ECIES envelopes", () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
 
     await expect(
-      openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(sealed.bytes, BUILDER_PRIVATE_KEY, ecies, {
         jobId: "different-job-id",
       }),
     ).rejects.toThrow(
@@ -582,7 +602,7 @@ describe("job ECIES envelopes", () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
 
     await expect(
-      openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(sealed.bytes, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
         scope: "profile.name",
       }),
@@ -605,7 +625,7 @@ describe("job ECIES envelopes", () => {
       );
 
       await expect(
-        openJobResult(sealed.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+        openJobResult(sealed.bytes, BUILDER_PRIVATE_KEY, ecies, {
           jobId: JOB_ID,
           version: expectedVersion,
         }),
@@ -625,13 +645,13 @@ describe("job ECIES envelopes", () => {
     const sealedString = await sealJobResult(result, BUILDER.publicKey, ecies);
 
     await expect(
-      openJobResult(sealedNull.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(sealedNull.bytes, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
         version: null,
       }),
     ).resolves.toEqual(nullResult);
     await expect(
-      openJobResult(sealedString.ciphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(sealedString.bytes, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
         version: undefined,
       }),
@@ -640,7 +660,6 @@ describe("job ECIES envelopes", () => {
 
   it("pins the result ciphertext hash and CBC wire size", async () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
-    const rawCiphertext = fromBase64(sealed.ciphertext);
     const plaintext = new TextEncoder().encode(
       JSON.stringify({
         v: result.v,
@@ -657,7 +676,7 @@ describe("job ECIES envelopes", () => {
 
     expect(sealed.size).toBe(16 + 65 + ciphertextLength + 32);
     expect(sealed.hash).toMatch(/^0x[0-9a-f]{64}$/);
-    expect(sealed.hash).toBe(bytesToHex(sha256(rawCiphertext)));
+    expect(sealed.hash).toBe(bytesToHex(sha256(sealed.bytes)));
   });
 
   it("rejects unsupported versions and missing required fields", async () => {
@@ -684,12 +703,12 @@ describe("job ECIES envelopes", () => {
     await expect(
       sealJobResult(badResult, BUILDER.publicKey, ecies),
     ).rejects.toThrow("Invalid job result: missing body");
-    const resultCiphertext = await encryptRaw(
+    const sealedResultBytes = await encryptRawBytes(
       JSON.stringify(badResult),
       BUILDER.publicKey,
     );
     await expect(
-      openJobResult(resultCiphertext, BUILDER_PRIVATE_KEY, ecies, {
+      openJobResult(sealedResultBytes, BUILDER_PRIVATE_KEY, ecies, {
         jobId: JOB_ID,
       }),
     ).rejects.toThrow("Invalid job result: missing body");

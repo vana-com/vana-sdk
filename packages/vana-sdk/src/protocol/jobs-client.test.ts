@@ -22,6 +22,7 @@ import {
   JobIdTakenError,
   JobNotFoundError,
   JobRejectedError,
+  JobResultIntegrityError,
   JobRequestTooLargeError,
   JobTimeoutError,
   JobTransportError,
@@ -34,11 +35,13 @@ import {
   type JobResult,
   type JobStatus,
   type JobSubmission,
+  type ResultHandle,
 } from "./jobs";
 import { createJobsClient, type JobsBuilderAccount } from "./jobs-client";
 import { userPsId } from "./identity";
 
 const GATEWAY_URL = "https://gateway.test";
+const STORAGE_URL = "https://storage.test";
 const CHAIN_ID = 14_800;
 const NOW = new Date("2026-09-03T12:00:00.000Z");
 const SCOPE = "profile.email";
@@ -55,6 +58,10 @@ function jsonResponse(status: number, body: unknown): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function bytesResponse(bytes: Uint8Array): Response {
+  return new Response(Uint8Array.from(bytes).buffer);
 }
 
 function identityResponse(
@@ -126,7 +133,10 @@ async function submissionFrom(init?: RequestInit): Promise<{
   return { submission, request: opened.request, auth: opened.auth };
 }
 
-async function completedResponse(init?: RequestInit): Promise<Response> {
+async function completedResponse(
+  init?: RequestInit,
+  capture?: (handle: ResultHandle, bytes: Uint8Array) => void,
+): Promise<Response> {
   const { request } = await submissionFrom(init);
   const result: JobResult = {
     v: JOB_PROTOCOL_VERSION,
@@ -137,14 +147,30 @@ async function completedResponse(init?: RequestInit): Promise<Response> {
     body: "eyJlbWFpbCI6ImFAZXhhbXBsZS5jb20ifQ==",
   };
   const sealed = await sealJobResult(result, builder.publicKey, ecies);
+  const handle = makeHandle(request.jobId, sealed);
+  capture?.(handle, sealed.bytes);
   return jsonResponse(200, {
     job: statusFor(request.jobId, "completed", {
       pinnedVersion: request.pinnedVersion,
-      resultCiphertext: sealed.ciphertext,
-      resultHash: sealed.hash,
-      resultSize: sealed.size,
+      result: handle,
     }),
   });
+}
+
+function makeHandle(
+  jobId: string,
+  sealed: { bytes: Uint8Array; hash: `0x${string}`; size: number },
+  overrides: Partial<ResultHandle> = {},
+): ResultHandle {
+  const objectKey = `jobresults/${CHAIN_ID}/${jobId}`;
+  return {
+    objectKey,
+    url: `${STORAGE_URL}/${objectKey}`,
+    size: sealed.size,
+    hash: sealed.hash,
+    expiresAt: new Date(NOW.getTime() + 60_000).toISOString(),
+    ...overrides,
+  };
 }
 
 describe("createJobsClient", () => {
@@ -179,17 +205,19 @@ describe("createJobsClient", () => {
       scope: SCOPE,
     });
     expect(submitted.state).toBe("queued");
+    const handle: ResultHandle = {
+      objectKey: `jobresults/${CHAIN_ID}/${submitted.jobId}`,
+      url: `${STORAGE_URL}/not-fetched-without-a-key`,
+      size: 1,
+      hash: bytesToHex(new Uint8Array(32)),
+      expiresAt: NOW.toISOString(),
+    };
     await expect(
-      client.openResult(
-        statusFor(submitted.jobId, "completed", {
-          resultCiphertext: "not-decrypted-without-a-key",
-        }),
-        { expect: { jobId: submitted.jobId } },
-      ),
+      client.openResult(handle, { expect: { jobId: submitted.jobId } }),
     ).rejects.toBeInstanceOf(JobRejectedError);
   });
 
-  it("submits a byte-bound raw read and returns an inline completed job", async () => {
+  it("submits a byte-bound raw read and returns a completed job", async () => {
     const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
       if (url.startsWith(`${GATEWAY_URL}/v1/identity?`)) {
@@ -223,7 +251,7 @@ describe("createJobsClient", () => {
     });
   });
 
-  it("rejects an inline job whose id differs from the submitted id", async () => {
+  it("rejects a completed job whose id differs from the submitted id", async () => {
     const fetchFn = vi.fn<typeof fetch>(async (input) => {
       if (String(input).includes("/v1/identity?")) return identityResponse();
       return jsonResponse(200, {
@@ -253,12 +281,20 @@ describe("createJobsClient", () => {
     ).toThrow(JobRejectedError);
   });
 
-  it("performs an inline submit and decrypt as one readRaw call", async () => {
-    const fetchFn = vi.fn<typeof fetch>(async (input, init) =>
-      String(input).includes("/v1/identity?")
-        ? identityResponse()
-        : completedResponse(init),
-    );
+  it("fetches raw sealed bytes without authorization in one readRaw call", async () => {
+    const objects = new Map<string, Uint8Array>();
+    const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/v1/identity?")) return identityResponse();
+      if (url.startsWith(`${GATEWAY_URL}/v1/jobs?`)) {
+        return completedResponse(init, (handle, bytes) => {
+          objects.set(handle.url, bytes);
+        });
+      }
+      const bytes = objects.get(url);
+      if (bytes) return bytesResponse(bytes);
+      throw new Error(`Unexpected request ${url}`);
+    });
     const client = makeClient(fetchFn);
 
     const result = await client.readRaw({
@@ -273,6 +309,11 @@ describe("createJobsClient", () => {
       version: "17",
       contentType: "application/json",
     });
+    const objectGet = fetchFn.mock.calls[2];
+    expect(objectGet?.[0]).toBe(
+      `${STORAGE_URL}/jobresults/${CHAIN_ID}/${result.jobId}`,
+    );
+    expect(objectGet?.[1]).toEqual({ method: "GET" });
   });
 
   it.each([
@@ -586,27 +627,132 @@ describe("createJobsClient", () => {
         body: "e30=",
       };
       const sealed = await sealJobResult(result, builder.publicKey, ecies);
-      const client = makeClient(vi.fn<typeof fetch>());
+      const client = makeClient(
+        vi.fn<typeof fetch>(async () => bytesResponse(sealed.bytes)),
+      );
 
       await expect(
-        client.openResult(
-          statusFor(result.jobId, "completed", {
-            resultCiphertext: sealed.ciphertext,
-          }),
-          { expect: expectBinding },
-        ),
+        client.openResult(makeHandle(result.jobId, sealed), {
+          expect: expectBinding,
+        }),
       ).rejects.toBeInstanceOf(JobEnvelopeError);
     },
   );
 
-  it("throws a typed error when a completed job has no inline ciphertext", async () => {
+  it("throws a typed error when a completed job has no result handle", async () => {
     const client = makeClient(vi.fn<typeof fetch>());
+    client.submitRawRead = vi.fn(async () => ({
+      jobId: "job-1",
+      state: "completed" as const,
+      job: statusFor("job-1", "completed"),
+    }));
 
     await expect(
-      client.openResult(statusFor("job-1", "completed"), {
-        expect: { jobId: "job-1" },
+      client.readRaw({
+        owner: OWNER,
+        grantId: GRANT_ID,
+        scope: SCOPE,
       }),
     ).rejects.toBeInstanceOf(JobRejectedError);
+  });
+
+  it("rejects a fetched result whose sha256 mismatches its handle", async () => {
+    const sealed = await sealJobResult(
+      {
+        v: JOB_PROTOCOL_VERSION,
+        jobId: "job-1",
+        scope: SCOPE,
+        version: "17",
+        contentType: "application/json",
+        body: "e30=",
+      },
+      builder.publicKey,
+      ecies,
+    );
+    const client = makeClient(
+      vi.fn<typeof fetch>(async () => bytesResponse(sealed.bytes)),
+    );
+    const badHash = bytesToHex(new Uint8Array(32).fill(7));
+
+    await expect(
+      client.openResult(makeHandle("job-1", sealed, { hash: badHash }), {
+        expect: { jobId: "job-1" },
+      }),
+    ).rejects.toMatchObject({
+      name: "JobResultIntegrityError",
+      code: "JOB_RESULT_INTEGRITY",
+      details: { expectedHash: badHash, actualHash: sealed.hash },
+    });
+  });
+
+  it("rejects a fetched result whose byte length mismatches its handle", async () => {
+    const sealed = await sealJobResult(
+      {
+        v: JOB_PROTOCOL_VERSION,
+        jobId: "job-1",
+        scope: SCOPE,
+        version: "17",
+        contentType: "application/json",
+        body: "e30=",
+      },
+      builder.publicKey,
+      ecies,
+    );
+    const client = makeClient(
+      vi.fn<typeof fetch>(async () => bytesResponse(sealed.bytes)),
+    );
+
+    await expect(
+      client.openResult(
+        makeHandle("job-1", sealed, { size: sealed.size + 1 }),
+        { expect: { jobId: "job-1" } },
+      ),
+    ).rejects.toBeInstanceOf(JobResultIntegrityError);
+  });
+
+  it("wraps a result object network failure as retryable transport error", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => {
+      throw new TypeError("network unavailable");
+    });
+    const client = makeClient(fetchFn);
+    const handle: ResultHandle = {
+      objectKey: `jobresults/${CHAIN_ID}/job-1`,
+      url: `${STORAGE_URL}/jobresults/${CHAIN_ID}/job-1`,
+      size: 1,
+      hash: bytesToHex(new Uint8Array(32)),
+      expiresAt: NOW.toISOString(),
+    };
+
+    await expect(
+      client.openResult(handle, { expect: { jobId: "job-1" } }),
+    ).rejects.toBeInstanceOf(JobTransportError);
+  });
+
+  it("does not classify a result decryption failure as retryable", async () => {
+    const sealed = await sealJobResult(
+      {
+        v: JOB_PROTOCOL_VERSION,
+        jobId: "job-1",
+        scope: SCOPE,
+        version: "17",
+        contentType: "application/json",
+        body: "e30=",
+      },
+      enclave.publicKey,
+      ecies,
+    );
+    const client = makeClient(
+      vi.fn<typeof fetch>(async () => bytesResponse(sealed.bytes)),
+    );
+
+    const error = await client
+      .openResult(makeHandle("job-1", sealed), {
+        expect: { jobId: "job-1" },
+      })
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(JobTransportError);
   });
 
   it("times out when a job never becomes terminal", async () => {

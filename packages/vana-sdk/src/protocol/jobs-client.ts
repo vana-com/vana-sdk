@@ -10,7 +10,9 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { sha256 } from "@noble/hashes/sha2";
 import {
+  bytesToHex,
   isAddress,
   isAddressEqual,
   isHex,
@@ -36,6 +38,7 @@ import {
   JobIdTakenError,
   JobNotFoundError,
   JobRejectedError,
+  JobResultIntegrityError,
   JobRequestTooLargeError,
   JobTimeoutError,
   JobTransportError,
@@ -50,7 +53,6 @@ import {
   JOB_OPERATIONS,
   JOB_PROTOCOL_VERSION,
   JOB_STATES,
-  MAX_INLINE_RESULT_BYTES,
   MAX_JOB_DEADLINE_SECONDS,
   MAX_WAIT_SECONDS,
   type JobRequest,
@@ -59,6 +61,7 @@ import {
   type JobState,
   type JobStatus,
   type JobSubmission,
+  type ResultHandle,
 } from "./jobs";
 import { resolveWriteSigner, type WriteSignerSource } from "./write-signer";
 
@@ -194,17 +197,22 @@ export interface JobsClient {
   waitForJob(jobId: string, options?: WaitForJobOptions): Promise<JobStatus>;
 
   /**
-   * Decrypt and validate an inline job result.
+   * Fetch, decrypt, and validate a job result from object storage.
    *
-   * @param job - Terminal job status containing `resultCiphertext`.
+   * @param handle - Object-storage location and integrity metadata.
    * @param options - Expected plaintext job, scope, and version bindings.
    * @returns The validated plaintext job result.
    * @remarks Decryption requires `builderPrivateKey`; `builderAccount` alone
    *   only supports submission, status reads, and waiting.
-   * @throws {JobRejectedError} When ciphertext or a raw private key is unavailable.
+   * @throws {JobRejectedError} When a raw private key is unavailable.
+   * @throws {JobTransportError} When fetching the result object fails.
+   * @throws {JobResultIntegrityError} When the fetched bytes mismatch the handle.
    * @throws {JobEnvelopeError} When decrypted protocol fields or bindings differ.
    */
-  openResult(job: JobStatus, options: OpenJobResultOptions): Promise<JobResult>;
+  openResult(
+    handle: ResultHandle,
+    options: OpenJobResultOptions,
+  ): Promise<JobResult>;
 
   /**
    * Submit, wait for, and decrypt one raw read.
@@ -758,31 +766,51 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
       }
     },
 
-    async openResult(job, openOptions) {
-      if (!job.resultCiphertext) {
-        throw new JobRejectedError(
-          "Job status does not include inline resultCiphertext",
-          undefined,
-          null,
-          {
-            jobId: job.jobId,
-            state: job.state,
-            resultHandle: job.resultHandle,
-            maxInlineResultBytes: MAX_INLINE_RESULT_BYTES,
-          },
-        );
-      }
+    async openResult(handle, openOptions) {
       if (!privateKey) {
         throw new JobRejectedError(
           "openResult requires createJobsClient({ builderPrivateKey })",
         );
       }
-      return openJobResult(
-        job.resultCiphertext,
-        privateKey,
-        ecies,
-        openOptions.expect,
+      const response = await request(
+        handle.url,
+        { method: GET_METHOD },
+        "Job result fetch",
       );
+      if (!response.ok) {
+        throw await rejectedResponse(response, "Job result fetch rejected");
+      }
+      let bytes: Uint8Array;
+      try {
+        bytes = new Uint8Array(await response.arrayBuffer());
+      } catch (error) {
+        throw new JobTransportError(
+          `Job result fetch failed: ${error instanceof Error ? error.message : String(error)}`,
+          error,
+        );
+      }
+      const actualHash = bytesToHex(sha256(bytes));
+      if (actualHash.toLowerCase() !== handle.hash.toLowerCase()) {
+        throw new JobResultIntegrityError(
+          "Fetched job result hash does not match its handle",
+          {
+            objectKey: handle.objectKey,
+            expectedHash: handle.hash,
+            actualHash,
+          },
+        );
+      }
+      if (bytes.length !== handle.size) {
+        throw new JobResultIntegrityError(
+          "Fetched job result size does not match its handle",
+          {
+            objectKey: handle.objectKey,
+            expectedSize: handle.size,
+            actualSize: bytes.length,
+          },
+        );
+      }
+      return openJobResult(bytes, privateKey, ecies, openOptions.expect);
     },
 
     async readRaw(params) {
@@ -806,7 +834,15 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
           },
         );
       }
-      return client.openResult(job, {
+      if (!job.result) {
+        throw new JobRejectedError(
+          "Completed job status does not include a result handle",
+          undefined,
+          null,
+          { jobId: job.jobId, state: job.state },
+        );
+      }
+      return client.openResult(job.result, {
         expect: {
           jobId: submitted.jobId,
           scope: params.scope,

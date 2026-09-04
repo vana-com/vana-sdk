@@ -3,9 +3,10 @@
  *
  * Request plaintext is UTF-8 JSON with object keys sorted recursively and
  * array order preserved. Result properties follow their interface order. The
- * wire ciphertext is base64 of `iv || ephemPub || ct || mac`, as specified by
- * the ECIES provider interface. The Gateway hashes raw ciphertext bytes, not
- * plaintext.
+ * Request ciphertext is base64 of `iv || ephemPub || ct || mac`, as specified
+ * by the ECIES provider interface. Result ciphertext is the raw concatenated
+ * byte sequence stored in object storage. The Gateway hashes raw ciphertext
+ * bytes, not plaintext.
  * The builder verifies the decrypted result's job ID, scope, and version
  * bindings. The PS worker verifies
  * `auth.bodyHash === sha256(canonicalJobRequestBytes(request))`; the Gateway
@@ -98,6 +99,12 @@ function encryptedBytesToBase64(
   encrypted: Awaited<ReturnType<ECIESProvider["encrypt"]>>,
 ): string {
   return toBase64(fromHex(`0x${serializeECIES(encrypted)}`, "bytes"));
+}
+
+function encryptedToBytes(
+  encrypted: Awaited<ReturnType<ECIESProvider["encrypt"]>>,
+): Uint8Array {
+  return fromHex(`0x${serializeECIES(encrypted)}`, "bytes");
 }
 
 function base64ToEncrypted(ciphertext: string) {
@@ -322,14 +329,14 @@ export async function openJobRequest(
 /**
  * Encrypts a validated job result for its builder and describes the ciphertext.
  *
- * `hash` is lowercase `0x` SHA-256 of decoded ciphertext bytes, not the
- * `sha256:` prefix used by Web3Signed `bodyHash`. `size` is that decoded byte
- * length. They equal the Gateway's `resultHash` and `resultSize`.
+ * `hash` is lowercase `0x` SHA-256 of the raw sealed bytes, not the `sha256:`
+ * prefix used by Web3Signed `bodyHash`. `size` is the sealed byte length. They
+ * equal the Gateway's `resultHash` and `resultSize`.
  *
  * @param result - Job result to validate and encrypt.
  * @param builderPublicKey - Builder wallet public key recorded in the request.
  * @param ecies - Injected ECIES implementation.
- * @returns Base64 ciphertext plus its Gateway-compatible hash and size.
+ * @returns Raw sealed bytes plus their Gateway-compatible hash and size.
  * @throws {JobEnvelopeError} If the result does not match the protocol schema.
  * @throws If ECIES encryption fails or the builder public key is invalid.
  */
@@ -337,15 +344,14 @@ export async function sealJobResult(
   result: JobResult,
   builderPublicKey: Hex,
   ecies: ECIESProvider,
-): Promise<{ ciphertext: string; hash: Hex; size: number }> {
+): Promise<{ bytes: Uint8Array; hash: Hex; size: number }> {
   validateResult(result);
   const encrypted = await ecies.encrypt(
     fromHex(builderPublicKey, "bytes"),
     resultPlaintext(result),
   );
-  const ciphertext = encryptedBytesToBase64(encrypted);
-  const bytes = fromBase64(ciphertext);
-  return { ciphertext, hash: bytesToHex(sha256(bytes)), size: bytes.length };
+  const bytes = encryptedToBytes(encrypted);
+  return { bytes, hash: bytesToHex(sha256(bytes)), size: bytes.length };
 }
 
 /**
@@ -354,7 +360,7 @@ export async function sealJobResult(
  * The builder private key is a `Hex` wallet key. For `expect.version`,
  * `undefined` skips the check while `null` requires a null result version.
  *
- * @param ciphertext - Base64 `iv || ephemPub || ct || mac` ciphertext.
+ * @param sealedBytes - Raw `iv || ephemPub || ct || mac` bytes.
  * @param builderPrivateKey - Builder's wallet private key as hex.
  * @param ecies - Injected ECIES implementation.
  * @param expect - Required job ID and optional scope and version bindings.
@@ -364,24 +370,23 @@ export async function sealJobResult(
  *
  * @example
  * ```ts
- * const result = await openJobResult(
- *   status.resultCiphertext,
- *   key,
- *   ecies,
- *   { jobId, scope },
- * );
+ * const sealedBytes = new Uint8Array(await response.arrayBuffer());
+ * const result = await openJobResult(sealedBytes, key, ecies, {
+ *   jobId,
+ *   scope,
+ * });
  * const body = fromBase64(result.body);
  * ```
  */
 export async function openJobResult(
-  ciphertext: string,
+  sealedBytes: Uint8Array,
   builderPrivateKey: Hex,
   ecies: ECIESProvider,
   expect: { jobId: string; scope?: string; version?: string | null },
 ): Promise<JobResult> {
   const plaintext = await ecies.decrypt(
     fromHex(builderPrivateKey, "bytes"),
-    base64ToEncrypted(ciphertext),
+    deserializeECIES(toHex(sealedBytes)),
   );
   const result = validateResult(parseObject(plaintext, "job result"));
   if (result.jobId !== expect.jobId) {

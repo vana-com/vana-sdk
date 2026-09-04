@@ -2,8 +2,9 @@
  * ECIES envelopes for encrypted job requests and results.
  *
  * Request plaintext is UTF-8 JSON with object keys sorted recursively and
- * array order preserved. Result properties follow their interface order. The
- * Request ciphertext is base64 of `iv || ephemPub || ct || mac`, as specified
+ * array order preserved. Result plaintext is
+ * `uint32be(header length) || JSON header || raw body`. The Request ciphertext
+ * is base64 of `iv || ephemPub || ct || mac`, as specified
  * by the ECIES provider interface. Result ciphertext is the raw concatenated
  * byte sequence stored in object storage. The Gateway hashes raw ciphertext
  * bytes, not plaintext.
@@ -38,6 +39,9 @@ import { fromBase64, toBase64 } from "../../utils/encoding";
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
+/** Result metadata is only a few short fields; cap it before decoding attacker-reachable bytes. */
+const MAX_JOB_RESULT_HEADER_BYTES = 4096;
+const JOB_RESULT_LENGTH_PREFIX_BYTES = 4;
 
 /** A job envelope or result did not match the jobs protocol. */
 export class JobEnvelopeError extends Error {
@@ -86,16 +90,60 @@ function requestPlaintext(envelope: JobRequestEnvelope): Uint8Array {
 }
 
 function resultPlaintext(result: JobResult): Uint8Array {
-  return textEncoder.encode(
+  const header = textEncoder.encode(
     JSON.stringify({
       v: result.v,
       jobId: result.jobId,
       scope: result.scope,
       version: result.version,
       contentType: result.contentType,
-      body: result.body,
     }),
   );
+  if (header.length > MAX_JOB_RESULT_HEADER_BYTES) {
+    throw new JobEnvelopeError(
+      `Invalid job result: header exceeds ${MAX_JOB_RESULT_HEADER_BYTES} bytes`,
+    );
+  }
+
+  const plaintext = new Uint8Array(
+    JOB_RESULT_LENGTH_PREFIX_BYTES + header.length + result.body.length,
+  );
+  new DataView(plaintext.buffer).setUint32(0, header.length);
+  plaintext.set(header, JOB_RESULT_LENGTH_PREFIX_BYTES);
+  plaintext.set(result.body, JOB_RESULT_LENGTH_PREFIX_BYTES + header.length);
+  return plaintext;
+}
+
+function parseResultPlaintext(plaintext: Uint8Array): JobResult {
+  if (plaintext.length < JOB_RESULT_LENGTH_PREFIX_BYTES) {
+    throw new JobEnvelopeError(
+      "Invalid job result: missing header length prefix",
+    );
+  }
+
+  const headerLength = new DataView(
+    plaintext.buffer,
+    plaintext.byteOffset,
+    JOB_RESULT_LENGTH_PREFIX_BYTES,
+  ).getUint32(0);
+  if (headerLength > MAX_JOB_RESULT_HEADER_BYTES) {
+    throw new JobEnvelopeError(
+      `Invalid job result: header exceeds ${MAX_JOB_RESULT_HEADER_BYTES} bytes`,
+    );
+  }
+  const remainingLength = plaintext.length - JOB_RESULT_LENGTH_PREFIX_BYTES;
+  if (headerLength > remainingLength) {
+    throw new JobEnvelopeError(
+      "Invalid job result: header length exceeds payload",
+    );
+  }
+
+  const headerEnd = JOB_RESULT_LENGTH_PREFIX_BYTES + headerLength;
+  const header = parseObject(
+    plaintext.subarray(JOB_RESULT_LENGTH_PREFIX_BYTES, headerEnd),
+    "job result header",
+  );
+  return validateResult({ ...header, body: plaintext.subarray(headerEnd) });
 }
 
 function encryptedBytesToBase64(
@@ -308,7 +356,7 @@ function validateResult(value: unknown): JobResult {
   for (const field of ["jobId", "scope", "contentType"]) {
     requireString(value[field], field, "job result");
   }
-  if (typeof value.body !== "string") {
+  if (!(value.body instanceof Uint8Array)) {
     throw new JobEnvelopeError("Invalid job result: missing body");
   }
   if (value.version !== null && typeof value.version !== "string") {
@@ -432,7 +480,7 @@ export async function sealJobResult(
  *   jobId,
  *   scope,
  * });
- * const body = fromBase64(result.body);
+ * const text = new TextDecoder().decode(result.body);
  * ```
  */
 export async function openJobResult(
@@ -445,7 +493,7 @@ export async function openJobResult(
     fromHex(builderPrivateKey, "bytes"),
     bytesToEncrypted(sealedBytes),
   );
-  const result = validateResult(parseObject(plaintext, "job result"));
+  const result = parseResultPlaintext(plaintext);
   if (result.jobId !== expect.jobId) {
     throw new JobEnvelopeError(
       `Job result ID ${result.jobId} does not match expected job ID ${expect.jobId}`,

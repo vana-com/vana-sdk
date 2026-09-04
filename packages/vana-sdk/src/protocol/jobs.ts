@@ -170,7 +170,8 @@ export interface JobResult {
   scope: string;
   version: string | null;
   contentType: string;
-  body: string; /* base64 */
+  /** Raw result bytes; callers decode text explicitly when appropriate. */
+  body: Uint8Array;
 }
 /** Admission lifecycle of a registered TEE node. */
 export type TeeNodeState = "pending" | "admitted" | "draining" | "removed";

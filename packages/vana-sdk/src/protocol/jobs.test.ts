@@ -12,11 +12,13 @@ import { privateKeyToAccount } from "viem/accounts";
 import * as eciesWire from "../crypto/ecies/interface";
 import {
   canonicalJobRequestBytes,
+  JobEnvelopeError,
   openJobRequest,
   openJobResult,
   sealJobRequest,
   sealJobResult,
 } from "../crypto/envelope/job";
+import * as encoding from "../utils/encoding";
 import { serializeECIES } from "../crypto/ecies/interface";
 import type { ECIESEncrypted, ECIESProvider } from "../crypto/ecies/interface";
 import { NodeECIESUint8Provider } from "../crypto/ecies/node";
@@ -70,7 +72,7 @@ const REQUEST_CIPHERTEXT_FIXTURE =
   "PLB8RPVnQTshYNvvb7WwDwSDwusNTuFVlHZMTsNRO9fW8Ii8dxJCGD2ipHGS0edmoKrLJjdQ6LgJFbXiAG2LhWqWdLjGcELAcG0M4VllgjDS8/TSzPuA4DK4Iwa76EZbl1T6V9Tf40kBCXfFhkOjyvw3hZW/cyvFk49I1jjXLqYrBJzwxzUha/G1wehWaZgOs30UiMC3zuPJYizspSTCTOucLxyvr+ojGJw6q4bBx5O53lhy7Wv7XUjdEwVf/XwSYLabwKBhNvvXr3yaZ0Bo/9vRIlIj+DMdRdm+xO+JHX4knypGiqBa3z0jxH5Z+R8dgSC6DrBiC+8nc/l+oVuhwqfKcVkMcDnDaOpAZW6XxSbX3AErwgj9Qq00EqJ7zvH03xoBHT6bPAYKM36XpDP/njVQjNH4/Z137DO50HU/Wi2k/jtbSNsv12OLPFURjje+J5VAvUQ/lZk/EXMdzhq5NMeUxOYWmmvDgKoTHo3ZZF8ca3rHZ9YDp6QnptT6acQwXyQFK9KPN5+U6tX/LUuHAOlOIkDAgukIx2NOFTATYcLnZd2h5NQ4sxZxLEhiiGZ0eAGkthSwNmb8805aDL8PIpklqE4k/eRSGuNmqvkiSf6hVSp6ssXarDf9U+kM3r+lWVkV55hTZZp6y7ujrjfhFqe0GV5mDB1Ok1o+c51ysoG0YL77YrFT1azhkR1QT1Sq+XLZSnNkkSx8sAyE56HH9H977yGbtU+Hd4u1Dyq08b0Pfa3cd2T6khJEgVjd9y6+cQ8HGqJVT6w0IEsz5MtOVuT7vot08L+o7uv54PMrbJo66lcx1Pxy8pzBe69pY6vDvN7oiQaXLjXdnC5YBkfu/ShaVWFSfCg0tFEMJu14xn+CBlXvWSCuEaQ/S4s8jsir9Q==";
 // Result wire pin: raw iv||ephemPub||ct||mac bytes (base64 only as test source notation).
 const RESULT_SEALED_BYTES_FIXTURE = fromBase64(
-  "0T4gw2djHW/Ps2fCLYDxeQQSQNSqi7NvLfy2ALLQt4Gclhn+tCwNJsZ09K1jGnZ+UGVyPj/8I+FcIhIiE88F8QdEhO/lJziE7O7nc4ie6AcVfCpY08S8jOOT41G487Lar+cvpLHH7UbA0avDOO2+rqF66JrL0np68sKE5JTzdYSw8gqGzGSHxQBgu21cUmwlGw5nbfwvJxeCnT3G5L5jIZYOV2WFOEfwtKISt3+XJKnmmD62Y0TmnfGFiyT3NEz8d66TVC+w8QVGMssA5qzZmHd1q0mrXk2jlNAbks6gbTyTJLxTf3YkxDq3UBtoV5GkCLpSXtGGjaBrwmOnKmMF80OdJQzsSAyakJoYDk2N/Llls8C6gMQ/4aqnbaMl5nzbag==",
+  "WstBSXt7lT68xZo29UHnJwSV0yZR/taA+NaAf4f1vxhpUxk2oaJqsSbJEhv0MJn+aiXf6iI5qz+4hMLxhSiAddBVHQQUhY3WxYNKgzmfRissmtsViswfvjONhgdYK+fDCwdecmMU3xWzX17Gg3Zn8SmPkTrOfUaYn26NnM4ocLvzrYU0+yEmHlhErXgFussTkSf+c7M3WXKKczyUKiBOVViZF2B0dOdGxkLAEBP8gGeKtoh5F+pQcBvBP97FelzJGZU9JmlErRPRbT0bWsPgQDnRH/gOKaPwtmVGLS3xPIeHNuLKBLzxc+0bwm/HJttd3Kf/8zMNWY6zLh96ENhKm7LdSsSkI5TKd0Qjij6gqGIo",
 );
 
 const canonicalVectorRequest: JobRequest = {
@@ -193,7 +195,7 @@ const result: JobResult = {
   scope: request.scope,
   version: "7",
   contentType: "application/json",
-  body: "eyJlbWFpbCI6InB1YmxpY0BleGFtcGxlLmNvbSJ9",
+  body: new TextEncoder().encode('{"email":"public@example.com"}'),
 };
 const teeNodeRegistration: TeeNodeRegistration = {
   nodeId: "tee-fixture-1",
@@ -229,14 +231,54 @@ async function encryptRaw(plaintext: string, publicKey: Hex): Promise<string> {
 }
 
 async function encryptRawBytes(
-  plaintext: string,
+  plaintext: string | Uint8Array,
   publicKey: Hex,
 ): Promise<Uint8Array> {
   const encrypted = await ecies.encrypt(
     fromHex(publicKey, "bytes"),
-    new TextEncoder().encode(plaintext),
+    typeof plaintext === "string"
+      ? new TextEncoder().encode(plaintext)
+      : plaintext,
   );
   return fromHex(`0x${serializeECIES(encrypted)}` as Hex, "bytes");
+}
+
+function frameResultPlaintext(
+  header: unknown,
+  body: Uint8Array = new Uint8Array(),
+): Uint8Array {
+  return frameResultHeader(
+    new TextEncoder().encode(JSON.stringify(header)),
+    body,
+  );
+}
+
+function frameResultHeader(
+  header: Uint8Array,
+  body: Uint8Array = new Uint8Array(),
+  declaredHeaderLength = header.length,
+): Uint8Array {
+  const plaintext = new Uint8Array(4 + header.length + body.length);
+  new DataView(plaintext.buffer).setUint32(0, declaredHeaderLength);
+  plaintext.set(header, 4);
+  plaintext.set(body, 4 + header.length);
+  return plaintext;
+}
+
+function resultHeader(overrides: Record<string, unknown> = {}) {
+  return {
+    v: result.v,
+    jobId: result.jobId,
+    scope: result.scope,
+    version: result.version,
+    contentType: result.contentType,
+    ...overrides,
+  };
+}
+
+async function openRawResultPlaintext(plaintext: Uint8Array) {
+  const sealed = await encryptRawBytes(plaintext, BUILDER.publicKey);
+  return openJobResult(sealed, BUILDER_PRIVATE_KEY, ecies, { jobId: JOB_ID });
 }
 
 function tamperCiphertext(ciphertext: string): string {
@@ -424,8 +466,59 @@ describe("job ECIES envelopes", () => {
     ).resolves.toEqual(result);
   });
 
+  it("round-trips raw result bytes without base64 encoding", async () => {
+    let plaintext: Uint8Array | undefined;
+    const capturingEcies: ECIESProvider = {
+      async encrypt(publicKey, message) {
+        plaintext = message;
+        return ecies.encrypt(publicKey, message);
+      },
+      decrypt: ecies.decrypt.bind(ecies),
+      normalizeToUncompressed: ecies.normalizeToUncompressed.bind(ecies),
+    };
+    const toBase64Spy = vi.spyOn(encoding, "toBase64");
+    const fromBase64Spy = vi.spyOn(encoding, "fromBase64");
+    const binaryResult: JobResult = {
+      ...result,
+      body: new Uint8Array([0, 0xff, 0xc3, 0x28, 0x80]),
+    };
+
+    const sealed = await sealJobResult(
+      binaryResult,
+      BUILDER.publicKey,
+      capturingEcies,
+    );
+
+    const opened = await openJobResult(
+      sealed.bytes,
+      BUILDER_PRIVATE_KEY,
+      capturingEcies,
+      {
+        jobId: JOB_ID,
+      },
+    );
+
+    expect(opened).toEqual(binaryResult);
+    expect(plaintext).toBeDefined();
+    const headerLength = new DataView(
+      plaintext!.buffer,
+      plaintext!.byteOffset,
+      4,
+    ).getUint32(0);
+    expect(
+      JSON.parse(
+        new TextDecoder().decode(plaintext!.subarray(4, 4 + headerLength)),
+      ),
+    ).toEqual(resultHeader());
+    expect(plaintext!.subarray(4 + headerLength)).toEqual(binaryResult.body);
+    expect(toBase64Spy).not.toHaveBeenCalled();
+    expect(fromBase64Spy).not.toHaveBeenCalled();
+    toBase64Spy.mockRestore();
+    fromBase64Spy.mockRestore();
+  });
+
   it.each([0, 31, 1024, 1_048_577])(
-    "serializes a %i-byte result body identically without the legacy hex path",
+    "preserves the outer ECIES wire format for a %i-byte result body",
     async (bodySize) => {
       let captured: ECIESEncrypted | undefined;
       const capturingEcies: ECIESProvider = {
@@ -440,7 +533,7 @@ describe("job ECIES envelopes", () => {
       const legacyDeserializer = vi.spyOn(eciesWire, "deserializeECIES");
       const sizedResult: JobResult = {
         ...result,
-        body: "a".repeat(bodySize),
+        body: new Uint8Array(bodySize).fill(0x61),
       };
 
       const sealed = await sealJobResult(
@@ -488,7 +581,7 @@ describe("job ECIES envelopes", () => {
   });
 
   it("round-trips a zero-byte result body", async () => {
-    const emptyResult = { ...result, body: "" };
+    const emptyResult = { ...result, body: new Uint8Array() };
     const sealed = await sealJobResult(emptyResult, BUILDER.publicKey, ecies);
 
     await expect(
@@ -557,6 +650,49 @@ describe("job ECIES envelopes", () => {
     ).rejects.toThrow("expected an object");
   });
 
+  it("rejects a truncated result header length prefix", async () => {
+    await expect(
+      openRawResultPlaintext(new Uint8Array([0, 0, 0])),
+    ).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
+  it("rejects a result header length larger than the payload", async () => {
+    await expect(
+      openRawResultPlaintext(
+        frameResultHeader(new Uint8Array([0x7b]), new Uint8Array(), 2),
+      ),
+    ).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
+  it("rejects a result header length above the defensive cap", async () => {
+    await expect(
+      openRawResultPlaintext(
+        frameResultHeader(new Uint8Array(), new Uint8Array(), 4097),
+      ),
+    ).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
+  it("rejects a result header that is not valid JSON", async () => {
+    await expect(
+      openRawResultPlaintext(
+        frameResultHeader(new TextEncoder().encode("not JSON")),
+      ),
+    ).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
+  it("rejects a result header missing a required field", async () => {
+    const missingScope = {
+      v: result.v,
+      jobId: result.jobId,
+      version: result.version,
+      contentType: result.contentType,
+    };
+
+    await expect(
+      openRawResultPlaintext(frameResultPlaintext(missingScope)),
+    ).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
   it("rejects envelopes missing request or auth", async () => {
     const missingRequest = await encryptRaw(
       JSON.stringify({ auth: requestEnvelope.auth }),
@@ -623,7 +759,7 @@ describe("job ECIES envelopes", () => {
     ).rejects.toThrow("unknownField");
 
     const sealedBytes = await encryptRawBytes(
-      JSON.stringify(resultWithUnknown),
+      frameResultPlaintext(resultHeader({ unknownField: true }), result.body),
       BUILDER.publicKey,
     );
     await expect(
@@ -705,16 +841,7 @@ describe("job ECIES envelopes", () => {
 
   it("pins the result ciphertext hash and CBC wire size", async () => {
     const sealed = await sealJobResult(result, BUILDER.publicKey, ecies);
-    const plaintext = new TextEncoder().encode(
-      JSON.stringify({
-        v: result.v,
-        jobId: result.jobId,
-        scope: result.scope,
-        version: result.version,
-        contentType: result.contentType,
-        body: result.body,
-      }),
-    );
+    const plaintext = frameResultPlaintext(resultHeader(), result.body);
     const blockSize = 16;
     const ciphertextLength =
       (Math.floor(plaintext.length / blockSize) + 1) * blockSize;
@@ -747,15 +874,6 @@ describe("job ECIES envelopes", () => {
     const badResult = { ...result, body: undefined } as unknown as JobResult;
     await expect(
       sealJobResult(badResult, BUILDER.publicKey, ecies),
-    ).rejects.toThrow("Invalid job result: missing body");
-    const sealedResultBytes = await encryptRawBytes(
-      JSON.stringify(badResult),
-      BUILDER.publicKey,
-    );
-    await expect(
-      openJobResult(sealedResultBytes, BUILDER_PRIVATE_KEY, ecies, {
-        jobId: JOB_ID,
-      }),
     ).rejects.toThrow("Invalid job result: missing body");
   });
 });

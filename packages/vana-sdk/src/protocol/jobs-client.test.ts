@@ -144,7 +144,7 @@ async function completedResponse(
     scope: request.scope,
     version: request.pinnedVersion ?? "17",
     contentType: "application/json",
-    body: "eyJlbWFpbCI6ImFAZXhhbXBsZS5jb20ifQ==",
+    body: new TextEncoder().encode('{"email":"a@example.com"}'),
   };
   const sealed = await sealJobResult(result, builder.publicKey, ecies);
   const handle = makeHandle(request.jobId, sealed);
@@ -624,7 +624,7 @@ describe("createJobsClient", () => {
         scope: SCOPE,
         version: "17",
         contentType: "application/json",
-        body: "e30=",
+        body: new TextEncoder().encode("{}"),
       };
       const sealed = await sealJobResult(result, builder.publicKey, ecies);
       const client = makeClient(
@@ -664,7 +664,7 @@ describe("createJobsClient", () => {
         scope: SCOPE,
         version: "17",
         contentType: "application/json",
-        body: "e30=",
+        body: new TextEncoder().encode("{}"),
       },
       builder.publicKey,
       ecies,
@@ -693,7 +693,7 @@ describe("createJobsClient", () => {
         scope: SCOPE,
         version: "17",
         contentType: "application/json",
-        body: "e30=",
+        body: new TextEncoder().encode("{}"),
       },
       builder.publicKey,
       ecies,
@@ -736,7 +736,7 @@ describe("createJobsClient", () => {
         scope: SCOPE,
         version: "17",
         contentType: "application/json",
-        body: "e30=",
+        body: new TextEncoder().encode("{}"),
       },
       enclave.publicKey,
       ecies,

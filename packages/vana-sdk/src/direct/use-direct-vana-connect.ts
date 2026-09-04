@@ -18,6 +18,7 @@ import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   createDirectConnectFlow,
   type DirectConnectOptions,
+  type DirectConnectRetryOutcome,
   type DirectConnectState,
   type DirectConnectTransports,
 } from "./connect-flow";
@@ -32,6 +33,8 @@ export interface UseDirectVanaConnectResult<T = unknown> {
   state: DirectConnectState<T>;
   /** Begin the connect flow (create request, open Vana, poll, read). */
   start: () => void;
+  /** Retry the read and report whether prior consent could be reused. */
+  retryRead: () => Promise<DirectConnectRetryOutcome>;
   /** Reset back to `idle` and cancel any in-flight polling. */
   reset: () => void;
 }
@@ -102,5 +105,7 @@ export function useDirectVanaConnect<T = unknown>(
     flow.reset();
   }, [flow]);
 
-  return { state, start, reset };
+  const retryRead = useCallback(() => flow.retryRead(), [flow]);
+
+  return { state, start, retryRead, reset };
 }

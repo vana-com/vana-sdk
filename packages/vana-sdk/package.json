@@ -33,6 +33,12 @@
       "import": "./dist/server.js",
       "require": "./dist/server.cjs"
     },
+    "./protocol/jobs-client": {
+      "browser": null,
+      "types": "./dist/protocol/jobs-client.d.ts",
+      "import": "./dist/protocol/jobs-client.js",
+      "require": "./dist/protocol/jobs-client.cjs"
+    },
     "./direct/escrow-payment": {
       "browser": null,
       "types": "./dist/direct/escrow-payment.d.ts",

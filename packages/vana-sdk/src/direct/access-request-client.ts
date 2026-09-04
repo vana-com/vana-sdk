@@ -14,6 +14,7 @@
 import type {
   AccessRequest,
   AccessRequestClient,
+  AccessRequestDelivery,
   AccessRequestQuestion,
   AccessRequestStatus,
   AccessRequestStatusValue,
@@ -80,6 +81,10 @@ function normalizeStatus(value: unknown): AccessRequestStatusValue {
   return VALID_STATUSES.includes(value as AccessRequestStatusValue)
     ? (value as AccessRequestStatusValue)
     : "pending";
+}
+
+function normalizeDelivery(value: unknown): AccessRequestDelivery | undefined {
+  return value === "enclave" || value === "personal_server" ? value : undefined;
 }
 
 function normalizeNetwork(value: unknown): AccessRequest["network"] {
@@ -406,6 +411,7 @@ export function createDefaultAccessRequestClient(
       }
       const body = (await res.json()) as {
         status?: string;
+        delivery?: unknown;
         personalServerUrl?: string;
         grantId?: string;
         scope?: string;
@@ -422,6 +428,7 @@ export function createDefaultAccessRequestClient(
             : undefined;
       return {
         status: normalizeStatus(body.status),
+        delivery: normalizeDelivery(body.delivery),
         personalServerUrl: body.personalServerUrl,
         grantId: body.grantId,
         scope: body.scope ?? scopes?.[0],

@@ -74,6 +74,7 @@ const RAW_READ_OPERATION = "raw_read";
 const SEALED_IDENTITY_STATE = "sealed";
 const HTTP_OK = 200;
 const HTTP_ACCEPTED = 202;
+const HTTP_UNAUTHORIZED = 401;
 const HTTP_FORBIDDEN = 403;
 const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
@@ -238,6 +239,7 @@ interface ResolvedBuilder {
 interface GatewayErrorBody {
   code: JobGatewayErrorCode | null;
   message: string;
+  reason?: string;
   details?: Record<string, unknown>;
 }
 
@@ -369,8 +371,15 @@ function gatewayErrorBody(body: unknown, fallback: string): GatewayErrorBody {
       : typeof body["message"] === "string"
         ? body["message"]
         : fallback;
+  const reason =
+    typeof body["reason"] === "string" ? body["reason"] : undefined;
   const details = isRecord(body["details"]) ? body["details"] : undefined;
-  return { code, message, ...(details ? { details } : {}) };
+  return {
+    code,
+    message,
+    ...(reason ? { reason } : {}),
+    ...(details ? { details } : {}),
+  };
 }
 
 async function rejectedResponse(
@@ -378,7 +387,14 @@ async function rejectedResponse(
   fallback: string,
 ): Promise<JobsClientError> {
   const parsed = gatewayErrorBody(await responseBody(response), fallback);
-  const details = parsed.details;
+  const details =
+    response.status === HTTP_UNAUTHORIZED && parsed.reason
+      ? { ...parsed.details, reason: parsed.reason }
+      : parsed.details;
+  const message =
+    response.status === HTTP_UNAUTHORIZED && parsed.reason
+      ? `${parsed.message}: ${parsed.reason}`
+      : parsed.message;
   if (response.status === HTTP_FORBIDDEN) {
     if (parsed.code === "BUILDER_UNKNOWN") {
       return new BuilderUnknownError(parsed.message, details);
@@ -399,12 +415,7 @@ async function rejectedResponse(
   if (response.status === HTTP_PAYLOAD_TOO_LARGE) {
     return new JobRequestTooLargeError(parsed.message, parsed.code, details);
   }
-  return new JobRejectedError(
-    parsed.message,
-    response.status,
-    parsed.code,
-    details,
-  );
+  return new JobRejectedError(message, response.status, parsed.code, details);
 }
 
 function requireStatus(value: unknown, status: number): JobStatus {

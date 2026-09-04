@@ -354,6 +354,26 @@ describe("createJobsClient", () => {
     },
   );
 
+  it("preserves the Gateway 401 reason", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async (input) =>
+      String(input).includes("/v1/identity?")
+        ? identityResponse()
+        : jsonResponse(401, {
+            error: "Builder authorization failed",
+            reason: "EXPIRED",
+          }),
+    );
+    const client = makeClient(fetchFn);
+
+    await expect(
+      client.submitRawRead({ owner: OWNER, grantId: GRANT_ID, scope: SCOPE }),
+    ).rejects.toMatchObject({
+      message: "Builder authorization failed: EXPIRED",
+      status: 401,
+      details: { reason: "EXPIRED" },
+    });
+  });
+
   it("rejects an identity that is not sealed before submitting", async () => {
     const fetchFn = vi.fn<typeof fetch>(async () =>
       identityResponse("registered"),

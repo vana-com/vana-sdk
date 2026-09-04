@@ -569,6 +569,29 @@ describe("createJobsClient", () => {
     }
   });
 
+  it("ignores unmodeled Gateway deadline fields while polling", async () => {
+    const client = makeClient(vi.fn<typeof fetch>());
+    let polls = 0;
+    client.getJob = vi.fn(async () => ({
+      ...statusFor("job-1", ++polls === 1 ? "running" : "completed"),
+      deadline: new Date(0).toISOString(),
+    }));
+    vi.useFakeTimers();
+    try {
+      const waiting = client.waitForJob("job-1", {
+        timeoutMs: CLAIM_POLL_FLOOR_MS * 2,
+      });
+      const assertion = expect(waiting).resolves.toMatchObject({
+        state: "completed",
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(CLAIM_POLL_FLOOR_MS);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("enforces the protocol poll floor", async () => {
     const client = makeClient(vi.fn<typeof fetch>());
     let polls = 0;

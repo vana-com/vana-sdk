@@ -476,17 +476,6 @@ function hasExpectedIdentity(
   );
 }
 
-function jobDeadline(job: JobStatus): number | undefined {
-  const candidate = job as unknown as Record<string, unknown>;
-  for (const field of ["deadlineAt", "deadline"] as const) {
-    if (typeof candidate[field] === "string") {
-      const parsed = Date.parse(candidate[field]);
-      if (Number.isFinite(parsed)) return parsed;
-    }
-  }
-  return undefined;
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -731,10 +720,7 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
       const callerDeadline = startedAt + timeoutMs;
       let latest: JobStatus | undefined;
       for (;;) {
-        if (
-          Date.now() >= callerDeadline ||
-          (latest && Date.now() >= (jobDeadline(latest) ?? Infinity))
-        ) {
+        if (Date.now() >= callerDeadline) {
           throw new JobTimeoutError(
             `Timed out waiting for terminal job ${jobId}`,
             {
@@ -746,11 +732,7 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
         }
         latest = await client.getJob(jobId);
         if (TERMINAL_JOB_STATES.has(latest.state)) return latest;
-        const effectiveDeadline = Math.min(
-          callerDeadline,
-          jobDeadline(latest) ?? Infinity,
-        );
-        const remaining = effectiveDeadline - Date.now();
+        const remaining = callerDeadline - Date.now();
         if (remaining <= 0) {
           throw new JobTimeoutError(
             `Timed out waiting for terminal job ${jobId}`,

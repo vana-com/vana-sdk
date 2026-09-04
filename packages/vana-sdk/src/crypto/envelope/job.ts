@@ -18,9 +18,12 @@
 
 import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex, fromHex, isAddress, isHex, toHex, type Hex } from "viem";
+import { CURVE, FORMAT, MAC } from "../ecies/constants";
 import {
   deserializeECIES,
+  ECIESError,
   serializeECIES,
+  type ECIESEncrypted,
   type ECIESProvider,
 } from "../ecies/interface";
 import {
@@ -104,7 +107,61 @@ function encryptedBytesToBase64(
 function encryptedToBytes(
   encrypted: Awaited<ReturnType<ECIESProvider["encrypt"]>>,
 ): Uint8Array {
-  return fromHex(`0x${serializeECIES(encrypted)}`, "bytes");
+  const bytes = new Uint8Array(
+    encrypted.iv.length +
+      encrypted.ephemPublicKey.length +
+      encrypted.ciphertext.length +
+      encrypted.mac.length,
+  );
+  let offset = 0;
+  bytes.set(encrypted.iv, offset);
+  offset += encrypted.iv.length;
+  bytes.set(encrypted.ephemPublicKey, offset);
+  offset += encrypted.ephemPublicKey.length;
+  bytes.set(encrypted.ciphertext, offset);
+  offset += encrypted.ciphertext.length;
+  bytes.set(encrypted.mac, offset);
+  return bytes;
+}
+
+function bytesToEncrypted(bytes: Uint8Array): ECIESEncrypted {
+  const absoluteMinLength = FORMAT.IV_LENGTH + 1 + MAC.LENGTH + 1;
+  if (bytes.length < absoluteMinLength) {
+    throw new ECIESError(
+      `Invalid ECIES data: too short (${bytes.length} bytes, minimum ${absoluteMinLength} bytes required)`,
+      "DECRYPTION_FAILED",
+    );
+  }
+
+  const prefix = bytes[FORMAT.EPHEMERAL_KEY_OFFSET];
+  if (prefix !== CURVE.PREFIX.UNCOMPRESSED) {
+    throw new ECIESError(
+      `Invalid ephemeral public key: must be uncompressed format (0x04 prefix), got 0x${prefix.toString(16).padStart(2, "0")}`,
+      "DECRYPTION_FAILED",
+    );
+  }
+
+  const ephemKeySize = CURVE.UNCOMPRESSED_PUBLIC_KEY_LENGTH;
+  const minLength = FORMAT.IV_LENGTH + ephemKeySize + MAC.LENGTH + 1;
+  if (bytes.length < minLength) {
+    throw new ECIESError(
+      `Invalid ECIES data: too short (${bytes.length} bytes, minimum ${minLength} bytes required)`,
+      "DECRYPTION_FAILED",
+    );
+  }
+
+  return {
+    iv: bytes.subarray(FORMAT.IV_OFFSET, FORMAT.IV_OFFSET + FORMAT.IV_LENGTH),
+    ephemPublicKey: bytes.subarray(
+      FORMAT.EPHEMERAL_KEY_OFFSET,
+      FORMAT.EPHEMERAL_KEY_OFFSET + ephemKeySize,
+    ),
+    ciphertext: bytes.subarray(
+      FORMAT.EPHEMERAL_KEY_OFFSET + ephemKeySize,
+      bytes.length - MAC.LENGTH,
+    ),
+    mac: bytes.subarray(bytes.length - MAC.LENGTH),
+  };
 }
 
 function base64ToEncrypted(ciphertext: string) {
@@ -386,7 +443,7 @@ export async function openJobResult(
 ): Promise<JobResult> {
   const plaintext = await ecies.decrypt(
     fromHex(builderPrivateKey, "bytes"),
-    deserializeECIES(toHex(sealedBytes)),
+    bytesToEncrypted(sealedBytes),
   );
   const result = validateResult(parseObject(plaintext, "job result"));
   if (result.jobId !== expect.jobId) {

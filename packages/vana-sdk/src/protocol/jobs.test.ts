@@ -1,5 +1,5 @@
 import { sha256 } from "@noble/hashes/sha2";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   bytesToHex,
   fromHex,
@@ -9,6 +9,7 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import * as eciesWire from "../crypto/ecies/interface";
 import {
   canonicalJobRequestBytes,
   openJobRequest,
@@ -17,6 +18,7 @@ import {
   sealJobResult,
 } from "../crypto/envelope/job";
 import { serializeECIES } from "../crypto/ecies/interface";
+import type { ECIESEncrypted, ECIESProvider } from "../crypto/ecies/interface";
 import { NodeECIESUint8Provider } from "../crypto/ecies/node";
 import { fromBase64, toBase64 } from "../utils/encoding";
 import {
@@ -421,6 +423,49 @@ describe("job ECIES envelopes", () => {
       }),
     ).resolves.toEqual(result);
   });
+
+  it.each([0, 31, 1024, 1_048_577])(
+    "serializes a %i-byte result body identically without the legacy hex path",
+    async (bodySize) => {
+      let captured: ECIESEncrypted | undefined;
+      const capturingEcies: ECIESProvider = {
+        async encrypt(publicKey, message) {
+          captured = await ecies.encrypt(publicKey, message);
+          return captured;
+        },
+        decrypt: ecies.decrypt.bind(ecies),
+        normalizeToUncompressed: ecies.normalizeToUncompressed.bind(ecies),
+      };
+      const legacySerializer = vi.spyOn(eciesWire, "serializeECIES");
+      const legacyDeserializer = vi.spyOn(eciesWire, "deserializeECIES");
+      const sizedResult: JobResult = {
+        ...result,
+        body: "a".repeat(bodySize),
+      };
+
+      const sealed = await sealJobResult(
+        sizedResult,
+        BUILDER.publicKey,
+        capturingEcies,
+      );
+
+      expect(legacySerializer).not.toHaveBeenCalled();
+      expect(captured).toBeDefined();
+      const oldBytes = fromHex(
+        `0x${serializeECIES(captured!)}` as Hex,
+        "bytes",
+      );
+      expect(sealed.bytes).toEqual(oldBytes);
+      await expect(
+        openJobResult(sealed.bytes, BUILDER_PRIVATE_KEY, capturingEcies, {
+          jobId: JOB_ID,
+        }),
+      ).resolves.toEqual(sizedResult);
+      expect(legacyDeserializer).not.toHaveBeenCalled();
+      legacySerializer.mockRestore();
+      legacyDeserializer.mockRestore();
+    },
+  );
 
   it("opens the pinned result ciphertext fixture", async () => {
     await expect(

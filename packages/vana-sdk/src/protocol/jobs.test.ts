@@ -517,8 +517,9 @@ describe("job ECIES envelopes", () => {
     fromBase64Spy.mockRestore();
   });
 
-  // V8 coverage instrumentation makes the >1 MiB legacy hex comparison slow.
-  it.each([0, 31, 1024, 1_048_577])(
+  // Format equivalence is size-independent; keep the legacy hex comparison
+  // small because V8 coverage instrumentation makes its per-byte loops slow.
+  it.each([0, 31, 1024])(
     "preserves the outer ECIES wire format for a %i-byte result body",
     async (bodySize) => {
       let captured: ECIESEncrypted | undefined;
@@ -559,8 +560,26 @@ describe("job ECIES envelopes", () => {
       legacySerializer.mockRestore();
       legacyDeserializer.mockRestore();
     },
-    30_000,
   );
+
+  // The >1 MiB ECIES round trip exceeds Vitest's default under V8 coverage.
+  it("round-trips a result body above 1 MiB", async () => {
+    const largeResult: JobResult = {
+      ...result,
+      body: new Uint8Array(1_048_577).fill(0x61),
+    };
+
+    const sealed = await sealJobResult(largeResult, BUILDER.publicKey, ecies);
+    const opened = await openJobResult(
+      sealed.bytes,
+      BUILDER_PRIVATE_KEY,
+      ecies,
+      { jobId: JOB_ID },
+    );
+
+    expect(opened.body).toEqual(largeResult.body);
+    expect(opened).toEqual(largeResult);
+  }, 20_000);
 
   it("opens the pinned result ciphertext fixture", async () => {
     await expect(

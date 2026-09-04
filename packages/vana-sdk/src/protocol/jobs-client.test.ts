@@ -36,6 +36,7 @@ import {
   type JobSubmission,
 } from "./jobs";
 import { createJobsClient, type JobsBuilderAccount } from "./jobs-client";
+import { userPsId } from "./identity";
 
 const GATEWAY_URL = "https://gateway.test";
 const CHAIN_ID = 14_800;
@@ -56,10 +57,20 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-function identityResponse(state: string = "sealed"): Response {
+function identityResponse(
+  state: string = "sealed",
+  overrides: Record<string, unknown> = {},
+): Response {
   return jsonResponse(200, {
     state,
-    identity: { address: enclave.address, publicKey: enclave.publicKey },
+    identity: {
+      ownerAddress: OWNER,
+      chainId: CHAIN_ID,
+      userPsId: userPsId(CHAIN_ID, OWNER),
+      address: enclave.address,
+      publicKey: enclave.publicKey,
+      ...overrides,
+    },
   });
 }
 
@@ -353,6 +364,36 @@ describe("createJobsClient", () => {
       client.submitRawRead({ owner: OWNER, grantId: GRANT_ID, scope: SCOPE }),
     ).rejects.toBeInstanceOf(OwnerNotReadyError);
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { ownerAddress: builder.address },
+    { chainId: CHAIN_ID + 1 },
+    { userPsId: bytesToHex(new Uint8Array(32).fill(2)) },
+  ])("rejects identity request binding mismatch: %o", async (override) => {
+    const fetchFn = vi.fn<typeof fetch>(async () =>
+      identityResponse("sealed", override),
+    );
+    const client = makeClient(fetchFn);
+
+    await expect(
+      client.submitRawRead({ owner: OWNER, grantId: GRANT_ID, scope: SCOPE }),
+    ).rejects.toBeInstanceOf(JobRejectedError);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps an identity 404 to OwnerNotReadyError", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () =>
+      jsonResponse(404, { error: "Owner identity not found" }),
+    );
+    const client = makeClient(fetchFn);
+
+    await expect(
+      client.submitRawRead({ owner: OWNER, grantId: GRANT_ID, scope: SCOPE }),
+    ).rejects.toMatchObject({
+      name: "OwnerNotReadyError",
+      message: "Owner identity not found",
+    });
   });
 
   it("maps a getJob 404 to JobNotFoundError", async () => {

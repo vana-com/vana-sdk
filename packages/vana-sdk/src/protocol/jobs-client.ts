@@ -12,6 +12,7 @@
 import { randomUUID } from "node:crypto";
 import {
   isAddress,
+  isAddressEqual,
   isHex,
   type Address,
   type Hex,
@@ -42,7 +43,7 @@ import {
   type JobGatewayErrorCode,
   type JobsClientError,
 } from "../errors";
-import type { IdentityResponse } from "./identity";
+import { userPsId, type IdentityResponse } from "./identity";
 import {
   CLAIM_POLL_FLOOR_MS,
   DEFAULT_JOB_DEADLINE_SECONDS,
@@ -450,6 +451,31 @@ function hasMatchingIdentityKey(value: Record<string, unknown>): boolean {
   }
 }
 
+function hasExpectedIdentity(
+  value: Record<string, unknown>,
+  owner: Address,
+  chainId: number,
+): boolean {
+  const identityOwner = value["ownerAddress"];
+  const identityChainId = value["chainId"];
+  const identityUserPsId = value["userPsId"];
+  if (
+    !hasMatchingIdentityKey(value) ||
+    typeof identityOwner !== "string" ||
+    !isAddress(identityOwner) ||
+    typeof identityChainId !== "number" ||
+    typeof identityUserPsId !== "string" ||
+    !isHex(identityUserPsId)
+  ) {
+    return false;
+  }
+  return (
+    isAddressEqual(identityOwner, owner) &&
+    identityChainId === chainId &&
+    identityUserPsId.toLowerCase() === userPsId(chainId, owner).toLowerCase()
+  );
+}
+
 function jobDeadline(job: JobStatus): number | undefined {
   const candidate = job as unknown as Record<string, unknown>;
   for (const field of ["deadlineAt", "deadline"] as const) {
@@ -528,6 +554,13 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
       { method: GET_METHOD },
       "Owner identity lookup",
     );
+    if (response.status === HTTP_NOT_FOUND) {
+      const parsed = gatewayErrorBody(
+        await responseBody(response),
+        "Owner identity not found",
+      );
+      throw new OwnerNotReadyError(parsed.message, parsed.details);
+    }
     if (!response.ok) {
       throw await rejectedResponse(response, "Owner identity lookup rejected");
     }
@@ -541,7 +574,7 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
         state: isRecord(body) ? body["state"] : undefined,
       });
     }
-    if (!hasMatchingIdentityKey(body["identity"])) {
+    if (!hasExpectedIdentity(body["identity"], owner, options.chainId)) {
       throw new JobRejectedError(
         "Gateway returned a malformed or mismatched owner identity",
         response.status,

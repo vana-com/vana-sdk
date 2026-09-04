@@ -517,6 +517,7 @@ describe("job ECIES envelopes", () => {
     fromBase64Spy.mockRestore();
   });
 
+  // V8 coverage instrumentation makes the >1 MiB legacy hex comparison slow.
   it.each([0, 31, 1024, 1_048_577])(
     "preserves the outer ECIES wire format for a %i-byte result body",
     async (bodySize) => {
@@ -558,6 +559,7 @@ describe("job ECIES envelopes", () => {
       legacySerializer.mockRestore();
       legacyDeserializer.mockRestore();
     },
+    30_000,
   );
 
   it("opens the pinned result ciphertext fixture", async () => {

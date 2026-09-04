@@ -89,5 +89,9 @@ CLAUDE.md
 
 hidden/
 
+# Local agent handoff and review notes
+HANDOFF-*.md
+REVIEW-*.md
+
 
 .pnpm-store/

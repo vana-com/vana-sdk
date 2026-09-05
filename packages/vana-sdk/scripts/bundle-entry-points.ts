@@ -1,4 +1,17 @@
 import { build } from "esbuild";
+import type { Plugin } from "esbuild";
+
+function sharedErrorsPlugin(outputPath: string): Plugin {
+  return {
+    name: "shared-errors",
+    setup(build) {
+      build.onResolve({ filter: /^(?:\.\.\/|\.\/)+errors$/ }, () => ({
+        path: outputPath,
+        external: true,
+      }));
+    },
+  };
+}
 
 await build({
   entryPoints: ["src/index.node.ts"],
@@ -9,6 +22,7 @@ await build({
   format: "esm",
   sourcemap: true,
   packages: "external",
+  plugins: [sharedErrorsPlugin("./errors.js")],
 });
 
 await build({
@@ -20,6 +34,7 @@ await build({
   format: "cjs",
   sourcemap: true,
   packages: "external",
+  plugins: [sharedErrorsPlugin("./errors.cjs")],
 });
 
 await build({
@@ -32,6 +47,7 @@ await build({
   sourcemap: true,
   packages: "external",
   external: ["crypto", "secp256k1"],
+  plugins: [sharedErrorsPlugin("./errors.js")],
   define: {
     "process.browser": "true",
     "process.env.NODE_ENV": JSON.stringify("production"),

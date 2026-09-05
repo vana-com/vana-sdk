@@ -238,11 +238,19 @@ export {
 } from "./protocol/jobs-client";
 export {
   JobEnvelopeError,
+  JOB_RESULT_FORMAT_VERSION,
+  JOB_RESULT_CHUNK_BYTES,
   canonicalJobRequestBytes,
   sealJobRequest,
   openJobRequest,
+  sealJobResultStream,
+  openJobResultStream,
   sealJobResult,
   openJobResult,
+  type JobResultMetadata,
+  type JobResultExpectation,
+  type SealedJobResultStream,
+  type OpenedJobResultStream,
 } from "./crypto/envelope/job";
 export {
   PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,

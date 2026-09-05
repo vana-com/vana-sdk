@@ -203,7 +203,6 @@ export {
   MAX_ATTEMPTS,
   MAX_WAIT_SECONDS,
   CLAIM_POLL_FLOOR_MS,
-  MAX_INLINE_RESULT_BYTES,
   DEFAULT_JOB_DEADLINE_SECONDS,
   MAX_JOB_DEADLINE_SECONDS,
   type JobOperation,
@@ -212,6 +211,7 @@ export {
   type JobRequest,
   type JobRequestEnvelope,
   type JobSubmission,
+  type ResultHandle,
   type JobStatus,
   type ClaimRequest,
   type ClaimResponse,
@@ -227,11 +227,19 @@ export {
 } from "./protocol/jobs";
 export {
   JobEnvelopeError,
+  JOB_RESULT_FORMAT_VERSION,
+  JOB_RESULT_CHUNK_BYTES,
   canonicalJobRequestBytes,
   sealJobRequest,
   openJobRequest,
+  sealJobResultStream,
+  openJobResultStream,
   sealJobResult,
   openJobResult,
+  type JobResultMetadata,
+  type JobResultExpectation,
+  type SealedJobResultStream,
+  type OpenedJobResultStream,
 } from "./crypto/envelope/job";
 export {
   PERSONAL_SERVER_REGISTRATION_DEFAULT_CHAIN_ID,

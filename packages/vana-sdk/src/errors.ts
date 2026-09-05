@@ -908,6 +908,19 @@ export class JobTimeoutError extends JobsClientError {
 }
 
 /**
+ * Thrown when fetched job-result bytes do not match their object handle.
+ *
+ * @param message - Integrity failure description.
+ * @param details - Expected and actual result metadata.
+ * @category Error Handling
+ */
+export class JobResultIntegrityError extends JobsClientError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "JOB_RESULT_INTEGRITY", undefined, null, details);
+  }
+}
+
+/**
  * Thrown when the Gateway rejects a jobs request, returns an undocumented
  * response, or client input cannot form a valid jobs request.
  *

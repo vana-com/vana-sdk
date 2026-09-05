@@ -11,8 +11,10 @@ import { dirname, extname, join, relative, resolve } from "node:path";
 const distDir = resolve(process.cwd(), "dist");
 const specifierPattern =
   /(\bfrom\s*["']|import\s*\(\s*["'])(\.{1,2}\/[^"']+)(["'])/g;
+const cjsErrorsSpecifierPattern =
+  /(\brequire\(\s*["'])(\.{1,2}\/(?:\.{1,2}\/)*errors)(["']\s*\))/g;
 
-function collectEsmFiles(dir: string): string[] {
+function collectModuleFiles(dir: string): string[] {
   const files: string[] = [];
 
   for (const entry of readdirSync(dir)) {
@@ -20,11 +22,15 @@ function collectEsmFiles(dir: string): string[] {
     const stat = statSync(path);
 
     if (stat.isDirectory()) {
-      files.push(...collectEsmFiles(path));
+      files.push(...collectModuleFiles(path));
       continue;
     }
 
-    if (path.endsWith(".js") || path.endsWith(".d.ts")) {
+    if (
+      path.endsWith(".js") ||
+      path.endsWith(".cjs") ||
+      path.endsWith(".d.ts")
+    ) {
       files.push(path);
     }
   }
@@ -63,22 +69,30 @@ if (!existsSync(distDir)) {
 let filesChanged = 0;
 let importsChanged = 0;
 
-for (const file of collectEsmFiles(distDir)) {
+for (const file of collectModuleFiles(distDir)) {
   const original = readFileSync(file, "utf8");
   let fileImportsChanged = 0;
 
-  const updated = original.replace(
-    specifierPattern,
-    (match, prefix: string, specifier: string, suffix: string) => {
-      const target = resolveEsmTarget(file, specifier);
-      if (!target) {
-        return match;
-      }
+  const updated = file.endsWith(".cjs")
+    ? original.replace(
+        cjsErrorsSpecifierPattern,
+        (_match, prefix: string, specifier: string, suffix: string) => {
+          fileImportsChanged += 1;
+          return `${prefix}${specifier}.cjs${suffix}`;
+        },
+      )
+    : original.replace(
+        specifierPattern,
+        (match, prefix: string, specifier: string, suffix: string) => {
+          const target = resolveEsmTarget(file, specifier);
+          if (!target) {
+            return match;
+          }
 
-      fileImportsChanged += 1;
-      return `${prefix}${target}${suffix}`;
-    },
-  );
+          fileImportsChanged += 1;
+          return `${prefix}${target}${suffix}`;
+        },
+      );
 
   if (updated !== original) {
     writeFileSync(file, updated);
@@ -88,5 +102,5 @@ for (const file of collectEsmFiles(distDir)) {
 }
 
 console.log(
-  `Fixed ${importsChanged} ESM import specifier${importsChanged === 1 ? "" : "s"} in ${filesChanged} file${filesChanged === 1 ? "" : "s"} under ${relative(process.cwd(), distDir)}`,
+  `Fixed ${importsChanged} module specifier${importsChanged === 1 ? "" : "s"} in ${filesChanged} file${filesChanged === 1 ? "" : "s"} under ${relative(process.cwd(), distDir)}`,
 );

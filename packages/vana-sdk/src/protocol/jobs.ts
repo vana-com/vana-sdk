@@ -6,8 +6,8 @@
  * GW -> Agent: claim work with a fenced lease and sealed owner identity.
  * Agent -> Sandbox: decrypt, wake the owner sandbox, and execute privately.
  * Sandbox -> Agent: encrypt the result to the builder's public key.
- * Agent -> GW: complete with ciphertext hash and size, or fail the job.
- * GW -> Builder: return inline or polled status and opaque ciphertext.
+ * Agent -> GW: store the sealed result and complete with its object key, hash, and size.
+ * GW -> Builder: return inline or polled status with an object-storage handle.
  * Builder: decrypt and verify the result's job, scope, and version bindings.
  * Full flow: personal-server-ts `docs/260903-jobs-contract.md`, section 1.
  *
@@ -37,7 +37,6 @@ export const MAX_LEASE_SECONDS = 300;
 export const MAX_ATTEMPTS = 3;
 export const MAX_WAIT_SECONDS = 25;
 export const CLAIM_POLL_FLOOR_MS = 1000;
-export const MAX_INLINE_RESULT_BYTES = 1_048_576;
 export const DEFAULT_JOB_DEADLINE_SECONDS = 600;
 export const MAX_JOB_DEADLINE_SECONDS = 3600;
 
@@ -77,6 +76,19 @@ export interface JobSubmission {
   /** Base64 ECIES from `sealJobRequest`. */
   requestCiphertext: string;
 }
+/** Where a completed job's sealed result lives. Bytes never transit the Gateway. */
+export interface ResultHandle {
+  /** Object key in vana-storage, `jobresults/{chainId}/{jobId}`. */
+  objectKey: string;
+  /** Absolute URL the builder GETs. The Gateway builds it from its storage origin. */
+  url: string;
+  /** Byte length of the sealed object. */
+  size: number;
+  /** sha256 of the sealed bytes, 0x-prefixed. */
+  hash: Hex;
+  /** Logical expiry. After this the Gateway stops serving the handle. */
+  expiresAt: string;
+}
 /** Response from `GET /v1/jobs/:id`. */
 export interface JobStatus {
   jobId: string;
@@ -94,11 +106,8 @@ export interface JobStatus {
   claimedAt: string | null;
   completedAt: string | null;
   failureReason: string | null;
-  resultCiphertext?: string;
-  resultHandle?: string;
-  resultHash?: Hex;
-  resultSize?: number;
-  resultExpiresAt?: string;
+  /** Present only when `state === "completed"`. */
+  result?: ResultHandle;
 }
 /** Request body for `POST /v1/jobs/claim`. */
 export interface ClaimRequest {
@@ -139,10 +148,8 @@ export interface CompleteRequest {
   fencingToken: number;
   resultHash: Hex;
   resultSize: number;
-  /** Inline when the decoded size is <= `MAX_INLINE_RESULT_BYTES`. */
-  resultCiphertext?: string;
-  /** v1.1, R2. */
-  resultHandle?: string;
+  /** `jobresults/{chainId}/{jobId}`. */
+  resultObjectKey: string;
 }
 /** Request body for `POST /v1/jobs/:id/fail`. */
 export interface FailRequest {
@@ -163,7 +170,8 @@ export interface JobResult {
   scope: string;
   version: string | null;
   contentType: string;
-  body: string; /* base64 */
+  /** Raw result bytes; callers decode text explicitly when appropriate. */
+  body: Uint8Array;
 }
 /** Admission lifecycle of a registered TEE node. */
 export type TeeNodeState = "pending" | "admitted" | "draining" | "removed";

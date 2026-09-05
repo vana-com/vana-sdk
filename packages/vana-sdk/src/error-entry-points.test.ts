@@ -1,9 +1,34 @@
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Hex } from "viem";
 
 describe("built error entry points", () => {
+  it.each(["index.node.js", "index.browser.js"])(
+    "%s resolves every auth error with the Node ESM loader",
+    (entryPoint) => {
+      const entryUrl = new URL(`../dist/${entryPoint}`, import.meta.url).href;
+      const authErrorsUrl = new URL("../dist/auth/errors.js", import.meta.url)
+        .href;
+      execFileSync(
+        process.execPath,
+        [
+          "--input-type=module",
+          "--eval",
+          [
+            `const root = await import(${JSON.stringify(entryUrl)});`,
+            `const auth = await import(${JSON.stringify(authErrorsUrl)});`,
+            "for (const name of ['MissingAuthError', 'InvalidSignatureError', 'ExpiredTokenError']) {",
+            "  if (root[name] !== auth[name]) throw new Error(`${name} does not share its auth module identity`);",
+            "}",
+          ].join("\n"),
+        ],
+        { stdio: "pipe" },
+      );
+    },
+  );
+
   it.each(["index.node.js", "index.browser.js"])(
     "%s shares jobs error constructors with the errors module",
     async (entryPoint) => {
@@ -66,5 +91,19 @@ describe("built error entry points", () => {
     return expect(
       client.waitForJob("job-1", { timeoutMs: 0 }),
     ).rejects.toBeInstanceOf(root.JobTimeoutError);
+  });
+
+  it("shares auth error constructors through the CommonJS root", () => {
+    const require = createRequire(import.meta.url);
+    const root = require(
+      fileURLToPath(new URL("../dist/index.node.cjs", import.meta.url)),
+    ) as typeof import("./index.node");
+    const auth = require(
+      fileURLToPath(new URL("../dist/auth/errors.cjs", import.meta.url)),
+    ) as typeof import("./auth/errors");
+
+    expect(root.MissingAuthError).toBe(auth.MissingAuthError);
+    expect(root.InvalidSignatureError).toBe(auth.InvalidSignatureError);
+    expect(root.ExpiredTokenError).toBe(auth.ExpiredTokenError);
   });
 });

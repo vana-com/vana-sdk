@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex, keccak256, toBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { NodeECIESUint8Provider } from "../ecies/node";
 import {
   JobEnvelopeError,
+  sealJobResult,
   openJobResultStream,
   sealJobResultStream,
   type JobResultMetadata,
@@ -109,6 +110,19 @@ async function openBytes(bytes: Uint8Array): Promise<Uint8Array> {
 }
 
 describe("streaming job result envelope", () => {
+  let adversarialSealA: Awaited<ReturnType<typeof sealChunks>>;
+  let adversarialSealB: Awaited<ReturnType<typeof sealChunks>>;
+
+  beforeAll(async () => {
+    const body = bodyBytes(2 * MIB + 17);
+    [adversarialSealA, adversarialSealB] = await Promise.all([
+      sealChunks(body),
+      sealChunks(body),
+    ]);
+    expect(adversarialSealA.frames.length).toBeGreaterThan(2);
+    expect(adversarialSealB.frames.length).toBe(adversarialSealA.frames.length);
+  }, 60_000);
+
   it.each([0, 31, MIB, 20 * MIB])(
     "round-trips a %i-byte body",
     async (size) => {
@@ -135,6 +149,47 @@ describe("streaming job result envelope", () => {
     await expect(openBytes(reordered)).rejects.toBeInstanceOf(JobEnvelopeError);
   });
 
+  it("rejects a header swapped between two seals", async () => {
+    const swapped = concatenate([
+      adversarialSealB.header,
+      ...adversarialSealA.frames,
+    ]);
+
+    await expect(openBytes(swapped)).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
+  it("rejects a same-index frame spliced from another seal", async () => {
+    const spliced = concatenate([
+      adversarialSealA.header,
+      adversarialSealA.frames[0]!,
+      adversarialSealB.frames[1]!,
+      ...adversarialSealA.frames.slice(2),
+    ]);
+
+    await expect(openBytes(spliced)).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
+  it("rejects a dropped final frame", async () => {
+    const truncated = concatenate([
+      adversarialSealA.header,
+      ...adversarialSealA.frames.slice(0, -1),
+    ]);
+
+    await expect(openBytes(truncated)).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
+  it("rejects a duplicate final frame appended after finality", async () => {
+    const duplicated = concatenate([
+      adversarialSealA.header,
+      ...adversarialSealA.frames,
+      adversarialSealA.frames.at(-1)!,
+    ]);
+
+    await expect(openBytes(duplicated)).rejects.toBeInstanceOf(
+      JobEnvelopeError,
+    );
+  });
+
   it("rejects a truncated stream", async () => {
     const sealed = await sealChunks(bodyBytes(MIB + 17));
 
@@ -143,12 +198,40 @@ describe("streaming job result envelope", () => {
     ).rejects.toBeInstanceOf(JobEnvelopeError);
   });
 
-  it("rejects AAD flag tampering", async () => {
-    const sealed = await sealChunks(bodyBytes(31));
-    const tampered = sealed.bytes.slice();
-    tampered[sealed.header.length + 4] ^= 1;
+  it("rejects AAD flag tampering on a full non-final chunk", async () => {
+    const tamperedFrame = adversarialSealA.frames[0]!.slice();
+    expect(tamperedFrame.length).toBe(4 + 1 + MIB + 16);
+    expect(tamperedFrame[4]).toBe(0);
+    tamperedFrame[4] = 1;
+    const tampered = concatenate([adversarialSealA.header, tamperedFrame]);
 
     await expect(openBytes(tampered)).rejects.toBeInstanceOf(JobEnvelopeError);
+  });
+
+  it("rejects a scope mismatch before requesting a body chunk", async () => {
+    let bodyPulls = 0;
+    const headerOnly = new ReadableStream<Uint8Array>(
+      {
+        start(controller) {
+          controller.enqueue(adversarialSealA.header);
+        },
+        pull() {
+          bodyPulls += 1;
+          throw new Error("body bytes were requested");
+        },
+      },
+      { highWaterMark: 0 },
+    );
+
+    await expect(
+      openJobResultStream(headerOnly, BUILDER_PRIVATE_KEY, ecies, {
+        jobId: metadata.jobId,
+        scope: "profile.name",
+      }),
+    ).rejects.toThrow(
+      `Job result scope ${metadata.scope} does not match expected scope profile.name`,
+    );
+    expect(bodyPulls).toBe(0);
   });
 
   it("rejects the wrong builder key", async () => {
@@ -162,6 +245,22 @@ describe("streaming job result envelope", () => {
         { jobId: metadata.jobId },
       ),
     ).rejects.toThrow();
+  });
+
+  it("surfaces a final-chunk cipher failure from the buffered sealer", async () => {
+    const failure = new Error("mock cipher failed during flush");
+    const encrypt = vi
+      .spyOn(globalThis.crypto.subtle, "encrypt")
+      .mockRejectedValueOnce(failure);
+
+    await expect(
+      sealJobResult(
+        { ...metadata, body: new Uint8Array() },
+        BUILDER.publicKey,
+        ecies,
+      ),
+    ).rejects.toBe(failure);
+    encrypt.mockRestore();
   });
 
   it.skipIf(Boolean(process.env.CI) || typeof globalThis.gc !== "function")(

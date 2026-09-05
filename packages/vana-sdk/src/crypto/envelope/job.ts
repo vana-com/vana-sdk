@@ -818,17 +818,19 @@ export async function sealJobResult(
     }
   })();
   const writer = sealed.transform.writable.getWriter();
-  for (
-    let offset = 0;
-    offset < result.body.length;
-    offset += JOB_RESULT_CHUNK_BYTES
-  ) {
-    await writer.write(
-      result.body.subarray(offset, offset + JOB_RESULT_CHUNK_BYTES),
-    );
-  }
-  await writer.close();
-  await drain;
+  const fill = (async () => {
+    for (
+      let offset = 0;
+      offset < result.body.length;
+      offset += JOB_RESULT_CHUNK_BYTES
+    ) {
+      await writer.write(
+        result.body.subarray(offset, offset + JOB_RESULT_CHUNK_BYTES),
+      );
+    }
+    await writer.close();
+  })();
+  await Promise.all([drain, fill]);
   if (outputOffset !== bytes.length) {
     throw new JobEnvelopeError("Invalid job result: sealed size mismatch");
   }

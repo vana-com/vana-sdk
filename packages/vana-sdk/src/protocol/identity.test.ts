@@ -1,3 +1,4 @@
+import mokshaIdentity from "./fixtures/moksha-identity.json";
 import * as secp256k1 from "@noble/secp256k1";
 import { describe, expect, it } from "vitest";
 import {
@@ -165,6 +166,17 @@ describe("signature-chain preimages", () => {
 });
 
 describe("verifyEnclaveIdentityEvidence", () => {
+  it("verifies a deployed Moksha identity with packaged trust anchors", async () => {
+    const evidence = mokshaIdentity as EnclaveIdentityEvidence;
+    await expect(
+      verifyEnclaveIdentityEvidence(evidence, ENCLAVE_TRUST_ANCHORS[CHAIN_ID], {
+        ownerAddress: evidence.ownerAddress,
+        chainId: CHAIN_ID,
+        epoch: evidence.epoch,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it("freezes fleet trust anchors", () => {
     const anchors = ENCLAVE_TRUST_ANCHORS[CHAIN_ID];
 
@@ -366,9 +378,9 @@ describe("verifyEnclaveIdentityEvidence", () => {
     ).rejects.toThrow("Enclave app ID is not trusted");
   });
 
-  it("fails closed while fleet anchors are empty", async () => {
+  it("keeps mainnet disabled while its fleet anchors are empty", async () => {
     const { evidence, expected } = await identityFixture();
-    const anchors = ENCLAVE_TRUST_ANCHORS[CHAIN_ID];
+    const anchors = ENCLAVE_TRUST_ANCHORS[1480];
     const signatureChain: [Hex, Hex] = ["0x", "0x"];
 
     expect(anchors).toBeDefined();

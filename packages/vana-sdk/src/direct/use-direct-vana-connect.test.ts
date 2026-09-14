@@ -69,8 +69,13 @@ it("uses the latest transports after a rerender and exposes ready_to_open on mob
     createRequest: latestCreate,
   });
 
-  // The hook returns only the smaller start/reset/state surface.
-  expect(Object.keys(connect).sort()).toEqual(["reset", "start", "state"]);
+  // The hook exposes the explicit retry without changing start/reset semantics.
+  expect(Object.keys(connect).sort()).toEqual([
+    "reset",
+    "retryRead",
+    "start",
+    "state",
+  ]);
 
   connect.start();
   // The mocked useSyncExternalStore snapshots state at render time, so re-render

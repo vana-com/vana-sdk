@@ -93,7 +93,8 @@ function validateTypeScriptConsumer(consumerDir: string): void {
     join(consumerDir, "index.ts"),
     [
       'import { createSessionRelayBuilderClient, SessionRelayError, type SessionRelayInitResult } from "@opendatalabs/vana-sdk/session-relay";',
-      'import { buildEscrowPaymentHeader, type EscrowPaymentConfig, type EscrowPaymentHeaderConfig, type SignTypedDataFn } from "@opendatalabs/vana-sdk/server";',
+      'import { buildEscrowPaymentHeader, type EscrowPaymentConfig, type EscrowPaymentHeaderConfig, type PersonalServerPaymentOperation, type SignTypedDataFn } from "@opendatalabs/vana-sdk/server";',
+      'import { buildWithdrawAuthorizationTypedData, createEscrowGatewayClient, EscrowWithdrawalLifecycleError, EscrowWithdrawalRejectionError, type EscrowWithdrawalResult } from "@opendatalabs/vana-sdk/node";',
       'import { buildEscrowPaymentHeader as buildDirectEscrowPaymentHeader } from "@opendatalabs/vana-sdk/direct/escrow-payment";',
       'import { readPersonalServerData } from "@opendatalabs/vana-sdk/direct/personal-server-read";',
       "",
@@ -123,6 +124,14 @@ function validateTypeScriptConsumer(consumerDir: string): void {
       "  legacyConfig;",
       "void headerOnlyInput;",
       "void legacyInput;",
+      "const paymentOperation = {} as PersonalServerPaymentOperation;",
+      "const withdrawalResult = {} as EscrowWithdrawalResult;",
+      "void paymentOperation;",
+      "void withdrawalResult;",
+      "void buildWithdrawAuthorizationTypedData;",
+      "void createEscrowGatewayClient;",
+      "void EscrowWithdrawalLifecycleError;",
+      "void EscrowWithdrawalRejectionError;",
       "void buildDirectEscrowPaymentHeader;",
       "void readPersonalServerData;",
       "",
@@ -172,6 +181,25 @@ try {
     );
     console.log(`✓ ${specifier}`);
   }
+
+  run(
+    "node",
+    [
+      "--input-type=module",
+      "-e",
+      'const sdk = await import("@opendatalabs/vana-sdk/server"); if (typeof sdk.buildEscrowPaymentHeader !== "function") throw new Error("Server entry point is missing buildEscrowPaymentHeader");',
+    ],
+    consumerDir,
+  );
+  run(
+    "node",
+    [
+      "--input-type=module",
+      "-e",
+      'const sdk = await import("@opendatalabs/vana-sdk/node"); for (const name of ["buildWithdrawAuthorizationTypedData", "createEscrowGatewayClient", "EscrowWithdrawalLifecycleError", "EscrowWithdrawalRejectionError"]) if (!(name in sdk)) throw new Error(`Node entry point is missing ${name}`);',
+    ],
+    consumerDir,
+  );
 
   for (const specifier of browserBlockedImports) {
     validateBrowserBlockedImport(specifier, consumerDir);

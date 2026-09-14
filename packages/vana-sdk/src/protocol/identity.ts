@@ -187,8 +187,14 @@ export const ENCLAVE_TRUST_ANCHORS: Readonly<
 > = Object.freeze({
   // filled at fleet provisioning; verify fails closed while empty
   [VANA_MAINNET_CHAIN_ID]: emptyAnchor(),
-  // filled at fleet provisioning; verify fails closed while empty
-  [MOKSHA_CHAIN_ID]: emptyAnchor(),
+  // Moksha workers share this dstack app and KMS root; the controller does not derive owner keys.
+  [MOKSHA_CHAIN_ID]: Object.freeze({
+    kmsRootPubkey:
+      "0x0434c76e0c3f52ec64cbf9bbf5c910c272330166fd656c0a86bb330963e46910e1a0e6fa51bec74be2f9129342707636060d85856d102cee8290185409ecf7422f",
+    appIds: Object.freeze([
+      "0xec9a39de98c760e1ded9f1e97016dc5f0e357cf2" as Hex,
+    ]),
+  }),
 });
 
 /**

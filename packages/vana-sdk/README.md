@@ -92,6 +92,63 @@ const decrypted = await ecies.decrypt(recipientPrivateKey, encrypted);
 
 The browser entry exposes the same surface as `BrowserECIESProvider`.
 
+### Sealed job result format v2
+
+Job result objects use a hybrid envelope so the enclave can encrypt large bodies
+without retaining a plaintext-sized ECIES intermediate. The Node and browser
+entries export `sealJobResultStream` and `openJobResultStream`; the existing
+buffered `sealJobResult` and `openJobResult` APIs drive the same format for
+callers that already hold the complete body.
+
+All integers below are unsigned big-endian. The stored object is:
+
+```text
+uint8 formatVersion (= 2)
+uint32 wrappedKeyLength
+wrappedKey[wrappedKeyLength]
+frame[0] || frame[1] || ... || finalFrame
+```
+
+`wrappedKey` uses the existing ECIES wire encoding
+`iv(16) || ephemeralPublicKey(65) || ciphertext || mac(32)`. Its authenticated
+plaintext is:
+
+```text
+contentKey(32) || noncePrefix(12) || uint32 metadataLength || metadata JSON
+```
+
+The metadata JSON is canonical (recursively key-sorted), capped at 4 KiB, and
+contains exactly `v`, `jobId`, `scope`, `version`, and `contentType`. Each body
+frame is:
+
+```text
+uint32 encryptedLength || uint8 flags || AES-GCM ciphertext || tag(16)
+```
+
+The only defined flag is bit value `0x01`, which marks the final frame.
+Non-final plaintext chunks are exactly 1 MiB; the final chunk is 0 through
+1 MiB, so an empty result still has one authenticated final frame. AES-256-GCM
+uses the wrapped content key. A chunk nonce is the 12-byte nonce prefix with
+its final big-endian uint32 XORed with the zero-based chunk index.
+
+Every frame authenticates this AAD:
+
+```text
+uint8 formatVersion
+|| uint32 metadataLength
+|| metadata JSON
+|| uint32 chunkIndex
+|| uint8 flags
+|| uint32 plaintextLength
+```
+
+The metadata, index, final marker, and length therefore cannot be changed, and
+frames cannot be reordered, omitted, or appended without authentication
+failing. The streaming sealer retains only fixed-size chunk buffers regardless
+of total payload size; a local 50 MiB probe measured about 5 MiB of peak
+`arrayBuffers` growth, versus the payload-sized plaintext, ciphertext, and
+ECIES intermediates required by the previous buffered format.
+
 ### Upload a file via the storage manager
 
 ```typescript

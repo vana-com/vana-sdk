@@ -59,6 +59,7 @@ export {
   type DirectBrowserPlatform,
   type DirectBrowserPlatformPolicy,
   type DirectConnectFlow,
+  type DirectConnectRetryOutcome,
   type DirectConnectState,
   type DirectConnectOptions,
   type DirectConnectTransports,

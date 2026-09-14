@@ -130,6 +130,11 @@ export type DirectConnectState<T = unknown> =
   | { type: "done"; result: ApprovedDataResult<T> }
   | { type: "error"; error: Error };
 
+/** Whether an explicit read retry reused consent or started fresh approval. */
+export type DirectConnectRetryOutcome =
+  | "retried_existing_grant"
+  | "fresh_approval_required";
+
 /** The store returned by {@link createDirectConnectFlow}. */
 export interface DirectConnectFlow<T = unknown> {
   /** Current state. */
@@ -138,6 +143,16 @@ export interface DirectConnectFlow<T = unknown> {
   subscribe(listener: () => void): () => void;
   /** Begin the flow. No-op if already running. */
   start(): Promise<void>;
+  /**
+   * Retry a failed read, reusing a still-live approved request when possible.
+   *
+   * @remarks
+   * This explicit path avoids the observed double-approval symptom where
+   * "Try that again" minted a new request after a transient read failure.
+   * The return value tells callers whether existing consent was reused or a
+   * fresh approval was required.
+   */
+  retryRead(): Promise<DirectConnectRetryOutcome>;
   /** Reset to `idle` and stop any in-flight polling. */
   reset(): void;
 }
@@ -241,6 +256,9 @@ export function createDirectConnectFlow<T = unknown>(
   const listeners = new Set<() => void>();
   let pollHandle: unknown = null;
   let running = false;
+  // Retained only after status proved this request had a read-ready grant.
+  // A retry rechecks that status before trusting the prior consent.
+  let approvedRequest: AccessRequest | null = null;
   // Monotonic id for the current start() invocation. reset() (and an
   // immediately following start()) bumps it, so a previous run whose async
   // createRequest is still in flight can detect it has been superseded and
@@ -374,6 +392,7 @@ export function createDirectConnectFlow<T = unknown>(
 
     if (isReadReadyStatus(status.status)) {
       clearPoll();
+      approvedRequest = request;
       await readAndFinish(request);
       return;
     }
@@ -392,7 +411,7 @@ export function createDirectConnectFlow<T = unknown>(
     scheduleNextPoll(request, deadline);
   }
 
-  return {
+  const flow: DirectConnectFlow<T> = {
     getState() {
       return state;
     },
@@ -405,6 +424,9 @@ export function createDirectConnectFlow<T = unknown>(
     async start(): Promise<void> {
       if (running || isRunningPhase()) return;
       running = true;
+      // start() deliberately keeps its established first-run semantics: every
+      // explicit start creates a request. Only retryRead() may reuse consent.
+      approvedRequest = null;
       const runId = ++activeRunId;
       // Read the platform policy at start time, like openApprovalWindow below,
       // so a policy swapped in after construction (a React rerender forwards
@@ -496,8 +518,53 @@ export function createDirectConnectFlow<T = unknown>(
       });
     },
 
+    async retryRead(): Promise<DirectConnectRetryOutcome> {
+      if (running || isRunningPhase()) {
+        throw new Error(
+          "Cannot retry a read while the connect flow is running",
+        );
+      }
+
+      const request = approvedRequest;
+      const parsedExpiry = request?.expiresAt
+        ? Date.parse(request.expiresAt)
+        : Number.NaN;
+      const requestExpired =
+        Number.isFinite(parsedExpiry) && now() >= parsedExpiry;
+
+      if (request && !requestExpired) {
+        running = true;
+        const runId = ++activeRunId;
+        let status: AccessRequestStatus;
+        try {
+          status = await transports.getStatus(request.requestId);
+        } catch (err) {
+          if (runId !== activeRunId) {
+            throw new Error("Read retry was superseded");
+          }
+          running = false;
+          const error = toError(err);
+          setState({ type: "error", error });
+          throw error;
+        }
+        if (runId !== activeRunId) {
+          throw new Error("Read retry was superseded");
+        }
+        if (isReadReadyStatus(status.status)) {
+          await readAndFinish(request);
+          return "retried_existing_grant";
+        }
+        running = false;
+      }
+
+      approvedRequest = null;
+      await flow.start();
+      return "fresh_approval_required";
+    },
+
     reset(): void {
       running = false;
+      approvedRequest = null;
       // Invalidate any in-flight start() so a late createRequest can't clobber
       // a subsequent run.
       activeRunId++;
@@ -506,4 +573,6 @@ export function createDirectConnectFlow<T = unknown>(
       setState({ type: "idle" });
     },
   };
+
+  return flow;
 }

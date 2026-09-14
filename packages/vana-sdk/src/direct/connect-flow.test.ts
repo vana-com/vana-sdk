@@ -426,6 +426,107 @@ describe("createDirectConnectFlow", () => {
     expect(states).toContain("done");
   });
 
+  it("retries a failed read against a live approved request without creating another request", async () => {
+    const h = makeHarness();
+    const createRequest = vi.fn(async () => REQUEST);
+    const getStatus = vi
+      .fn<(id: string) => Promise<AccessRequestStatus>>()
+      .mockResolvedValueOnce(approvedStatus())
+      .mockResolvedValueOnce(approvedStatus());
+    const result: ApprovedDataResult = {
+      scope: "icloud_notes.notes",
+      data: [{ note: "retried" }],
+    };
+    const readResult = vi
+      .fn<(id: string) => Promise<ApprovedDataResult>>()
+      .mockRejectedValueOnce(new Error("temporary read failure"))
+      .mockResolvedValueOnce(result);
+    const openApprovalWindow = vi.fn(() => makeWindow().handle);
+    const flow = createDirectConnectFlow(
+      { createRequest, getStatus, readResult },
+      {
+        openApprovalWindow,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await flow.start();
+    await h.tick();
+    expect(flow.getState().type).toBe("error");
+
+    await expect(flow.retryRead()).resolves.toBe("retried_existing_grant");
+    expect(createRequest).toHaveBeenCalledTimes(1);
+    expect(openApprovalWindow).toHaveBeenCalledTimes(1);
+    expect(getStatus).toHaveBeenCalledTimes(2);
+    expect(readResult).toHaveBeenCalledTimes(2);
+    expect(flow.getState()).toEqual({ type: "done", result });
+  });
+
+  it.each([
+    ["expired grant", "expired"],
+    ["revoked grant", "denied"],
+  ] as const)(
+    "creates a fresh request when retrying after an %s",
+    async (_label, unusableStatus) => {
+      const h = makeHarness();
+      const replacement = { ...REQUEST, requestId: "dcr_2" };
+      const createRequest = vi
+        .fn<() => Promise<AccessRequest>>()
+        .mockResolvedValueOnce(REQUEST)
+        .mockResolvedValueOnce(replacement);
+      const getStatus = vi
+        .fn<(id: string) => Promise<AccessRequestStatus>>()
+        .mockResolvedValueOnce(approvedStatus())
+        .mockResolvedValueOnce({ status: unusableStatus });
+      const readResult = vi
+        .fn<(id: string) => Promise<ApprovedDataResult>>()
+        .mockRejectedValueOnce(new Error("temporary read failure"));
+      const flow = createDirectConnectFlow(
+        { createRequest, getStatus, readResult },
+        {
+          openApprovalWindow: () => makeWindow().handle,
+          now: h.now,
+          setTimeoutFn: h.setTimeoutFn,
+          clearTimeoutFn: h.clearTimeoutFn,
+        },
+      );
+
+      await flow.start();
+      await h.tick();
+
+      await expect(flow.retryRead()).resolves.toBe("fresh_approval_required");
+      expect(createRequest).toHaveBeenCalledTimes(2);
+      expect(flow.getState()).toMatchObject({
+        type: "awaiting_approval",
+        request: { requestId: replacement.requestId },
+      });
+    },
+  );
+
+  it("creates a fresh request when retrying without a prior approved request", async () => {
+    const h = makeHarness();
+    const createRequest = vi.fn(async () => REQUEST);
+    const flow = createDirectConnectFlow(
+      {
+        createRequest,
+        getStatus: async () => pendingStatus(),
+        readResult: vi.fn(),
+      },
+      {
+        openApprovalWindow: () => makeWindow().handle,
+        now: h.now,
+        setTimeoutFn: h.setTimeoutFn,
+        clearTimeoutFn: h.clearTimeoutFn,
+      },
+    );
+
+    await expect(flow.retryRead()).resolves.toBe("fresh_approval_required");
+    expect(createRequest).toHaveBeenCalledTimes(1);
+    expect(flow.getState().type).toBe("awaiting_approval");
+  });
+
   it("surfaces a createRequest failure as an error state", async () => {
     const flow = createDirectConnectFlow({
       createRequest: async () => {

@@ -174,20 +174,21 @@ export interface EnclaveTrustAnchors {
   appIds: readonly Hex[];
 }
 
-function emptyAnchor(): Readonly<EnclaveTrustAnchors> {
-  return Object.freeze({
-    kmsRootPubkey: EMPTY_HEX,
-    appIds: Object.freeze([] as Hex[]),
-  });
-}
-
 /**
- * Mainnet fleet anchors. Empty on purpose: the real `kmsRootPubkey` and worker
- * `appId` can only be harvested once the mainnet CVM is staged and measured, so
- * `verifyEnclaveIdentityEvidence` fails closed until then. Replace this single
- * value with the harvested anchor to enable mainnet.
+ * Mainnet fleet anchors, harvested from the prod9 fleet on 2026-09-15.
+ *
+ * `kmsRootPubkey` is byte-identical to Moksha's: both fleets run under the same
+ * Phala KMS, so the key-provider root does NOT separate them. `appIds` is what
+ * does — it lists the mainnet worker app only, and must never contain a Moksha
+ * app id. The controller is absent by design: it derives no owner keys.
  */
-const MAINNET_ANCHOR: Readonly<EnclaveTrustAnchors> = emptyAnchor();
+const MAINNET_ANCHOR: Readonly<EnclaveTrustAnchors> = Object.freeze({
+  kmsRootPubkey:
+    "0x0434c76e0c3f52ec64cbf9bbf5c910c272330166fd656c0a86bb330963e46910e1a0e6fa51bec74be2f9129342707636060d85856d102cee8290185409ecf7422f",
+  appIds: Object.freeze([
+    "0x01bb1b6dcaf1ea170f1480c5e53b093f384d939a",
+  ] as Hex[]),
+});
 
 /** Fleet-provisioned trust anchors keyed by Vana chain ID. */
 export const ENCLAVE_TRUST_ANCHORS: Readonly<

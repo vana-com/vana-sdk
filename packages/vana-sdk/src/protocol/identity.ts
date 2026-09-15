@@ -181,12 +181,19 @@ function emptyAnchor(): Readonly<EnclaveTrustAnchors> {
   });
 }
 
+/**
+ * Mainnet fleet anchors. Empty on purpose: the real `kmsRootPubkey` and worker
+ * `appId` can only be harvested once the mainnet CVM is staged and measured, so
+ * `verifyEnclaveIdentityEvidence` fails closed until then. Replace this single
+ * value with the harvested anchor to enable mainnet.
+ */
+const MAINNET_ANCHOR: Readonly<EnclaveTrustAnchors> = emptyAnchor();
+
 /** Fleet-provisioned trust anchors keyed by Vana chain ID. */
 export const ENCLAVE_TRUST_ANCHORS: Readonly<
   Record<number, Readonly<EnclaveTrustAnchors>>
 > = Object.freeze({
-  // filled at fleet provisioning; verify fails closed while empty
-  [VANA_MAINNET_CHAIN_ID]: emptyAnchor(),
+  [VANA_MAINNET_CHAIN_ID]: MAINNET_ANCHOR,
   // Moksha workers share this dstack app and KMS root; the controller does not derive owner keys.
   [MOKSHA_CHAIN_ID]: Object.freeze({
     kmsRootPubkey:

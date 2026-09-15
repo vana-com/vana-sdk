@@ -38,6 +38,8 @@ const VECTOR_OWNER_ADDRESS =
 const OTHER_OWNER_ADDRESS =
   "0x000000000000000000000000000000000000bEEF" as Address;
 const CHAIN_ID = 14800;
+const MAINNET_CHAIN_ID = 1480;
+const UNPROVISIONED_KMS_ROOT = "0x";
 const APP_ID = "0x1111111111111111111111111111111111111111" as Hex;
 
 // Deterministic test scalars; not real keys and no 64-hex literal for the EVM key scan.
@@ -183,6 +185,19 @@ describe("verifyEnclaveIdentityEvidence", () => {
     expect(Object.isFrozen(ENCLAVE_TRUST_ANCHORS)).toBe(true);
     expect(Object.isFrozen(anchors)).toBe(true);
     expect(Object.isFrozen(anchors?.appIds)).toBe(true);
+  });
+
+  it("ships mainnet unprovisioned and Moksha provisioned", () => {
+    // Mainnet anchors stay empty until the mainnet CVM is measured.
+    expect(ENCLAVE_TRUST_ANCHORS[MAINNET_CHAIN_ID]?.kmsRootPubkey).toBe(
+      UNPROVISIONED_KMS_ROOT,
+    );
+    expect(ENCLAVE_TRUST_ANCHORS[MAINNET_CHAIN_ID]?.appIds).toEqual([]);
+
+    expect(ENCLAVE_TRUST_ANCHORS[CHAIN_ID]?.kmsRootPubkey).not.toBe(
+      UNPROVISIONED_KMS_ROOT,
+    );
+    expect(ENCLAVE_TRUST_ANCHORS[CHAIN_ID]?.appIds.length).toBeGreaterThan(0);
   });
 
   it("accepts a valid two-link dstack signature chain", async () => {

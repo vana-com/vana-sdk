@@ -40,6 +40,7 @@ const OTHER_OWNER_ADDRESS =
 const CHAIN_ID = 14800;
 const MAINNET_CHAIN_ID = 1480;
 const UNPROVISIONED_KMS_ROOT = "0x";
+const MAINNET_WORKER_APP_ID = "0x01bb1b6dcaf1ea170f1480c5e53b093f384d939a";
 const APP_ID = "0x1111111111111111111111111111111111111111" as Hex;
 
 // Deterministic test scalars; not real keys and no 64-hex literal for the EVM key scan.
@@ -187,17 +188,19 @@ describe("verifyEnclaveIdentityEvidence", () => {
     expect(Object.isFrozen(anchors?.appIds)).toBe(true);
   });
 
-  it("ships mainnet unprovisioned and Moksha provisioned", () => {
-    // Mainnet anchors stay empty until the mainnet CVM is measured.
-    expect(ENCLAVE_TRUST_ANCHORS[MAINNET_CHAIN_ID]?.kmsRootPubkey).toBe(
-      UNPROVISIONED_KMS_ROOT,
-    );
-    expect(ENCLAVE_TRUST_ANCHORS[MAINNET_CHAIN_ID]?.appIds).toEqual([]);
+  it("separates mainnet from Moksha by app id, not by KMS root", () => {
+    const mainnet = ENCLAVE_TRUST_ANCHORS[MAINNET_CHAIN_ID];
+    const moksha = ENCLAVE_TRUST_ANCHORS[CHAIN_ID];
 
-    expect(ENCLAVE_TRUST_ANCHORS[CHAIN_ID]?.kmsRootPubkey).not.toBe(
-      UNPROVISIONED_KMS_ROOT,
-    );
-    expect(ENCLAVE_TRUST_ANCHORS[CHAIN_ID]?.appIds.length).toBeGreaterThan(0);
+    expect(mainnet?.kmsRootPubkey).not.toBe(UNPROVISIONED_KMS_ROOT);
+    expect(mainnet?.appIds).toEqual([MAINNET_WORKER_APP_ID]);
+
+    // Both fleets run under one Phala KMS, so the root cannot separate them.
+    expect(mainnet?.kmsRootPubkey).toBe(moksha?.kmsRootPubkey);
+
+    // The app id is the whole separation: neither list may contain the other's.
+    expect(mainnet?.appIds).not.toContain(moksha?.appIds[0]);
+    expect(moksha?.appIds).not.toContain(MAINNET_WORKER_APP_ID);
   });
 
   it("accepts a valid two-link dstack signature chain", async () => {
@@ -393,19 +396,16 @@ describe("verifyEnclaveIdentityEvidence", () => {
     ).rejects.toThrow("Enclave app ID is not trusted");
   });
 
-  it("keeps mainnet disabled while its fleet anchors are empty", async () => {
+  it("refuses a mainnet app id the anchors do not list", async () => {
+    // The fleet's own worker is admitted by appIds; anything else is not,
+    // which is what keeps a Moksha node out of the mainnet trust domain.
     const { evidence, expected } = await identityFixture();
-    const anchors = ENCLAVE_TRUST_ANCHORS[1480];
-    const signatureChain: [Hex, Hex] = ["0x", "0x"];
+    const anchors = ENCLAVE_TRUST_ANCHORS[MAINNET_CHAIN_ID];
 
     expect(anchors).toBeDefined();
     await expect(
-      verifyEnclaveIdentityEvidence(
-        { ...evidence, signatureChain },
-        anchors,
-        expected,
-      ),
-    ).rejects.toThrow("KMS root trust anchor is not provisioned");
+      verifyEnclaveIdentityEvidence(evidence, anchors, expected),
+    ).rejects.toThrow();
   });
 
   it("rejects a different expected owner", async () => {

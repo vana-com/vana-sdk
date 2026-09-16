@@ -31,7 +31,62 @@ export const JOB_STATES = [
 ] as const;
 export type JobState = (typeof JOB_STATES)[number];
 /** Payment lifecycle recorded for a queued job. */
-export type PaymentState = "none" | "reserved" | "settled";
+/**
+ * What actually happened to the money for one read.
+ *
+ * `none` is the pre-fee literal every job carried before job fees and stays in
+ * the union for those rows. `free` is a chain whose `data_access` fee is
+ * disabled or zero — priced honestly at nothing, not a placeholder. `unbilled`
+ * is a read the Gateway priced but did not charge, either during the fee
+ * rollout or on a path with no payer.
+ */
+export type PaymentState =
+  | "none"
+  | "free"
+  | "unbilled"
+  | "reserved"
+  | "settling"
+  | "settled"
+  | "released";
+
+/**
+ * The builder's signed authorization for the price of one read.
+ *
+ * The same EIP-712 `GenericPayment` a legacy Personal Server read signs into
+ * its `X-PAYMENT` header, over `opType: "job_access"` and
+ * `opId: keccak256(jobId)`. The Gateway stores it verbatim on the payment row.
+ */
+export interface JobPaymentAuthorization {
+  signature: Hex;
+  /** uint256 decimal; must equal the Gateway's quote for this chain. */
+  amount: string;
+  asset: Address;
+  /** uint256 decimal, unique per (payer, kind). */
+  paymentNonce: string;
+}
+
+/** The price of one delivered read, as `GET /v1/jobs/quote` reports it. */
+export interface JobQuote {
+  chainId: number;
+  /** uint256 decimal; "0" when this chain charges nothing. */
+  price: string;
+  asset: Address;
+  /** False when the fee is disabled or zero, so no payment is needed. */
+  payable: boolean;
+  /** Whether the Gateway refuses an unpaid submission today. */
+  enforced: boolean;
+}
+
+/** RecordDataAccess receipt fields plus the enclave signature over them. */
+export interface JobAccessRecord {
+  dataPointId: Hex;
+  /** uint256 decimal — the data-point version actually served. */
+  version: string;
+  accessor: Address;
+  /** bytes32 per-event replay nonce; the contract pins it. */
+  recordId: Hex;
+  signature: Hex;
+}
 export const DEFAULT_LEASE_SECONDS = 30;
 export const MAX_LEASE_SECONDS = 300;
 export const MAX_ATTEMPTS = 3;
@@ -75,6 +130,18 @@ export interface JobSubmission {
   deadline?: string;
   /** Base64 ECIES from `sealJobRequest`. */
   requestCiphertext: string;
+  /**
+   * The most the builder accepts for this read, uint256 decimal. The Gateway
+   * refuses a quote above it rather than charging a price nobody agreed to.
+   *
+   * @remarks
+   * This submission is authenticated by a Web3Signed body hash, not by an
+   * EIP-712 struct, so these three fields are covered by the builder's existing
+   * request signature. No typed-data version changes.
+   */
+  maxPrice?: string;
+  priceAsset?: Address;
+  payment?: JobPaymentAuthorization;
 }
 /** Where a completed job's sealed result lives. Bytes never transit the Gateway. */
 export interface ResultHandle {
@@ -100,6 +167,8 @@ export interface JobStatus {
   pinnedVersion: string | null;
   attempt: number;
   price: string;
+  /** Null exactly when the read is free; nothing owed is owed to nobody. */
+  priceAsset: Address | null;
   payer: "builder";
   paymentState: PaymentState;
   createdAt: string;
@@ -150,6 +219,13 @@ export interface CompleteRequest {
   resultSize: number;
   /** `jobresults/{chainId}/{jobId}`. */
   resultObjectKey: string;
+  /**
+   * Server-signed delivery receipt for the read this job served, minted by the
+   * node agent with the owner's enclave wallet. Binds the reserved payment to
+   * an on-chain `recordDataAccess`, exactly as the legacy paid read does.
+   * Required whenever the job reserved a fee.
+   */
+  accessRecord?: JobAccessRecord;
 }
 /** Request body for `POST /v1/jobs/:id/fail`. */
 export interface FailRequest {

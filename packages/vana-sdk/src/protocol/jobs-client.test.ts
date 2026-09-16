@@ -2,10 +2,13 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
   bytesToHex,
   keccak256,
+  recoverTypedDataAddress,
   toBytes,
+  toHex,
   type Address,
   type LocalAccount,
 } from "viem";
+import { GENERIC_PAYMENT_TYPES } from "./escrow";
 import { privateKeyToAccount } from "viem/accounts";
 import { parseWeb3SignedHeader } from "../auth/web3-signed";
 import { computeBodyHash } from "../auth/web3-signed-builder";
@@ -97,6 +100,7 @@ function statusFor(
     attempt: state === "queued" ? 0 : 1,
     price: "0",
     payer: "builder",
+    priceAsset: null,
     paymentState: "none",
     createdAt: NOW.toISOString(),
     claimedAt: null,
@@ -882,5 +886,327 @@ describe("createJobsClient", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("job fees", () => {
+  const FEE_ASSET = "0xF1815bd50389c46847f0Bda824eC8da914045D14" as Address;
+  const PRICE = "10000";
+
+  /** The Gateway's 402: it quotes the price rather than just refusing. */
+  function quoteResponse(amount = PRICE): Response {
+    return jsonResponse(402, {
+      code: "PAYMENT_REQUIRED",
+      error: "This read is charged; sign the quoted price and resubmit",
+      asset: FEE_ASSET,
+      amount,
+    });
+  }
+
+  it("reads the price before committing to a read", async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse(200, {
+        chainId: CHAIN_ID,
+        price: PRICE,
+        asset: FEE_ASSET,
+        payable: true,
+        enforced: true,
+      }),
+    ) as unknown as typeof fetch;
+
+    await expect(makeClient(fetchFn).quoteJob()).resolves.toMatchObject({
+      price: PRICE,
+      asset: FEE_ASSET,
+      payable: true,
+      enforced: true,
+    });
+  });
+
+  // A free chain never sees a 402, so a free read costs no extra round trip.
+  it("submits once when the chain charges nothing", async () => {
+    const fetchFn = vi.fn(async (url: string) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      return jsonResponse(202, { jobId: lastJobId(fetchFn), state: "queued" });
+    }) as unknown as typeof fetch;
+
+    const submitted = await makeClient(fetchFn).submitRawRead({
+      owner: OWNER,
+      grantId: GRANT_ID,
+      scope: SCOPE,
+    });
+
+    expect(submitted.state).toBe("queued");
+    expect(submissionPosts(fetchFn)).toHaveLength(1);
+  });
+
+  // The same single-retry dance a legacy paid read runs against a Personal
+  // Server: the challenge carries the price, the client signs it, one retry.
+  it("signs the quoted price and retries exactly once", async () => {
+    let posts = 0;
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      posts += 1;
+      if (posts === 1) return quoteResponse();
+      const submission = JSON.parse(
+        new TextDecoder().decode(init?.body as Uint8Array),
+      ) as JobSubmission;
+      return jsonResponse(202, { jobId: submission.jobId, state: "queued" });
+    }) as unknown as typeof fetch;
+
+    await makeClient(fetchFn).submitRawRead({
+      owner: OWNER,
+      grantId: GRANT_ID,
+      scope: SCOPE,
+    });
+
+    const attempts = submissionPosts(fetchFn);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]!.payment).toBeUndefined();
+
+    const paid = attempts[1]!;
+    expect(paid.jobId).toBe(attempts[0]!.jobId);
+    expect(paid.payment).toMatchObject({ amount: PRICE, asset: FEE_ASSET });
+    expect(paid.priceAsset).toBe(FEE_ASSET);
+  });
+
+  it("signs the price over this job, recoverable to the builder", async () => {
+    let posts = 0;
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      posts += 1;
+      if (posts === 1) return quoteResponse();
+      const submission = JSON.parse(
+        new TextDecoder().decode(init?.body as Uint8Array),
+      ) as JobSubmission;
+      return jsonResponse(202, { jobId: submission.jobId, state: "queued" });
+    }) as unknown as typeof fetch;
+
+    await makeClient(fetchFn).submitRawRead({
+      owner: OWNER,
+      grantId: GRANT_ID,
+      scope: SCOPE,
+    });
+
+    const paid = submissionPosts(fetchFn)[1]!;
+    const signer = await recoverTypedDataAddress({
+      domain: {
+        name: "Vana Data Portability",
+        version: "1",
+        chainId: CHAIN_ID,
+        verifyingContract: "0x07d7769081adc3a3DBe91f5E4B98E9A5a6B292e3",
+      },
+      types: GENERIC_PAYMENT_TYPES,
+      primaryType: "GenericPayment",
+      message: {
+        payerAddress: builder.address,
+        opType: "job_access",
+        opId: keccak256(toHex(paid.jobId)),
+        asset: FEE_ASSET,
+        amount: BigInt(PRICE),
+        paymentNonce: BigInt(paid.payment!.paymentNonce),
+      },
+      signature: paid.payment!.signature,
+    });
+    expect(signer.toLowerCase()).toBe(builder.address.toLowerCase());
+  });
+
+  it("carries the signed price ceiling to the Gateway", async () => {
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      const submission = JSON.parse(
+        new TextDecoder().decode(init?.body as Uint8Array),
+      ) as JobSubmission;
+      return jsonResponse(202, { jobId: submission.jobId, state: "queued" });
+    }) as unknown as typeof fetch;
+
+    await makeClient(fetchFn).submitRawRead({
+      owner: OWNER,
+      grantId: GRANT_ID,
+      scope: SCOPE,
+      maxPrice: "20000",
+    });
+
+    expect(submissionPosts(fetchFn)[0]!.maxPrice).toBe("20000");
+  });
+
+  // Two 402s means the escrow cannot back the read. Same error class the
+  // legacy Personal Server path raises, so one message covers both.
+  it("raises PaymentRequiredError when the second attempt is refused too", async () => {
+    const fetchFn = vi.fn(async (url: string) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      return jsonResponse(402, {
+        code: "PAYMENT_REQUIRED",
+        error: "Insufficient finalized balance for this payment",
+        asset: FEE_ASSET,
+        amount: PRICE,
+        available: "0",
+      });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      makeClient(fetchFn).submitRawRead({
+        owner: OWNER,
+        grantId: GRANT_ID,
+        scope: SCOPE,
+      }),
+    ).rejects.toMatchObject({
+      code: "DIRECT_PAYMENT_REQUIRED",
+      details: expect.objectContaining({ available: "0", scope: SCOPE }),
+    });
+  });
+});
+
+/** Every `POST /v1/jobs` body the client sent, in order. */
+function submissionPosts(fetchFn: unknown): JobSubmission[] {
+  const mock = fetchFn as { mock: { calls: [string, RequestInit?][] } };
+  return mock.mock.calls
+    .filter(([url, init]) => url.includes("/v1/jobs?") && init?.body)
+    .map(
+      ([, init]) =>
+        JSON.parse(
+          new TextDecoder().decode(init!.body as Uint8Array),
+        ) as JobSubmission,
+    );
+}
+
+function lastJobId(fetchFn: unknown): string {
+  const posts = submissionPosts(fetchFn);
+  return posts[posts.length - 1]?.jobId ?? "";
+}
+
+describe("job fee guards", () => {
+  const FEE_ASSET = "0xF1815bd50389c46847f0Bda824eC8da914045D14" as Address;
+
+  function quoting(amount: string): typeof fetch {
+    return vi.fn(async (url: string) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      return jsonResponse(402, {
+        code: "PAYMENT_REQUIRED",
+        error: "This read is charged",
+        asset: FEE_ASSET,
+        amount,
+      });
+    }) as unknown as typeof fetch;
+  }
+
+  // A signed GenericPayment is a standalone artifact. Once it leaves the
+  // process the ceiling is no longer ours to enforce, so refuse before signing.
+  it("refuses to sign a quote above the stated ceiling", async () => {
+    const fetchFn = quoting("20000");
+
+    await expect(
+      makeClient(fetchFn).submitRawRead({
+        owner: OWNER,
+        grantId: GRANT_ID,
+        scope: SCOPE,
+        maxPrice: "10000",
+      }),
+    ).rejects.toMatchObject({
+      code: "DIRECT_PAYMENT_REQUIRED",
+      details: expect.objectContaining({ amount: "20000", maxPrice: "10000" }),
+    });
+
+    // One POST: the refusal happened before the retry could be signed.
+    expect(submissionPosts(fetchFn)).toHaveLength(1);
+  });
+
+  it("signs a quote that sits exactly on the ceiling", async () => {
+    let posts = 0;
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      posts += 1;
+      if (posts === 1) {
+        return jsonResponse(402, {
+          code: "PAYMENT_REQUIRED",
+          error: "charged",
+          asset: FEE_ASSET,
+          amount: "10000",
+        });
+      }
+      const submission = JSON.parse(
+        new TextDecoder().decode(init?.body as Uint8Array),
+      ) as JobSubmission;
+      return jsonResponse(202, { jobId: submission.jobId, state: "queued" });
+    }) as unknown as typeof fetch;
+
+    await makeClient(fetchFn).submitRawRead({
+      owner: OWNER,
+      grantId: GRANT_ID,
+      scope: SCOPE,
+      maxPrice: "10000",
+    });
+
+    expect(submissionPosts(fetchFn)[1]!.payment?.amount).toBe("10000");
+  });
+
+  // A charged read reserves escrow the moment the Gateway accepts the job, so
+  // a lost response must be reconcilable rather than retried into a second
+  // reservation.
+  it("hands back the ids when a submission fails mid-flight", async () => {
+    const fetchFn = vi.fn(async (url: string) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      throw new Error("socket hang up");
+    }) as unknown as typeof fetch;
+
+    const error = await makeClient(fetchFn)
+      .submitRawRead({ owner: OWNER, grantId: GRANT_ID, scope: SCOPE })
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(JobTransportError);
+    const details = (error as JobTransportError).details;
+    expect(details?.["jobId"]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(details?.["idempotencyKey"]).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("resubmits the caller's own ids so the Gateway replays one job", async () => {
+    const jobId = "9c3e292f-90ca-49eb-b308-9a10a0557c3f";
+    const idempotencyKey = "retry-key-1";
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/v1/identity")) return identityResponse();
+      const submission = JSON.parse(
+        new TextDecoder().decode(init?.body as Uint8Array),
+      ) as JobSubmission;
+      return jsonResponse(202, { jobId: submission.jobId, state: "queued" });
+    }) as unknown as typeof fetch;
+
+    const result = await makeClient(fetchFn).submitRawRead({
+      owner: OWNER,
+      grantId: GRANT_ID,
+      scope: SCOPE,
+      jobId,
+      idempotencyKey,
+    });
+
+    expect(result.jobId).toBe(jobId);
+    expect(submissionPosts(fetchFn)[0]).toMatchObject({
+      jobId,
+      idempotencyKey,
+    });
+  });
+
+  it("refuses a quote priced on another chain", async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse(200, {
+        chainId: 1480,
+        price: "10000",
+        asset: FEE_ASSET,
+        payable: true,
+        enforced: true,
+      }),
+    ) as unknown as typeof fetch;
+
+    await expect(makeClient(fetchFn).quoteJob()).rejects.toMatchObject({
+      code: "JOB_REJECTED",
+    });
+  });
+
+  it("refuses a quote whose fields are not the documented shape", async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse(200, { chainId: CHAIN_ID, price: "abc", asset: FEE_ASSET }),
+    ) as unknown as typeof fetch;
+
+    await expect(makeClient(fetchFn).quoteJob()).rejects.toMatchObject({
+      code: "JOB_REJECTED",
+    });
   });
 });

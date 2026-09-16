@@ -949,8 +949,17 @@ export class JobRejectedError extends JobsClientError {
  * @category Error Handling
  */
 export class JobTransportError extends JobsClientError {
-  constructor(message: string, cause?: unknown) {
-    super(message, "JOB_TRANSPORT_ERROR");
+  constructor(
+    message: string,
+    cause?: unknown,
+    /**
+     * The job id and idempotency key of the submission that failed mid-flight.
+     * A charged read reserves escrow the moment the Gateway accepts the job, so
+     * a lost response is ambiguous: resubmit these ids rather than fresh ones.
+     */
+    details?: Record<string, unknown>,
+  ) {
+    super(message, "JOB_TRANSPORT_ERROR", undefined, null, details);
     this.cause = cause;
   }
 }

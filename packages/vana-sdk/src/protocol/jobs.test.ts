@@ -127,6 +127,7 @@ const status: JobStatus = {
   attempt: 1,
   price: "0",
   payer: "builder",
+  priceAsset: null,
   paymentState: "none",
   createdAt: NOW,
   claimedAt: NOW,

@@ -99,6 +99,8 @@ const HTTP_PAYMENT_REQUIRED = 402;
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 /** High 32 bits ms, low 32 bits random: monotonic across ticks, unique within one. */
 const NONCE_TIMESTAMP_SHIFT = 32n;
+const UINT256_DECIMAL = /^(0|[1-9]\d*)$/;
+const POSITIVE_UINT256_DECIMAL = /^[1-9]\d*$/;
 const MILLISECONDS_PER_SECOND = 1_000;
 const DEFAULT_JOB_TIMEOUT_MS = 120_000;
 const DEFAULT_JOB_POLL_MS = CLAIM_POLL_FLOOR_MS;
@@ -155,11 +157,24 @@ export interface SubmitRawReadParams {
   /** Gateway inline-wait seconds, clamped to `0..MAX_WAIT_SECONDS`. */
   wait?: number;
   /**
-   * The most this read may cost, uint256 decimal. A Gateway quote above it is
-   * refused instead of charged. Omit to accept whatever the chain's FeeRegistry
+   * The most this read may cost, uint256 decimal. A quote above it is refused
+   * before anything is signed. Omit to accept whatever the chain's FeeRegistry
    * says at submission time.
    */
   maxPrice?: string;
+  /**
+   * Reuse a job id across attempts instead of minting one.
+   *
+   * @remarks
+   * A charged read reserves escrow when the Gateway first accepts the job, so a
+   * response lost in transit is ambiguous: retrying with a fresh id would
+   * reserve a second time. Supply the id (and {@link idempotencyKey}) from
+   * durable storage and a resubmission replays the original job and reserves
+   * nothing. `JobTransportError.details` carries both back when a submission
+   * fails mid-flight.
+   */
+  jobId?: string;
+  idempotencyKey?: string;
 }
 
 /** Result of submitting an encrypted raw-read job. */
@@ -614,6 +629,19 @@ function nextPaymentNonce(): bigint {
   return (BigInt(Date.now()) << NONCE_TIMESTAMP_SHIFT) + BigInt(random[0] ?? 0);
 }
 
+/** Validate every field rather than assert the shape of an external body. */
+function parseJobQuote(body: unknown): JobQuote | null {
+  if (!isRecord(body)) return null;
+  const { chainId, price, asset, payable, enforced } = body;
+  if (typeof chainId !== "number" || !Number.isSafeInteger(chainId))
+    return null;
+  if (typeof price !== "string" || !UINT256_DECIMAL.test(price)) return null;
+  if (typeof asset !== "string" || !isAddress(asset)) return null;
+  if (typeof payable !== "boolean" || typeof enforced !== "boolean")
+    return null;
+  return { chainId, price, asset: asset as Address, payable, enforced };
+}
+
 /** The price the Gateway is asking for, parsed from its 402. */
 async function paymentQuote(
   response: Response,
@@ -625,7 +653,7 @@ async function paymentQuote(
     typeof asset !== "string" ||
     !isAddress(asset) ||
     typeof amount !== "string" ||
-    !/^[1-9]\d*$/.test(amount)
+    !POSITIVE_UINT256_DECIMAL.test(amount)
   ) {
     throw new JobRejectedError(
       "Gateway asked for payment without a usable quote",
@@ -727,6 +755,10 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
     submission: JobSubmission,
     wait: number,
   ): Promise<Response> {
+    const identifiers = {
+      jobId: submission.jobId,
+      idempotencyKey: submission.idempotencyKey,
+    };
     const bodyBytes = new TextEncoder().encode(JSON.stringify(submission));
     const authorization = await buildWeb3SignedHeader({
       signMessage: builder.signMessage,
@@ -736,18 +768,32 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
       body: bodyBytes,
       nonce: randomUUID(),
     });
-    return request(
-      `${baseUrl}${JOBS_PATH}?wait=${wait}`,
-      {
-        method: POST_METHOD,
-        headers: {
-          [AUTHORIZATION_HEADER]: authorization,
-          [CONTENT_TYPE_HEADER]: JSON_CONTENT_TYPE,
+    try {
+      return await request(
+        `${baseUrl}${JOBS_PATH}?wait=${wait}`,
+        {
+          method: POST_METHOD,
+          headers: {
+            [AUTHORIZATION_HEADER]: authorization,
+            [CONTENT_TYPE_HEADER]: JSON_CONTENT_TYPE,
+          },
+          body: bodyBytes,
         },
-        body: bodyBytes,
-      },
-      "Job submission",
-    );
+        "Job submission",
+      );
+    } catch (error) {
+      // The Gateway may have committed the job and its escrow reservation
+      // before the response was lost. Hand the ids back so the caller can
+      // resubmit them or reconcile with getJob, rather than mint new ones and
+      // reserve twice.
+      if (error instanceof JobTransportError) {
+        throw new JobTransportError(error.message, error.cause, {
+          ...error.details,
+          ...identifiers,
+        });
+      }
+      throw error;
+    }
   }
 
   async function request(
@@ -818,7 +864,11 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
         "deadlineSeconds",
       );
       const wait = clampInteger(params.wait, 0, 0, MAX_WAIT_SECONDS, "wait");
-      const jobId = randomUUID();
+      // Caller-supplied ids make a resubmission exactly-once: the Gateway
+      // replays the original job and reserves nothing. Without them a lost
+      // response is ambiguous, so the transport error carries both back.
+      const jobId = params.jobId ?? randomUUID();
+      const idempotencyKey = params.idempotencyKey ?? randomUUID();
       const nowMs = now().getTime();
       if (!Number.isFinite(nowMs)) {
         throw new JobRejectedError("now must return a valid Date");
@@ -856,7 +906,7 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
         grantId: requestBody.grantId,
         scope: requestBody.scope,
         operation: requestBody.operation,
-        idempotencyKey: randomUUID(),
+        idempotencyKey,
         jobId,
         deadline,
         requestCiphertext,
@@ -871,6 +921,25 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
       // the retry cannot mint a second charge.
       if (response.status === HTTP_PAYMENT_REQUIRED) {
         const quote = await paymentQuote(response);
+        // Refuse before signing, not after. The Gateway rechecks the ceiling,
+        // but an EIP-712 authorization above what the builder agreed to must
+        // never leave this process — once signed it is a standalone artifact.
+        if (
+          params.maxPrice !== undefined &&
+          BigInt(quote.amount) > BigInt(params.maxPrice)
+        ) {
+          throw new PaymentRequiredError(
+            "The quoted price is above the maxPrice you set for this read",
+            {
+              jobId,
+              scope: params.scope,
+              grantId: params.grantId,
+              asset: quote.asset,
+              amount: quote.amount,
+              maxPrice: params.maxPrice,
+            },
+          );
+        }
         submission.payment = await signQuote(jobId, quote);
         submission.priceAsset = quote.asset;
         response = await postSubmission(submission, wait);
@@ -933,19 +1002,22 @@ export function createJobsClient(options: JobsClientOptions): JobsClient {
       if (!response.ok) {
         throw await rejectedResponse(response, "Job quote rejected");
       }
-      const body = await responseBody(response);
-      if (
-        !isRecord(body) ||
-        typeof body["price"] !== "string" ||
-        typeof body["asset"] !== "string" ||
-        typeof body["payable"] !== "boolean"
-      ) {
+      const quote = parseJobQuote(await responseBody(response));
+      if (!quote) {
         throw new JobRejectedError(
           "Gateway returned an undocumented job quote",
           response.status,
         );
       }
-      return body as unknown as JobQuote;
+      // A quote priced on another chain would be signed against the wrong
+      // escrow domain and refused, so reject it here where the reason is clear.
+      if (quote.chainId !== options.chainId) {
+        throw new JobRejectedError(
+          `Gateway quoted chain ${quote.chainId}, not the configured ${options.chainId}`,
+          response.status,
+        );
+      }
+      return quote;
     },
 
     async getJob(jobId) {

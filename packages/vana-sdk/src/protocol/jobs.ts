@@ -167,8 +167,12 @@ export interface JobStatus {
   pinnedVersion: string | null;
   attempt: number;
   price: string;
-  /** Null exactly when the read is free; nothing owed is owed to nobody. */
-  priceAsset: Address | null;
+  /**
+   * Null exactly when the read is free; nothing owed is owed to nobody.
+   * Optional so a consumer's existing `JobStatus` fixtures keep compiling; the
+   * Gateway always sends it.
+   */
+  priceAsset?: Address | null;
   payer: "builder";
   paymentState: PaymentState;
   createdAt: string;

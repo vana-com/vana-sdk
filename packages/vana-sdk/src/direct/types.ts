@@ -1,5 +1,6 @@
 import type { EscrowAccessRecord } from "../protocol/escrow";
 import type { ProtocolNetwork } from "../protocol/networks";
+import type { GrantUnion } from "./grant-union";
 
 /**
  * Shared types for the Direct Data Controller and the browser connect helper.
@@ -144,7 +145,48 @@ export interface AccessRequest {
    * SDK never launches it automatically and owns no persistence.
    */
   mobileContinuationUrl?: string;
+  /**
+   * The scope entries the request was created with, after the controller
+   * merged the owner's live grant (see {@link AccessRequestGrantUnion}).
+   * Set by {@link DirectDataController.createAccessRequest}; a bare
+   * {@link AccessRequestClient} leaves it unset.
+   */
+  scopes?: string[];
+  /**
+   * What the controller did about the owner's live grant for this app, so a
+   * new request extends that grant instead of replacing it. Set by
+   * {@link DirectDataController.createAccessRequest}.
+   */
+  grantUnion?: AccessRequestGrantUnion;
 }
+
+/**
+ * How {@link DirectDataController.createAccessRequest} handled the owner's
+ * live grant.
+ *
+ * @remarks
+ * - `merged`: the owner's live grant was read and its scopes are included.
+ * - `no_live_grant`: the owner holds no active grant for this app.
+ * - `owner_unknown`: no `owner` was passed, so nothing could be read. The
+ *   Vana Web approval page signs the union of the live grant and the request
+ *   for whoever approves, honoring `removeScopes`.
+ * - `disabled`: the caller passed `mergeLiveGrant: false`.
+ * - `unavailable`: the gateway read failed; the request was sent with the
+ *   requested scopes only (the approval page union still applies). `reason`
+ *   carries the error.
+ */
+export type AccessRequestGrantUnion = GrantUnion & {
+  status:
+    | "merged"
+    | "no_live_grant"
+    | "owner_unknown"
+    | "disabled"
+    | "unavailable";
+  /** The live grant's id, when one was read. */
+  grantId?: string;
+  /** Why the live grant could not be read (`unavailable` only). */
+  reason?: string;
+};
 
 /** Canonical mobile continuation link host per {@link DirectEnv}. */
 const MOBILE_CONTINUATION_HOSTS: Record<DirectEnv, string> = {
@@ -317,6 +359,13 @@ export interface AccessRequestClient {
      * create body verbatim. See {@link AccessRequestQuestion}.
      */
     questions?: AccessRequestQuestion[];
+    /**
+     * Scope entries the app gives up from the owner's live grant. The
+     * approval page signs the union of the live grant and `scopes` by
+     * default; entries listed here are left out of that union. Sent only
+     * when non-empty. Deployments that predate the field ignore it.
+     */
+    removeScopes?: string[];
     /**
      * Optional retry key. The default client generates a fresh key per call
      * when omitted; pass a stable key to retry a create whose response was

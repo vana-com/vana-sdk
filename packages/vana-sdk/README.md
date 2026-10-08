@@ -333,6 +333,53 @@ the amount, asset, and fee breakdown. If `escrow` is not configured (or the read
 still requires payment afterward), it throws `PaymentRequiredError` carrying the
 amount and asset owed.
 
+### Asking for one more source without losing the others
+
+The gateway keeps one grant per owner and app. A new approval replaces that
+grant's scopes, so an app that holds `oura.sleep` and then asks only for
+`whoop.recovery` would end up with `whoop.recovery` alone.
+
+When the app knows the owner (for example from an earlier approval), pass
+`owner` and the controller reads the live grant and sends the union. Scopes the
+app is giving up go in `removeScopes`:
+
+```typescript
+const request = await vana.createAccessRequest({
+  returnUrl: `${process.env.VANA_APP_URL}/connect/return`,
+  owner: "0xOwner...", // the grantor of an earlier approval
+  removeScopes: ["github.repositories"], // optional, matched verbatim
+});
+// request.scopes: what was sent, e.g. ["oura.sleep", "whoop.recovery"]
+// request.grantUnion: { status: "merged", kept, added, removed, notCarried, ... }
+```
+
+Merging is on by default; pass `mergeLiveGrant: false` to send the configured
+scopes verbatim. Without `owner` nothing is read (`grantUnion.status` is
+`"owner_unknown"`): the person is often anonymous until they approve, and the
+Vana Web approval page signs the union of their live grant and the request,
+leaving out `removeScopes`. A failed gateway read never blocks the request; it
+goes out with the configured scopes and `grantUnion.status` is `"unavailable"`.
+
+The same logic is available on its own:
+
+```typescript
+import {
+  createGatewayClient,
+  liveGrantScopes,
+  mergeWithLiveGrant,
+} from "@opendatalabs/vana-sdk/node";
+
+const gateway = createGatewayClient("https://dp-rpc.vana.org");
+const live = await liveGrantScopes(gateway, owner, granteeId); // string[]
+const union = await mergeWithLiveGrant({
+  gateway,
+  owner,
+  appAddress, // or granteeId (the bytes32 builder id)
+  scopes: ["whoop.recovery"],
+  removeScopes: ["oura.sleep"],
+});
+```
+
 ### Frontend hook
 
 ```tsx

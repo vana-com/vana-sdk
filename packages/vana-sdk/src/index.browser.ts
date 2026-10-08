@@ -554,6 +554,18 @@ export {
   type SettleResult,
   type GatewayClient,
 } from "./protocol/gateway";
+// Grant union: extend an owner's live grant for an app instead of replacing it.
+export {
+  mergeWithLiveGrant,
+  liveGrantScopes,
+  findLiveGrant,
+  unionGrantScopes,
+  type GrantUnion,
+  type GrantUnionGateway,
+  type GrantUnionStatus,
+  type MergeWithLiveGrantInput,
+  type MergeWithLiveGrantResult,
+} from "./direct/grant-union";
 // DPv2 escrow payment helpers
 export {
   createEscrowGatewayClient,

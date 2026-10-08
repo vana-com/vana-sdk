@@ -38,6 +38,18 @@ export {
   type DefaultAccessRequestClientOptions,
   type FetchLike,
 } from "./direct/access-request-client";
+// Grant union: extend the owner's live grant instead of replacing it.
+export {
+  mergeWithLiveGrant,
+  liveGrantScopes,
+  findLiveGrant,
+  unionGrantScopes,
+  type GrantUnion,
+  type GrantUnionGateway,
+  type GrantUnionStatus,
+  type MergeWithLiveGrantInput,
+  type MergeWithLiveGrantResult,
+} from "./direct/grant-union";
 export {
   buildPersonalServerDataReadRequest,
   readPersonalServerData,
@@ -114,6 +126,7 @@ export type {
   AppIdentity,
   DirectServiceEndpoints,
   AccessRequest,
+  AccessRequestGrantUnion,
   AccessRequestQuestion,
   AccessRequestStatus,
   AccessRequestStatusValue,

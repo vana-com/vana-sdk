@@ -27,6 +27,12 @@ import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 import { parseScope } from "../protocol/scopes";
 import { parseScopeEntry } from "../protocol/scope-actions";
 import { createEscrowGatewayClient } from "../protocol/escrow";
+import { createGatewayClient } from "../protocol/gateway";
+import {
+  mergeWithLiveGrant,
+  unionGrantScopes,
+  type GrantUnionGateway,
+} from "./grant-union";
 import { CONTRACTS } from "../generated/addresses";
 import {
   createDefaultAccessRequestClient,
@@ -55,6 +61,7 @@ import {
 import type {
   AccessRequest,
   AccessRequestClient,
+  AccessRequestGrantUnion,
   AccessRequestQuestion,
   AccessRequestStatus,
   AccessRequestStatusValue,
@@ -136,6 +143,14 @@ export interface DirectDataControllerConfig {
    * Provide this field only to override a specific default.
    */
   escrow?: Partial<DirectEscrowConfig>;
+  /**
+   * Gateway the controller reads the owner's live grant from when
+   * `createAccessRequest` is given an `owner` (see
+   * {@link DirectDataController.createAccessRequest}). Only public reads are
+   * used: `listGrantsByUser` and `getBuilder`. Defaults to a gateway client at
+   * `endpoints.escrowGatewayUrl`.
+   */
+  gateway?: GrantUnionGateway;
   /** `fetch` used by the default access-request client. Defaults to `globalThis.fetch`. */
   fetchFn?: FetchLike;
   /** `fetch` used for the Personal Server read. Defaults to `globalThis.fetch`. */
@@ -211,6 +226,30 @@ export interface DirectDataController {
      * {@link AccessRequestQuestion}.
      */
     questions?: AccessRequestQuestion[];
+    /**
+     * The data owner, when the app already knows who will approve (for
+     * example from an earlier approval). With an owner, the controller reads
+     * the owner's live grant for this app and includes its still-granted
+     * scopes, so the new request extends the grant instead of replacing it.
+     *
+     * Without an owner nothing is read: the person is often anonymous until
+     * they approve, and the Vana Web approval page signs the union of the
+     * live grant and the request for whoever approves.
+     */
+    owner?: string;
+    /**
+     * Merge the owner's live grant into the request scopes. Defaults to
+     * `true`; has no effect without `owner`. Pass `false` to send the
+     * configured scopes verbatim.
+     */
+    mergeLiveGrant?: boolean;
+    /**
+     * Scope entries the app gives up from the owner's live grant. Removed
+     * from the merged scopes here and sent on the request so the approval
+     * page leaves them out of its own union. Matched verbatim
+     * (`write:coach.weekly` and `coach.weekly` are separate entries).
+     */
+    removeScopes?: string[];
     /**
      * Stable retry key when the caller retries after an uncertain response.
      * Each create without one gets its own generated key.
@@ -386,6 +425,44 @@ export function createDirectDataController(
     signTypedData,
   };
 
+  let gateway: GrantUnionGateway | undefined = config.gateway;
+
+  // Read the owner's live grant and union it with the configured scopes. A
+  // failed read never blocks the request: it goes out with the configured
+  // scopes, and the approval page's own union still keeps the live grant.
+  async function resolveGrantUnion(
+    owner: string | undefined,
+    options: { merge: boolean; removeScopes: string[] },
+  ): Promise<AccessRequestGrantUnion> {
+    const requestedOnly = unionGrantScopes(
+      [],
+      config.scopes,
+      options.removeScopes,
+    );
+    if (!options.merge) {
+      return { status: "disabled", ...requestedOnly };
+    }
+    if (!owner) {
+      return { status: "owner_unknown", ...requestedOnly };
+    }
+    gateway ??= createGatewayClient(endpoints.escrowGatewayUrl);
+    try {
+      return await mergeWithLiveGrant({
+        gateway,
+        owner,
+        appAddress: account.address,
+        scopes: config.scopes,
+        removeScopes: options.removeScopes,
+      });
+    } catch (error) {
+      return {
+        status: "unavailable",
+        reason: error instanceof Error ? error.message : String(error),
+        ...requestedOnly,
+      };
+    }
+  }
+
   return {
     appAddress: account.address,
 
@@ -409,11 +486,20 @@ export function createDirectDataController(
       if (input.questions !== undefined) {
         validateAccessRequestQuestions(input.questions, config.scopes);
       }
-      return accessRequestClient.createAccessRequest({
+      const removeScopes = input.removeScopes ?? [];
+      for (const entry of removeScopes) {
+        parseScopeEntry(entry);
+      }
+      const grantUnion = await resolveGrantUnion(input.owner, {
+        merge: input.mergeLiveGrant !== false,
+        removeScopes,
+      });
+      const created = await accessRequestClient.createAccessRequest({
         appAddress: account.address,
         app: config.app,
         source: config.source,
-        scopes: config.scopes,
+        scopes: grantUnion.scopes,
+        ...(removeScopes.length > 0 ? { removeScopes } : {}),
         returnUrl: input.returnUrl,
         network,
         ...(input.foregroundDelivery !== undefined
@@ -426,6 +512,7 @@ export function createDirectDataController(
           ? { idempotencyKey: input.idempotencyKey }
           : {}),
       });
+      return { ...created, scopes: grantUnion.scopes, grantUnion };
     },
 
     async getAccessRequestStatus(

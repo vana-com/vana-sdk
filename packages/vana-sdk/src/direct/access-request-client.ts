@@ -345,6 +345,11 @@ export function createDefaultAccessRequestClient(
         ...(input.questions !== undefined
           ? { questions: input.questions }
           : {}),
+        // Only when non-empty, so bodies (and their signatures) for requests
+        // that remove nothing stay byte-identical to older SDKs.
+        ...(input.removeScopes !== undefined && input.removeScopes.length > 0
+          ? { removeScopes: input.removeScopes }
+          : {}),
         idempotencyKey,
       });
       const res = await fetchFn(`${base}${path}`, {

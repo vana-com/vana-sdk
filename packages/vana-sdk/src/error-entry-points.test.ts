@@ -1,8 +1,51 @@
 import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Hex } from "viem";
+
+describe("built ESM module specifiers", () => {
+  // Node's ESM loader does not guess extensions, so every relative import in
+  // dist must name a file that exists (`./x.js`, `./dir/index.js`).
+  it("every relative import in dist names an existing file", () => {
+    const distDir = fileURLToPath(new URL("../dist/", import.meta.url));
+    const specifier = /(?:\bfrom\s*|import\s*\(\s*)["'](\.{1,2}\/[^"']+)["']/g;
+    const unresolved: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir)) {
+        const file = join(dir, entry);
+        if (statSync(file).isDirectory()) {
+          walk(file);
+        } else if (file.endsWith(".js")) {
+          for (const match of readFileSync(file, "utf8").matchAll(specifier)) {
+            const target = resolve(dirname(file), match[1]!);
+            if (!existsSync(target) || !statSync(target).isFile()) {
+              unresolved.push(`${relative(distDir, file)} -> ${match[1]}`);
+            }
+          }
+        }
+      }
+    };
+    walk(distDir);
+    expect(unresolved).toEqual([]);
+  });
+
+  it("loads protocol/jobs-client.js with the Node ESM loader", () => {
+    const url = new URL("../dist/protocol/jobs-client.js", import.meta.url)
+      .href;
+    execFileSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `const m = await import(${JSON.stringify(url)}); if (typeof m.createJobsClient !== "function") throw new Error("createJobsClient missing");`,
+      ],
+      { stdio: "pipe" },
+    );
+  });
+});
 
 describe("built error entry points", () => {
   it.each(["index.node.js", "index.browser.js"])(

@@ -434,11 +434,13 @@ export function createDirectDataController(
     owner: string | undefined,
     options: { merge: boolean; removeScopes: string[] },
   ): Promise<AccessRequestGrantUnion> {
-    const requestedOnly = unionGrantScopes(
-      [],
-      config.scopes,
-      options.removeScopes,
-    );
+    // Without a merged live grant the request carries the configured scopes
+    // verbatim (duplicates and order included), so bodies and their
+    // signatures match SDKs that predate the grant union.
+    const requestedOnly = {
+      ...unionGrantScopes([], config.scopes, options.removeScopes),
+      scopes: [...config.scopes],
+    };
     if (!options.merge) {
       return { status: "disabled", ...requestedOnly };
     }

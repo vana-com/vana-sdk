@@ -317,6 +317,39 @@ describe("createDirectDataController — grant union", () => {
     expect(result.grantUnion?.status).toBe("owner_unknown");
   });
 
+  it("sends duplicate configured scopes verbatim when nothing is merged", async () => {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(async () => ({
+        requestId: "dcr_1",
+        approvalUrl: "https://app.vana.org/data-connection-requests/dcr_1",
+        appAddress: APP_ADDRESS,
+      })),
+      getAccessRequestStatus: vi.fn(),
+    };
+    const gateway = fakeGateway({});
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "whoop",
+      scopes: ["whoop.recovery", "whoop.sleep", "whoop.recovery"],
+      accessRequestClient,
+      gateway,
+    });
+    const result = await vana.createAccessRequest({
+      returnUrl: "https://pet.example/return",
+    });
+    const call = vi.mocked(accessRequestClient.createAccessRequest).mock
+      .calls[0]![0];
+    expect(call.scopes).toEqual([
+      "whoop.recovery",
+      "whoop.sleep",
+      "whoop.recovery",
+    ]);
+    expect(call).not.toHaveProperty("removeScopes");
+    expect(result.scopes).toEqual(call.scopes);
+    expect(gateway.listGrantsByUser).not.toHaveBeenCalled();
+  });
+
   it("honors mergeLiveGrant: false", async () => {
     const gateway = fakeGateway({
       [OWNER]: [grant({ scopes: ["oura.sleep"] })],

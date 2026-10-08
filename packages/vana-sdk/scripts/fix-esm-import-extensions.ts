@@ -38,17 +38,23 @@ function collectModuleFiles(dir: string): string[] {
   return files;
 }
 
-function hasExplicitTarget(specifier: string): boolean {
-  const extension = extname(specifier);
-  return extension !== "";
+// A specifier is already explicit when it names a file that exists. Checking
+// the extension alone is not enough: `../config/contracts.config` has the
+// extension `.config` but still needs `.js` for the Node ESM loader.
+function hasExplicitTarget(basePath: string): boolean {
+  return (
+    extname(basePath) !== "" &&
+    existsSync(basePath) &&
+    statSync(basePath).isFile()
+  );
 }
 
 function resolveEsmTarget(importer: string, specifier: string): string | null {
-  if (hasExplicitTarget(specifier)) {
+  const basePath = resolve(dirname(importer), specifier);
+  if (hasExplicitTarget(basePath)) {
     return null;
   }
 
-  const basePath = resolve(dirname(importer), specifier);
   if (existsSync(`${basePath}.js`)) {
     return `${specifier}.js`;
   }

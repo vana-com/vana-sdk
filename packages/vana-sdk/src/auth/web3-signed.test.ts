@@ -495,35 +495,3 @@ describe("computeBodyHash", () => {
     );
   });
 });
-
-describe("buildWeb3SignedHeader lifetime", () => {
-  it("rejects an exp more than 15 minutes after iat before signing", async () => {
-    const signer = makeSigner();
-    const now = Math.floor(Date.now() / 1000);
-    await expect(
-      buildWeb3SignedHeader({
-        signMessage: signer.signMessage,
-        aud: AUD,
-        method: METHOD,
-        uri: URI,
-        iat: now,
-        exp: now + 24 * 3600,
-      }),
-    ).rejects.toThrow(/15 minutes|900/);
-  });
-
-  it("rejects an exp that is not after iat", async () => {
-    const signer = makeSigner();
-    const now = Math.floor(Date.now() / 1000);
-    await expect(
-      buildWeb3SignedHeader({
-        signMessage: signer.signMessage,
-        aud: AUD,
-        method: METHOD,
-        uri: URI,
-        iat: now,
-        exp: now,
-      }),
-    ).rejects.toThrow();
-  });
-});

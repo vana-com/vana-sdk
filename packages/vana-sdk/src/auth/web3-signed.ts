@@ -20,10 +20,7 @@ import {
   InvalidSignatureError,
   ExpiredTokenError,
 } from "./errors";
-import {
-  computeBodyHash,
-  MAX_WEB3SIGNED_LIFETIME_SECONDS,
-} from "./web3-signed-builder";
+import { computeBodyHash } from "./web3-signed-builder";
 
 export interface Web3SignedPayload {
   aud: string;
@@ -42,6 +39,14 @@ export interface VerifiedAuth {
 
 const WEB3_SIGNED_PREFIX = "Web3Signed ";
 const CLOCK_SKEW_SECONDS = 60;
+
+/**
+ * Longest `exp - iat` window a Web3Signed header may carry (seconds). Without
+ * this bound the signer chooses how long a captured request stays replayable.
+ *
+ * @category Auth
+ */
+export const MAX_WEB3SIGNED_LIFETIME_SECONDS = 15 * 60;
 
 /** Decode a base64url string (no padding) to UTF-8. */
 function base64urlDecode(input: string): string {

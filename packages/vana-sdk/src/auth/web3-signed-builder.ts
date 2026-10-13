@@ -31,6 +31,15 @@ const EMPTY_BODY_HASH =
 /** Default token lifetime (seconds). */
 const DEFAULT_TTL_SECONDS = 300;
 
+/**
+ * Longest `exp - iat` window a Web3Signed header may carry (seconds). The
+ * Personal Server rejects anything longer, because the signer would otherwise
+ * choose how long a captured request stays replayable.
+ *
+ * @category Auth
+ */
+export const MAX_WEB3SIGNED_LIFETIME_SECONDS = 15 * 60;
+
 /** Base64url encode bytes (no padding). */
 function base64urlEncode(input: Uint8Array): string {
   return toBase64(input)
@@ -66,7 +75,11 @@ export async function buildWeb3SignedHeader(params: {
   body?: Uint8Array;
   /** Issued-at (unix seconds). Defaults to now. */
   iat?: number;
-  /** Expiry (unix seconds). Defaults to `iat + 300`. */
+  /**
+   * Expiry (unix seconds). Defaults to `iat + 300`. Must be after `iat` and
+   * at most {@link MAX_WEB3SIGNED_LIFETIME_SECONDS} later; the server
+   * rejects longer windows.
+   */
   exp?: number;
   /** Optional grant id, attached as the `grantId` claim. */
   grantId?: string;
@@ -77,11 +90,14 @@ export async function buildWeb3SignedHeader(params: {
    * @remarks
    * A payload is otherwise fully determined by
    * `{ aud, bodyHash, exp, grantId, iat, method, uri }`, so two identical
-   * requests signed inside the same second produce the same bytes and the
-   * Personal Server refuses the second as a replay. With a nonce the replay
-   * key becomes `(signer, nonce)` instead, which is what lets a poll loop
-   * send the same request twice. The nonce is then single use itself:
-   * re-using one is a replay even when the rest of the payload changed.
+   * requests signed inside the same second produce the same bytes. On the
+   * routes that keep a replay store (the MCP and write-session handshakes
+   * and delegated writes) the Personal Server refuses the second as a
+   * replay; with a nonce the replay key becomes `(signer, nonce)` instead,
+   * which is what lets a poll loop send the same request twice. The nonce
+   * is then single use itself: re-using one is a replay even when the rest
+   * of the payload changed. Plain data reads keep no replay store; their
+   * exposure is bounded by the lifetime cap.
    */
   nonce?: string;
   /** Pre-computed `bodyHash` claim — overrides `body`. */
@@ -90,6 +106,16 @@ export async function buildWeb3SignedHeader(params: {
   const now = Math.floor(Date.now() / 1000);
   const iat = params.iat ?? now;
   const exp = params.exp ?? iat + DEFAULT_TTL_SECONDS;
+  const lifetime = exp - iat;
+  if (
+    !Number.isFinite(lifetime) ||
+    lifetime <= 0 ||
+    lifetime > MAX_WEB3SIGNED_LIFETIME_SECONDS
+  ) {
+    throw new Error(
+      `Web3Signed exp must be after iat and at most ${MAX_WEB3SIGNED_LIFETIME_SECONDS} seconds (15 minutes) later; got ${lifetime}`,
+    );
+  }
 
   const payload: Record<string, unknown> = {
     aud: params.aud,

@@ -304,6 +304,75 @@ describe("verifyWeb3Signed", () => {
     ).rejects.toThrow(ExpiredTokenError);
   });
 
+  it("throws ExpiredTokenError when exp - iat exceeds the 15-minute maximum, even if unexpired", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const header = await buildHeaderWithPayload({
+      aud: AUD,
+      bodyHash: computeBodyHash(undefined),
+      exp: now + 365 * 24 * 3600,
+      iat: now,
+      method: METHOD,
+      uri: URI,
+    });
+
+    await expect(
+      verifyWeb3Signed({
+        headerValue: header,
+        expectedOrigin: AUD,
+        expectedMethod: METHOD,
+        expectedPath: URI,
+        now,
+      }),
+    ).rejects.toMatchObject({
+      code: "EXPIRED_TOKEN",
+      details: { reason: "Token lifetime exceeds the maximum" },
+    });
+  });
+
+  it("accepts a lifetime of exactly 15 minutes", async () => {
+    const signer = makeSigner();
+    const now = Math.floor(Date.now() / 1000);
+    const header = await buildWeb3SignedHeader({
+      signMessage: signer.signMessage,
+      aud: AUD,
+      method: METHOD,
+      uri: URI,
+      iat: now,
+      exp: now + 15 * 60,
+    });
+
+    const result = await verifyWeb3Signed({
+      headerValue: header,
+      expectedOrigin: AUD,
+      expectedMethod: METHOD,
+      expectedPath: URI,
+      now,
+    });
+    expect(result.signer).toBe(signer.address);
+  });
+
+  it("throws ExpiredTokenError when exp is not after iat", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const header = await buildHeaderWithPayload({
+      aud: AUD,
+      bodyHash: computeBodyHash(undefined),
+      exp: now,
+      iat: now,
+      method: METHOD,
+      uri: URI,
+    });
+
+    await expect(
+      verifyWeb3Signed({
+        headerValue: header,
+        expectedOrigin: AUD,
+        expectedMethod: METHOD,
+        expectedPath: URI,
+        now,
+      }),
+    ).rejects.toThrow(ExpiredTokenError);
+  });
+
   it("preserves grantId in the result payload", async () => {
     const signer = makeSigner();
     const now = Math.floor(Date.now() / 1000);
@@ -424,5 +493,37 @@ describe("computeBodyHash", () => {
     expect(computeBodyHash(body)).toBe(
       "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
     );
+  });
+});
+
+describe("buildWeb3SignedHeader lifetime", () => {
+  it("rejects an exp more than 15 minutes after iat before signing", async () => {
+    const signer = makeSigner();
+    const now = Math.floor(Date.now() / 1000);
+    await expect(
+      buildWeb3SignedHeader({
+        signMessage: signer.signMessage,
+        aud: AUD,
+        method: METHOD,
+        uri: URI,
+        iat: now,
+        exp: now + 24 * 3600,
+      }),
+    ).rejects.toThrow(/15 minutes|900/);
+  });
+
+  it("rejects an exp that is not after iat", async () => {
+    const signer = makeSigner();
+    const now = Math.floor(Date.now() / 1000);
+    await expect(
+      buildWeb3SignedHeader({
+        signMessage: signer.signMessage,
+        aud: AUD,
+        method: METHOD,
+        uri: URI,
+        iat: now,
+        exp: now,
+      }),
+    ).rejects.toThrow();
   });
 });

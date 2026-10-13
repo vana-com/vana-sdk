@@ -66,7 +66,10 @@ export async function buildWeb3SignedHeader(params: {
   body?: Uint8Array;
   /** Issued-at (unix seconds). Defaults to now. */
   iat?: number;
-  /** Expiry (unix seconds). Defaults to `iat + 300`. */
+  /**
+   * Expiry (unix seconds). Defaults to `iat + 300`. Verifiers reject a window
+   * longer than 15 minutes after `iat` (see `verifyWeb3Signed`).
+   */
   exp?: number;
   /** Optional grant id, attached as the `grantId` claim. */
   grantId?: string;
@@ -77,11 +80,14 @@ export async function buildWeb3SignedHeader(params: {
    * @remarks
    * A payload is otherwise fully determined by
    * `{ aud, bodyHash, exp, grantId, iat, method, uri }`, so two identical
-   * requests signed inside the same second produce the same bytes and the
-   * Personal Server refuses the second as a replay. With a nonce the replay
-   * key becomes `(signer, nonce)` instead, which is what lets a poll loop
-   * send the same request twice. The nonce is then single use itself:
-   * re-using one is a replay even when the rest of the payload changed.
+   * requests signed inside the same second produce the same bytes. On the
+   * routes that keep a replay store (the MCP and write-session handshakes
+   * and delegated writes) the Personal Server refuses the second as a
+   * replay; with a nonce the replay key becomes `(signer, nonce)` instead,
+   * which is what lets a poll loop send the same request twice. The nonce
+   * is then single use itself: re-using one is a replay even when the rest
+   * of the payload changed. Plain data reads keep no replay store; their
+   * exposure is bounded by the lifetime cap.
    */
   nonce?: string;
   /** Pre-computed `bodyHash` claim — overrides `body`. */

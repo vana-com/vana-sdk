@@ -40,6 +40,14 @@ export interface VerifiedAuth {
 const WEB3_SIGNED_PREFIX = "Web3Signed ";
 const CLOCK_SKEW_SECONDS = 60;
 
+/**
+ * Longest `exp - iat` window a Web3Signed header may carry (seconds). Without
+ * this bound the signer chooses how long a captured request stays replayable.
+ *
+ * @category Auth
+ */
+export const MAX_WEB3SIGNED_LIFETIME_SECONDS = 15 * 60;
+
 /** Decode a base64url string (no padding) to UTF-8. */
 function base64urlDecode(input: string): string {
   let base64 = input.replace(/-/g, "+").replace(/_/g, "/");
@@ -213,6 +221,18 @@ export async function verifyWeb3Signed(params: {
 
   if (payload.iat > now + CLOCK_SKEW_SECONDS) {
     throw new ExpiredTokenError({ reason: "Token issued in the future" });
+  }
+
+  // Bound the window the signer chose, not just where `now` falls in it:
+  // otherwise a captured request stays replayable for as long as the signer
+  // liked.
+  const lifetime = payload.exp - payload.iat;
+  if (lifetime <= 0 || lifetime > MAX_WEB3SIGNED_LIFETIME_SECONDS) {
+    throw new ExpiredTokenError({
+      reason: "Token lifetime exceeds the maximum",
+      maxLifetimeSeconds: MAX_WEB3SIGNED_LIFETIME_SECONDS,
+      lifetimeSeconds: lifetime,
+    });
   }
 
   return { signer, payload };

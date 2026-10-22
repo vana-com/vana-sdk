@@ -457,6 +457,84 @@ pass the same explicit `idempotencyKey` on the retry to avoid a duplicate DCR.
 `react` is an optional peer dependency. The underlying
 `createDirectConnectFlow` store is also exported for non-React frontends.
 
+### Connect in Vana's in-page sheet
+
+Instead of a Vana tab, the person can approve in a sheet Vana draws over your
+page (it signs them in, shows the request, and finishes inside the sheet). The
+sheet is `presentation: "sheet"` of the same flow: the request, the status poll
+and the read are unchanged. The integration is two files.
+
+Backend: one catch-all route serves `config`, `request`, `status` and `data`,
+binding each request to the browser that created it.
+
+```ts
+// app/api/vana/[action]/route.ts
+import { createVanaConnectHandler } from "@opendatalabs/vana-sdk/server";
+import { vana } from "@/lib/vana"; // your createDirectDataController(...)
+
+const handler = createVanaConnectHandler({
+  controller: vana,
+  returnUrl: `${process.env.APP_URL}/connect/return`,
+  clientId: "my-app", // the embed client id Vana Account registered for your origin
+});
+export { handler as GET, handler as POST };
+```
+
+Frontend:
+
+```tsx
+"use client";
+import { useVanaConnect } from "@opendatalabs/vana-sdk/react";
+
+export function ConnectButton() {
+  const { state, start } = useVanaConnect<MyData>({ endpoint: "/api/vana" });
+  if (state.type === "done") return <Result data={state.result.data} />;
+  return (
+    <>
+      <button
+        disabled={
+          state.type === "creating" || state.type === "awaiting_approval"
+        }
+        onClick={start}
+      >
+        Connect with Vana
+      </button>
+      {state.type === "awaiting_approval" && state.popupBlocked && (
+        // The sheet could not run here (state.sheetUnavailable says why).
+        <a href={state.request.approvalUrl} target="_blank" rel="noreferrer">
+          Open Vana
+        </a>
+      )}
+    </>
+  );
+}
+```
+
+- While the sheet is up, `state.sheet` reports `completion` (`in_browser` or
+  `remote_collect`) once the person approves, coarse `progress`
+  (`collecting`, `writing`), and any `error` it is showing.
+- Closing the sheet before approving returns to `idle`. Closing it after
+  approving keeps polling, since the data may still be readable.
+- If the frame cannot run (`frame_blocked`, `origin_not_registered`,
+  `incompatible_version`), the flow falls back to the tab presentation with
+  `popupBlocked: true`, so the "Open approval" link above still finishes it.
+- `write(scope, data)` saves to a scope the person approved, through the sheet.
+  Pass `sheet: { closeAfterDoneMs: null }` to keep it open after the read.
+- If your page sets a CSP, allow the frame: `vanaConnectCsp(env)` from
+  `/server` (or `/connect/protocol`) returns `{ "frame-src": [accountOrigin] }`.
+- `createVanaConnectHandler` takes `session` to bind requests to your own
+  signed-in user, `createOptions` for per-request create input (questions,
+  owner), and `read` to replace the default `readApprovedData`. Use
+  `toNodeHandler(handler)` for Express or plain `http`.
+
+Lower-level pieces: `createDirectConnectFlow(transports, { presentation:
+"sheet", sheet })` with an `authorizeRequest` transport backed by
+`controller.authorizeRequestRead(requestId)`; the launcher itself
+(`@opendatalabs/vana-sdk/connect`); and the zero-dependency message protocol
+(`@opendatalabs/vana-sdk/connect/protocol`). A backend in another language
+implements the [connect wire contract](./src/connect/WIRE_CONTRACT.md), which has test
+vectors.
+
 ### Test with large sample data
 
 When testing with realistic exports, use the public fixture catalog in

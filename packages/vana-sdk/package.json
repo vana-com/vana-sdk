@@ -55,6 +55,15 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
     },
+    "./connect": {
+      "types": "./dist/connect.d.ts",
+      "import": "./dist/connect.js"
+    },
+    "./connect/protocol": {
+      "types": "./dist/connect/protocol.d.ts",
+      "import": "./dist/connect/protocol.js",
+      "require": "./dist/connect/protocol.cjs"
+    },
     "./session-relay": {
       "browser": {
         "types": "./dist/session-relay.d.ts",
@@ -170,6 +179,7 @@
     "eslint-plugin-tsdoc": "^0.4.0",
     "eslint-plugin-unused-imports": "^4.2.0",
     "globals": "^16.3.0",
+    "happy-dom": "^20.9.0",
     "prettier": "^3.5.3",
     "react": "^19.0.0",
     "rimraf": "^6.0.1",

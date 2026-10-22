@@ -20,6 +20,18 @@ import type {
   ApprovedDataResult,
 } from "./types";
 import { normalizeMobileContinuationUrl } from "./types";
+import {
+  openConnectSheet,
+  type ConnectEvent,
+  type ConnectHandle,
+  type ConnectOpenOptions,
+} from "../connect/launcher";
+import type {
+  ConnectCompletion,
+  ConnectProgressPhase,
+  RequestAuthorization,
+  SheetErrorCode,
+} from "../connect/protocol";
 
 /**
  * Caller-supplied transports. These typically `fetch` the app's own backend
@@ -32,7 +44,63 @@ export interface DirectConnectTransports<T = unknown> {
   getStatus: (requestId: string) => Promise<AccessRequestStatus>;
   /** Ask the backend to read the approved data. */
   readResult: (requestId: string) => Promise<ApprovedDataResult<T>>;
+  /**
+   * Ask the backend to sign the sheet's short-lived read capability for a
+   * request it created for this browser (`controller.authorizeRequestRead`).
+   * Required for `presentation: "sheet"`; called each time the sheet asks.
+   */
+  authorizeRequest?: (requestId: string) => Promise<RequestAuthorization>;
 }
+
+/** How the person approves: a Vana tab (default) or Vana's in-page sheet. */
+export type DirectConnectPresentation = "tab" | "sheet";
+
+/** Sheet settings for `presentation: "sheet"`. */
+export interface DirectConnectSheetOptions {
+  /** The embed client id Vana Account registered for this page's origin. */
+  clientId: string;
+  /** Label on the sheet chrome (Vana shows the registered name inside). */
+  appName: string;
+  /** Vana Account origin. Defaults to production (`https://account.vana.org`). */
+  accountOrigin?: string;
+  /** Element the sheet mounts in. Defaults to `document.body`. */
+  container?: HTMLElement;
+  /** How long to wait for the sheet to start before falling back. */
+  readyTimeoutMs?: number;
+  /**
+   * Close the sheet this long (ms) after the data is read, so the person sees
+   * it finish. Defaults to 1500; `null` leaves it open (needed for `write`).
+   */
+  closeAfterDoneMs?: number | null;
+  /** Every raw launcher event, for logging or custom UI. */
+  onEvent?: (event: ConnectEvent) => void;
+  /** Launcher. Defaults to the SDK's `openConnectSheet`; injectable for tests. */
+  open?: (options: ConnectOpenOptions) => ConnectHandle;
+}
+
+/** What the sheet has reported, while it presents approval. */
+export interface DirectConnectSheetState {
+  /** `false` once the person closed the sheet after approving. */
+  open: boolean;
+  /** Set once the person approved: how the data will arrive. */
+  completion?: ConnectCompletion;
+  /** Coarse `remote_collect` progress. */
+  progress?: ConnectProgressPhase;
+  /** A failure the sheet is showing; it stays open for the person to read. */
+  error?: SheetErrorCode;
+}
+
+/**
+ * Sheet errors after which the flow closes the sheet and falls back to the
+ * tab presentation (`popupBlocked: true`, so the UI shows the approval link).
+ */
+const SHEET_FALLBACK_CODES: readonly SheetErrorCode[] = [
+  "frame_blocked",
+  "origin_not_registered",
+  "incompatible_version",
+];
+
+const DEFAULT_CLOSE_AFTER_DONE_MS = 1500;
 
 /**
  * A handle to a tab opened synchronously under the user's click gesture.
@@ -85,6 +153,16 @@ export interface DirectConnectOptions {
   browserPlatformPolicy?: DirectBrowserPlatformPolicy;
   /** `setTimeout`. Injectable for tests. Defaults to `globalThis.setTimeout`. */
   setTimeoutFn?: (cb: () => void, ms: number) => unknown;
+  /**
+   * `"sheet"` presents approval in Vana's in-page sheet instead of a tab;
+   * needs {@link DirectConnectOptions.sheet} and the `authorizeRequest`
+   * transport. Defaults to `"tab"`.
+   */
+  presentation?: DirectConnectPresentation;
+  /** Sheet settings, or a loader for them (fetched at `start()`). */
+  sheet?:
+    | DirectConnectSheetOptions
+    | (() => Promise<DirectConnectSheetOptions>);
   /** `clearTimeout`. Injectable for tests. Defaults to `globalThis.clearTimeout`. */
   clearTimeoutFn?: (handle: unknown) => void;
   /** Clock source in ms. Injectable for tests. Defaults to `Date.now`. */
@@ -115,6 +193,13 @@ export type DirectConnectState<T = unknown> =
        * HTTPS `request.approvalUrl` as a manual "Open approval" link.
        */
       popupBlocked: boolean;
+      /** Present while Vana's sheet presents approval (`presentation: "sheet"`). */
+      sheet?: DirectConnectSheetState;
+      /**
+       * Set when the sheet could not run here and the flow fell back to the
+       * tab presentation (with `popupBlocked: true`).
+       */
+      sheetUnavailable?: SheetErrorCode;
     }
   | {
       type: "ready_to_open";
@@ -155,6 +240,12 @@ export interface DirectConnectFlow<T = unknown> {
   retryRead(): Promise<DirectConnectRetryOutcome>;
   /** Reset to `idle` and stop any in-flight polling. */
   reset(): void;
+  /**
+   * Save `data` to a scope the person approved in the open sheet, through
+   * their Personal Server. Resolves `false` when no sheet is open, the scope
+   * was not approved, or the sheet refused.
+   */
+  write(scope: string, data: unknown): Promise<boolean>;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 1500;
@@ -268,6 +359,12 @@ export function createDirectConnectFlow<T = unknown>(
   // navigated to the approval URL we drop the reference so reset/cleanup never
   // closes the live approval tab the user is interacting with.
   let openedWindow: ConnectWindow | null = null;
+  // The sheet of the current run (`presentation: "sheet"`), while open.
+  let sheetHandle: ConnectHandle | null = null;
+  let sheetState: DirectConnectSheetState | null = null;
+  let sheetUnavailable: SheetErrorCode | null = null;
+  let sheetCloseAfterDoneMs: number | null = DEFAULT_CLOSE_AFTER_DONE_MS;
+  let sheetCloseTimer: unknown = null;
 
   function emit(): void {
     for (const listener of listeners) listener();
@@ -302,12 +399,126 @@ export function createDirectConnectFlow<T = unknown>(
     );
   }
 
+  /** Close the sheet without treating its close event as the person's. */
+  function closeSheet(): void {
+    const handle = sheetHandle;
+    sheetHandle = null;
+    handle?.close();
+  }
+
+  function clearSheet(): void {
+    if (sheetCloseTimer !== null) {
+      clearTimeoutFn(sheetCloseTimer);
+      sheetCloseTimer = null;
+    }
+    closeSheet();
+    sheetState = null;
+    sheetUnavailable = null;
+  }
+
+  /** The waiting state for `request`, given what the sheet has reported. */
+  function awaitingState(request: AccessRequest): DirectConnectState<T> {
+    if (sheetUnavailable) {
+      return {
+        type: "awaiting_approval",
+        request,
+        popupBlocked: true,
+        sheetUnavailable,
+      };
+    }
+    return {
+      type: "awaiting_approval",
+      request,
+      popupBlocked: false,
+      ...(sheetState ? { sheet: { ...sheetState } } : {}),
+    };
+  }
+
+  function updateSheet(patch: Partial<DirectConnectSheetState>): void {
+    if (!sheetState) return;
+    sheetState = { ...sheetState, ...patch };
+    if (state.type === "awaiting_approval" && state.sheet) {
+      setState(awaitingState(state.request));
+    }
+  }
+
+  function failRun(error: Error): void {
+    running = false;
+    clearPoll();
+    setState({ type: "error", error });
+  }
+
+  function handleSheetEvent(event: ConnectEvent): void {
+    switch (event.type) {
+      case "connected":
+        updateSheet({ completion: event.completion });
+        return;
+      case "progress":
+        updateSheet({ progress: event.phase });
+        return;
+      case "error": {
+        if (event.code === "request_failed") {
+          // The backend could not create or sign the request for the sheet.
+          if (!running) return;
+          closeSheet();
+          failRun(new Error("Could not prepare the request for Vana's sheet"));
+          return;
+        }
+        if (SHEET_FALLBACK_CODES.includes(event.code)) {
+          // The sheet cannot run on this page: fall back to the approval URL.
+          sheetUnavailable = event.code;
+          sheetState = null;
+          closeSheet();
+          if (state.type === "awaiting_approval") {
+            setState(awaitingState(state.request));
+          }
+          return;
+        }
+        updateSheet({ error: event.code });
+        return;
+      }
+      case "close": {
+        if (!sheetHandle) return; // closed by the flow itself
+        sheetHandle = null;
+        if (!running) return;
+        if (sheetState?.error) {
+          failRun(new Error(`Vana's sheet failed: ${sheetState.error}`));
+          return;
+        }
+        if (!sheetState?.completion) {
+          // Closed before approving: the person backed out.
+          running = false;
+          activeRunId++;
+          clearPoll();
+          sheetState = null;
+          setState({ type: "idle" });
+          return;
+        }
+        // Approved, then closed. The data may still be readable (a durable
+        // Personal Server), so keep polling until the request settles.
+        updateSheet({ open: false });
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
   async function readAndFinish(request: AccessRequest): Promise<void> {
     setState({ type: "reading", request });
     try {
       const result = await transports.readResult(request.requestId);
       if (!running) return;
       setState({ type: "done", result });
+      if (sheetHandle) {
+        sheetHandle.setRequestStatus("completed");
+        if (sheetCloseAfterDoneMs !== null) {
+          sheetCloseTimer = setTimeoutFn(() => {
+            sheetCloseTimer = null;
+            closeSheet();
+          }, sheetCloseAfterDoneMs);
+        }
+      }
     } catch (err) {
       if (!running) return;
       setState({ type: "error", error: toError(err) });
@@ -401,6 +612,8 @@ export function createDirectConnectFlow<T = unknown>(
       status.status === "denied" ||
       status.status === "expired"
     ) {
+      // The sheet shows the outcome; it stays open for the person to close.
+      sheetHandle?.setRequestStatus(status.status);
       running = false;
       setState({
         type: "error",
@@ -428,6 +641,11 @@ export function createDirectConnectFlow<T = unknown>(
       // explicit start creates a request. Only retryRead() may reuse consent.
       approvedRequest = null;
       const runId = ++activeRunId;
+      clearSheet();
+      if (options.presentation === "sheet") {
+        await startSheet(runId);
+        return;
+      }
       // Read the platform policy at start time, like openApprovalWindow below,
       // so a policy swapped in after construction (a React rerender forwards
       // options through a ref) still decides this run's destination.
@@ -570,9 +788,98 @@ export function createDirectConnectFlow<T = unknown>(
       activeRunId++;
       clearPoll();
       closeUnnavigatedWindow();
+      clearSheet();
       setState({ type: "idle" });
     },
+
+    write(scope: string, data: unknown): Promise<boolean> {
+      return sheetHandle
+        ? sheetHandle.write(scope, data)
+        : Promise.resolve(false);
+    },
   };
+
+  /**
+   * `presentation: "sheet"`: open Vana's sheet at once and create the request
+   * alongside it, so the request is ready by the time the person has signed
+   * in. The sheet asks for the request's read capability; the status poll and
+   * the read are the tab flow's.
+   */
+  async function startSheet(runId: number): Promise<void> {
+    setState({ type: "creating" });
+    const fail = (error: unknown) => {
+      if (runId !== activeRunId) return;
+      clearSheet();
+      failRun(toError(error));
+    };
+
+    const authorizeRequest = transports.authorizeRequest;
+    if (!authorizeRequest) {
+      fail(
+        new Error('presentation: "sheet" needs the authorizeRequest transport'),
+      );
+      return;
+    }
+    let sheetOptions: DirectConnectSheetOptions;
+    try {
+      const configured = options.sheet;
+      if (!configured) {
+        throw new Error('presentation: "sheet" needs sheet options');
+      }
+      sheetOptions =
+        typeof configured === "function" ? await configured() : configured;
+    } catch (err) {
+      fail(err);
+      return;
+    }
+    if (runId !== activeRunId) return;
+
+    const created = transports.createRequest();
+    // Observed below; this keeps an early rejection from going unhandled.
+    created.catch(() => undefined);
+    sheetCloseAfterDoneMs =
+      sheetOptions.closeAfterDoneMs === undefined
+        ? DEFAULT_CLOSE_AFTER_DONE_MS
+        : sheetOptions.closeAfterDoneMs;
+    sheetState = { open: true };
+    try {
+      sheetHandle = (sheetOptions.open ?? openConnectSheet)({
+        clientId: sheetOptions.clientId,
+        appName: sheetOptions.appName,
+        vanaOrigin: sheetOptions.accountOrigin,
+        container: sheetOptions.container,
+        readyTimeoutMs: sheetOptions.readyTimeoutMs,
+        async getRequest() {
+          const request = await created;
+          return {
+            id: request.requestId,
+            authorization: await authorizeRequest(request.requestId),
+          };
+        },
+        onEvent(event) {
+          if (runId !== activeRunId) return;
+          sheetOptions.onEvent?.(event);
+          handleSheetEvent(event);
+        },
+      });
+    } catch {
+      // A launcher that cannot open (no DOM, bad origin) is a sheet that
+      // cannot run here: fall back to the approval URL.
+      sheetHandle = null;
+      sheetState = null;
+      sheetUnavailable = "sheet_failed";
+    }
+
+    let request: AccessRequest;
+    try {
+      request = await created;
+    } catch (err) {
+      fail(err);
+      return;
+    }
+    if (runId !== activeRunId || !running) return;
+    startPolling(request, awaitingState(request));
+  }
 
   return flow;
 }

@@ -12,6 +12,7 @@
 
 import type { DirectEnv, DirectNetwork, DirectServiceEndpoints } from "./types";
 import { getProtocolNetworkChainId } from "../protocol/networks";
+import { VANA_ACCOUNT_ORIGINS } from "../connect/protocol";
 
 /** Production (mainnet) service URLs. */
 export const PRODUCTION_ENDPOINTS: DirectServiceEndpoints = {
@@ -19,6 +20,7 @@ export const PRODUCTION_ENDPOINTS: DirectServiceEndpoints = {
   accessRequestBaseUrl: "https://app.vana.org",
   approvalAppBaseUrl: "https://app.vana.org",
   escrowGatewayUrl: "https://dp-rpc.vana.org",
+  accountOrigin: VANA_ACCOUNT_ORIGINS.production,
 } as const;
 
 /** Internal dev stack service URLs. */
@@ -27,6 +29,7 @@ export const DEV_ENDPOINTS: DirectServiceEndpoints = {
   accessRequestBaseUrl: "https://app-dev.vana.org",
   approvalAppBaseUrl: "https://app-dev.vana.org",
   escrowGatewayUrl: "https://dp-rpc.moksha.vana.org",
+  accountOrigin: VANA_ACCOUNT_ORIGINS.dev,
 } as const;
 
 /**

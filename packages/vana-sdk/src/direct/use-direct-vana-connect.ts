@@ -37,6 +37,11 @@ export interface UseDirectVanaConnectResult<T = unknown> {
   retryRead: () => Promise<DirectConnectRetryOutcome>;
   /** Reset back to `idle` and cancel any in-flight polling. */
   reset: () => void;
+  /**
+   * Save `data` to a scope the person approved in the open sheet
+   * (`presentation: "sheet"`). Resolves `false` when no sheet is open.
+   */
+  write: (scope: string, data: unknown) => Promise<boolean>;
 }
 
 /**
@@ -71,6 +76,17 @@ export function useDirectVanaConnect<T = unknown>(
           createRequest: () => optionsRef.current.createRequest(),
           getStatus: (id) => optionsRef.current.getStatus(id),
           readResult: (id) => optionsRef.current.readResult(id),
+          authorizeRequest: (id) => {
+            const authorize = optionsRef.current.authorizeRequest;
+            if (!authorize) {
+              return Promise.reject(
+                new Error(
+                  'presentation: "sheet" needs the authorizeRequest transport',
+                ),
+              );
+            }
+            return authorize(id);
+          },
         },
         {
           get pollIntervalMs() {
@@ -84,6 +100,12 @@ export function useDirectVanaConnect<T = unknown>(
           },
           get browserPlatformPolicy() {
             return optionsRef.current.browserPlatformPolicy;
+          },
+          get presentation() {
+            return optionsRef.current.presentation;
+          },
+          get sheet() {
+            return optionsRef.current.sheet;
           },
         },
       ),
@@ -107,5 +129,10 @@ export function useDirectVanaConnect<T = unknown>(
 
   const retryRead = useCallback(() => flow.retryRead(), [flow]);
 
-  return { state, start, retryRead, reset };
+  const write = useCallback(
+    (scope: string, data: unknown) => flow.write(scope, data),
+    [flow],
+  );
+
+  return { state, start, retryRead, reset, write };
 }

@@ -30,11 +30,44 @@ export {
   type DirectEscrowConfig,
 } from "./direct/controller";
 
+// Embedded connect sheet: one handler for config/request/status/data, and
+// the read capability the sheet asks for.
+export {
+  createVanaConnectHandler,
+  toNodeHandler,
+  connectBindingCookieName,
+  CONNECT_BINDING_KEY_PURPOSE,
+  type VanaConnectHandler,
+  type VanaConnectHandlerOptions,
+  type VanaConnectCreateOptions,
+  type VanaConnectErrorCode,
+  type VanaConnectConfig,
+  type NodeRequestLike,
+  type NodeResponseLike,
+  type ToNodeHandlerOptions,
+} from "./direct/connect-handler";
+export {
+  signRequestReadAuthorization,
+  buildRequestReadAuthorizationMessage,
+  requestReadPath,
+  type SignRequestReadAuthorizationInput,
+} from "./direct/request-authorization";
+export {
+  vanaConnectCsp,
+  VANA_ACCOUNT_ORIGINS,
+  isRequestId,
+  readConnectRequest,
+  type ConnectRequest,
+  type RequestAuthorization,
+  type VanaConnectEnv,
+} from "./connect/protocol";
+
 // Lower-level building blocks (advanced use / custom transports).
 export {
   createDefaultAccessRequestClient,
   buildApprovalUrl,
   validateAccessRequestQuestions,
+  buildDirectAccessRequestAuthMessage,
   type DefaultAccessRequestClientOptions,
   type FetchLike,
 } from "./direct/access-request-client";

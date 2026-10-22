@@ -22,7 +22,7 @@
  */
 
 import { privateKeyToAccount } from "viem/accounts";
-import type { Hex } from "viem";
+import { hexToBytes, type Hex } from "viem";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 import { parseScope } from "../protocol/scopes";
 import { parseScopeEntry } from "../protocol/scope-actions";
@@ -53,6 +53,8 @@ import {
   type EscrowPaymentConfig,
   type SignTypedDataFn,
 } from "./escrow-payment";
+import { signRequestReadAuthorization } from "./request-authorization";
+import type { RequestAuthorization } from "../connect/protocol";
 import {
   readPersonalServerData,
   type PersonalServerFetch,
@@ -324,6 +326,53 @@ export interface DirectDataController {
   readAllApprovedData<T = unknown>(input: {
     requestId: string;
   }): Promise<MultiScopeDataResult<T>>;
+
+  /**
+   * Sign the short-lived read capability the embedded connect sheet needs to
+   * show a request (`presentation: "sheet"`).
+   *
+   * @remarks
+   * The same Direct SDK signature this controller sends when it polls the
+   * request's status. It does not check whose request this is: call it only
+   * for a request this browser created (`createVanaConnectHandler` binds them
+   * with a signed cookie). Sign on each ask; Vana Account accepts it for
+   * about five minutes.
+   *
+   * @param requestId - The `dcr_*` id from {@link DirectDataController.createAccessRequest}.
+   * @returns `{ appAddress, timestamp, signature }`.
+   * @throws {@link DirectConfigError} when `requestId` is not a request id.
+   */
+  authorizeRequestRead(requestId: string): Promise<RequestAuthorization>;
+
+  /**
+   * The resolved service endpoints, including the Vana Account origin that
+   * serves the connect sheet.
+   *
+   * @returns The endpoints this controller talks to.
+   */
+  getEndpoints(): DirectServiceEndpoints;
+
+  /**
+   * Derive a purpose-bound secret from the app key, without revealing it.
+   *
+   * @remarks
+   * HKDF-SHA256 over the 32 key bytes, salt `"vana-sdk/derived-secret/v1"`,
+   * `info` = `purpose`. Different purposes give independent secrets, so a
+   * leaked derived secret never exposes the key or another purpose's secret.
+   * `createVanaConnectHandler` keys its request-binding cookie with
+   * `deriveSecret("vana-sdk/connect/request-binding/v1")`.
+   *
+   * @param purpose - A label naming what the secret is for.
+   * @returns 32 secret bytes.
+   */
+  deriveSecret(purpose: string): Promise<ArrayBuffer>;
+
+  /**
+   * The resolved deployment environment.
+   *
+   * @returns `"production"` or `"dev"`.
+   */
+  getEnv(): DirectEnv;
 }
 
 function isHexPrivateKey(value: string): value is Hex {
@@ -382,6 +431,8 @@ export function createDirectDataController(
     ...defaultEndpoints,
     ...config.endpoints,
     chainId,
+    accountOrigin:
+      config.endpoints?.accountOrigin ?? defaultEndpoints.accountOrigin,
   };
 
   const account = privateKeyToAccount(privateKey as Hex);
@@ -567,6 +618,42 @@ export function createDirectDataController(
       }
 
       return { results, errors };
+    },
+
+    authorizeRequestRead(requestId: string): Promise<RequestAuthorization> {
+      return signRequestReadAuthorization({
+        requestId,
+        appAddress: account.address,
+        signMessage,
+      });
+    },
+
+    getEndpoints(): DirectServiceEndpoints {
+      return { ...endpoints };
+    },
+
+    getEnv(): DirectEnv {
+      return env;
+    },
+
+    async deriveSecret(purpose: string): Promise<ArrayBuffer> {
+      const ikm = await globalThis.crypto.subtle.importKey(
+        "raw",
+        new Uint8Array(hexToBytes(privateKey as Hex)),
+        "HKDF",
+        false,
+        ["deriveBits"],
+      );
+      return globalThis.crypto.subtle.deriveBits(
+        {
+          name: "HKDF",
+          hash: "SHA-256",
+          salt: new TextEncoder().encode("vana-sdk/derived-secret/v1"),
+          info: new TextEncoder().encode(purpose),
+        },
+        ikm,
+        256,
+      );
     },
   };
 

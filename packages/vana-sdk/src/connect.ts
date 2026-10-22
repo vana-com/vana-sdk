@@ -16,6 +16,7 @@
  * const sheet = connect.open({
  *   clientId: "my-app",
  *   appName: "My App",
+ *   env: "production",
  *   getRequest: () =>
  *     fetch("/api/vana/request", { method: "POST", body: "{}" })
  *       .then((r) => r.json())
@@ -35,8 +36,15 @@ export {
   type ConnectCloseReason,
   type ConnectEvent,
   type ConnectHandle,
+  type ConnectOpenBaseOptions,
   type ConnectOpenOptions,
+  type ConnectTarget,
 } from "./connect/launcher";
+export {
+  parseOriginAllowlist,
+  resolveVanaAccountOrigin,
+  type ResolveVanaAccountOriginInput,
+} from "./connect/account-origin";
 export {
   createSheetChrome,
   DRAG_CLOSE_PX,

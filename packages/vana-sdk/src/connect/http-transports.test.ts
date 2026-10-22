@@ -121,7 +121,7 @@ describe("createVanaConnectTransports", () => {
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(respond({}, 500))
-      .mockResolvedValue(respond({ clientId: "lorebook" }));
+      .mockResolvedValue(respond({ clientId: "example-app" }));
     const t = createVanaConnectTransports({ fetch });
 
     await expect(t.getConfig()).rejects.toBeInstanceOf(VanaConnectHttpError);

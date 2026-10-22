@@ -21,12 +21,25 @@
  * app's own signed-in user). See `src/connect/WIRE_CONTRACT.md` for the
  * wire contract a non-JS backend implements instead.
  *
+ * Creating a request is rate limited (`rateLimit`; by default in memory,
+ * per client IP and per session, which is not production-grade). In
+ * production, require a signed-in user with `session` and put a shared
+ * limiter in front of `POST request`.
+ *
  * @category Direct
  * @module direct/connect-handler
  */
 
-import { isRequestId, PROTOCOL_VERSION } from "../connect/protocol";
-import type { DirectDataController } from "./controller";
+import {
+  isRequestId,
+  PROTOCOL_VERSION,
+  VANA_ACCOUNT_ORIGINS,
+} from "../connect/protocol";
+import {
+  missingConnectCapabilities,
+  type ConnectCapableDirectDataController,
+  type DirectDataController,
+} from "./controller";
 import {
   AccessNotApprovedError,
   DirectConfigError,
@@ -46,9 +59,149 @@ export type VanaConnectCreateOptions = Omit<
   "returnUrl"
 >;
 
+/** What a {@link VanaConnectRateLimit} decides. */
+export type VanaConnectRateLimitDecision =
+  | { ok: true }
+  | {
+      ok: false;
+      /** Sent as `Retry-After`, in whole seconds. */
+      retryAfterSeconds?: number;
+    };
+
+/**
+ * Decide whether one `POST request` that creates a request may proceed.
+ *
+ * @remarks
+ * Called after the origin and `session` checks and before the controller
+ * creates anything. `session` is the hash of the app's session id when
+ * `session` is configured. Re-signing a request the browser already holds is
+ * not rate limited: it creates nothing and needs a valid binding.
+ */
+export type VanaConnectRateLimit = (input: {
+  request: Request;
+  session?: string;
+}) => VanaConnectRateLimitDecision | Promise<VanaConnectRateLimitDecision>;
+
+/** Options for {@link createMemoryRateLimit}. */
+export interface MemoryRateLimitOptions {
+  /** Creates allowed per key per window. Defaults to 10. */
+  max?: number;
+  /** Window length in ms. Defaults to 60000. */
+  windowMs?: number;
+  /**
+   * The caller's IP. Defaults to {@link defaultClientIp}, which trusts proxy
+   * headers; behind anything else, supply the address your platform vouches
+   * for.
+   */
+  clientIp?: (request: Request) => string | null;
+  /** Keys kept before the oldest are dropped. Defaults to 10000. */
+  maxKeys?: number;
+  /** Clock in ms. Defaults to `Date.now`. */
+  now?: () => number;
+}
+
+const nodeRemoteAddresses = new WeakMap<Request, string>();
+
+/**
+ * The caller's IP as the default rate limit sees it.
+ *
+ * @remarks
+ * `CF-Connecting-IP`, then `X-Real-IP`, then the last `X-Forwarded-For`
+ * hop (the one your proxy appended), then the socket address when the
+ * request came through {@link toNodeHandler}. Headers are only as honest as
+ * the proxy in front of you: without one, a client can set them.
+ *
+ * @param request - The incoming request.
+ * @returns An IP string, or `null` when nothing names one.
+ */
+export function defaultClientIp(request: Request): string | null {
+  const header = (name: string): string | null => {
+    const value = request.headers.get(name)?.trim();
+    return value ? value : null;
+  };
+  const forwarded = header("x-forwarded-for")
+    ?.split(",")
+    .map((hop) => hop.trim())
+    .filter(Boolean);
+  return (
+    header("cf-connecting-ip") ??
+    header("x-real-ip") ??
+    forwarded?.[forwarded.length - 1] ??
+    nodeRemoteAddresses.get(request) ??
+    null
+  );
+}
+
+/**
+ * An in-memory, fixed-window rate limit per client IP and per session.
+ *
+ * @remarks
+ * The default for `createVanaConnectHandler`. Not production-grade: each
+ * server instance (and each serverless cold start) counts on its own, and
+ * the IP comes from headers a client can forge without a trusted proxy.
+ * In production, require `session` and pass a `rateLimit` backed by a
+ * shared store (Redis, your platform's limiter).
+ *
+ * @param options - Limit, window, IP source and memory bound.
+ * @returns A {@link VanaConnectRateLimit}.
+ */
+export function createMemoryRateLimit(
+  options: MemoryRateLimitOptions = {},
+): VanaConnectRateLimit {
+  const max = options.max ?? 10;
+  const windowMs = options.windowMs ?? 60_000;
+  const maxKeys = options.maxKeys ?? 10_000;
+  const clientIp = options.clientIp ?? defaultClientIp;
+  const now = options.now ?? Date.now;
+  const windows = new Map<string, { count: number; resetAt: number }>();
+
+  function prune(at: number): void {
+    for (const [key, window] of windows) {
+      if (window.resetAt <= at) windows.delete(key);
+    }
+    // Still full: drop the oldest keys (Map keeps insertion order).
+    for (const key of windows.keys()) {
+      if (windows.size < maxKeys) break;
+      windows.delete(key);
+    }
+  }
+
+  return ({ request, session }) => {
+    const at = now();
+    const keys = [`ip:${clientIp(request) ?? "unknown"}`];
+    if (session) keys.push(`session:${session}`);
+    let retryAfterMs = 0;
+    for (const key of keys) {
+      const window = windows.get(key);
+      if (window && window.resetAt > at && window.count >= max) {
+        retryAfterMs = Math.max(retryAfterMs, window.resetAt - at);
+      }
+    }
+    if (retryAfterMs > 0) {
+      return { ok: false, retryAfterSeconds: Math.ceil(retryAfterMs / 1000) };
+    }
+    if (windows.size >= maxKeys) prune(at);
+    for (const key of keys) {
+      const window = windows.get(key);
+      if (window && window.resetAt > at) {
+        window.count += 1;
+      } else {
+        windows.delete(key);
+        windows.set(key, { count: 1, resetAt: at + windowMs });
+      }
+    }
+    return { ok: true };
+  };
+}
+
 /** Options for {@link createVanaConnectHandler}. */
 export interface VanaConnectHandlerOptions {
-  /** The app's controller; it holds the key and talks to Vana. */
+  /**
+   * The app's controller; it holds the key and talks to Vana. It must
+   * implement the connect methods (`authorizeRequestRead`, `getEndpoints`,
+   * `getEnv`, and `deriveSecret` unless `bindingSecret` is set), as every
+   * `createDirectDataController` controller does.
+   */
   controller: DirectDataController;
   /**
    * Absolute URL Vana returns the person to after approving in a tab. Its
@@ -67,6 +220,11 @@ export interface VanaConnectHandlerOptions {
   /**
    * Bind requests to the app's own signed-in user too. Return a stable user or
    * session id, or `null` to refuse with `401`. Only a hash of it is stored.
+   *
+   * @remarks
+   * Recommended for production. Without it, anyone who can load your page
+   * can create requests on your app's behalf; the browser binding only stops
+   * them reading someone else's.
    */
   session?: (request: Request) => string | null | Promise<string | null>;
   /**
@@ -96,6 +254,14 @@ export interface VanaConnectHandlerOptions {
    * independently of the app key.
    */
   bindingSecret?: string;
+  /**
+   * Rate limit for creating requests. Defaults to
+   * {@link createMemoryRateLimit}() (10 per minute per IP and per session,
+   * in memory, not production-grade). Pass your own shared limiter in
+   * production, or `false` when one already sits in front of this route.
+   * A refusal answers `429 rate_limited` with `Retry-After`.
+   */
+  rateLimit?: VanaConnectRateLimit | false;
   /** Cookie `Path`. Defaults to `/`. */
   cookiePath?: string;
   /** Clock in ms. Defaults to `Date.now`. */
@@ -117,6 +283,7 @@ export type VanaConnectErrorCode =
   | "scope_not_approved"
   | "payment_required"
   | "personal_server_error"
+  | "rate_limited"
   | "internal_error";
 
 const COOKIE_PREFIX = "vana_dcr_";
@@ -232,12 +399,23 @@ function readCookie(request: Request, name: string): string | null {
  *
  * @param options - Controller, return URL, sheet client id and hooks.
  * @returns A `(request: Request) => Promise<Response>` handler.
- * @throws {@link DirectConfigError} when `returnUrl` is not an absolute URL.
+ * @throws {@link DirectConfigError} when `returnUrl` is not an absolute URL,
+ * or the controller lacks a connect method it needs.
  */
 export function createVanaConnectHandler(
   options: VanaConnectHandlerOptions,
 ): VanaConnectHandler {
-  const { controller } = options;
+  const missing = missingConnectCapabilities(options.controller).filter(
+    (name) => !(name === "deriveSecret" && options.bindingSecret),
+  );
+  if (missing.length > 0) {
+    throw new DirectConfigError(
+      `createVanaConnectHandler needs a controller with ${missing.join(", ")} (createDirectDataController provides them)`,
+      { missing },
+    );
+  }
+  // Checked above; `deriveSecret` is only called without `bindingSecret`.
+  const controller = options.controller as ConnectCapableDirectDataController;
   let returnOrigin: string;
   try {
     returnOrigin = new URL(options.returnUrl).origin;
@@ -249,6 +427,10 @@ export function createVanaConnectHandler(
   const allowedOrigins = new Set(options.allowedOrigins ?? [returnOrigin]);
   const now = options.now ?? Date.now;
   const cookiePath = options.cookiePath ?? "/";
+  const rateLimit =
+    options.rateLimit === false
+      ? null
+      : (options.rateLimit ?? createMemoryRateLimit({ now }));
 
   let macKey: Promise<CryptoKey> | null = null;
   function bindingKey(): Promise<CryptoKey> {
@@ -384,12 +566,14 @@ export function createVanaConnectHandler(
 
   function config(): VanaConnectConfig {
     const endpoints = controller.getEndpoints();
+    const env = controller.getEnv();
     return {
       protocolVersion: PROTOCOL_VERSION,
-      env: controller.getEnv(),
+      env,
       clientId: options.clientId ?? null,
       appName: options.appName ?? controller.getAppIdentity().name,
-      accountOrigin: endpoints.accountOrigin ?? "https://account.vana.org",
+      // The controller's own environment decides; never a production default.
+      accountOrigin: endpoints.accountOrigin ?? VANA_ACCOUNT_ORIGINS[env],
     };
   }
 
@@ -435,6 +619,26 @@ export function createVanaConnectHandler(
       });
     }
 
+    if (rateLimit) {
+      const decision = await rateLimit({
+        request,
+        ...(session ? { session } : {}),
+      });
+      if (!decision.ok) {
+        return errorResponse(
+          429,
+          "rate_limited",
+          "Too many requests. Try again later.",
+          decision.retryAfterSeconds !== undefined
+            ? {
+                "Retry-After": String(
+                  Math.max(0, Math.ceil(decision.retryAfterSeconds)),
+                ),
+              }
+            : undefined,
+        );
+      }
+    }
     const created = await controller.createAccessRequest({
       ...(options.createOptions ? await options.createOptions(request) : {}),
       returnUrl: options.returnUrl,
@@ -582,7 +786,7 @@ export interface NodeRequestLike {
   headers: Record<string, string | string[] | undefined>;
   /** A body already parsed by middleware (Express `json()`), if any. */
   body?: unknown;
-  socket?: { encrypted?: boolean };
+  socket?: { encrypted?: boolean; remoteAddress?: string };
   [Symbol.asyncIterator](): AsyncIterator<Uint8Array | string>;
 }
 
@@ -647,7 +851,11 @@ export function toNodeHandler(
         body += decoder.decode();
       }
     }
-    const response = await handler(new Request(url, { method, headers, body }));
+    const request = new Request(url, { method, headers, body });
+    if (req.socket?.remoteAddress) {
+      nodeRemoteAddresses.set(request, req.socket.remoteAddress);
+    }
+    const response = await handler(request);
     res.statusCode = response.status;
     response.headers.forEach((value, name) => {
       if (name !== "set-cookie") res.setHeader(name, value);

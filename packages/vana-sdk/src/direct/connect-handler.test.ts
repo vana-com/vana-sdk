@@ -2,9 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { recoverMessageAddress } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 import { createDirectDataController } from "./controller";
+import { DirectConfigError } from "./errors";
 import {
   connectBindingCookieName,
+  createMemoryRateLimit,
   createVanaConnectHandler,
+  defaultClientIp,
   toNodeHandler,
   type VanaConnectHandlerOptions,
 } from "./connect-handler";
@@ -35,7 +38,7 @@ function setup(
   const controller = createDirectDataController({
     env: "dev",
     appPrivateKey: KEY,
-    app: { id: "lorebook", name: "Lorebook", homepageUrl: APP },
+    app: { id: "example-app", name: "Example App", homepageUrl: APP },
     source: "spotify",
     scopes: ["spotify.savedTracks"],
     accessRequestClient,
@@ -43,7 +46,7 @@ function setup(
   const handler = createVanaConnectHandler({
     controller,
     returnUrl: `${APP}/connect/return`,
-    clientId: "lorebook",
+    clientId: "example-app",
     ...overrides,
   });
   return { accessRequestClient, controller, handler };
@@ -99,8 +102,8 @@ describe("createVanaConnectHandler", () => {
     expect(await response.json()).toEqual({
       protocolVersion: 1,
       env: "dev",
-      clientId: "lorebook",
-      appName: "Lorebook",
+      clientId: "example-app",
+      appName: "Example App",
       accountOrigin: "https://account-dev.vana.org",
     });
   });
@@ -312,6 +315,155 @@ describe("createVanaConnectHandler", () => {
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(await response.json())).not.toContain("secret");
+  });
+});
+
+describe("createVanaConnectHandler rate limit", () => {
+  const from = (ip: string) => post("request", {}, { "X-Forwarded-For": ip });
+
+  it("limits creates per client IP by default, answering 429 with Retry-After", async () => {
+    const { accessRequestClient, handler } = setup();
+    for (let i = 0; i < 10; i++) {
+      expect((await handler(from("203.0.113.7"))).status).toBe(200);
+    }
+
+    const limited = await handler(from("203.0.113.7"));
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(await limited.json()).toMatchObject({
+      error: { code: "rate_limited" },
+    });
+    expect(accessRequestClient.createAccessRequest).toHaveBeenCalledTimes(10);
+    expect((await handler(from("198.51.100.1"))).status).toBe(200);
+  });
+
+  it("does not limit re-signing a request the browser already holds", async () => {
+    const { handler } = setup({
+      rateLimit: createMemoryRateLimit({ max: 1 }),
+    });
+    const { cookie } = await create(handler);
+
+    for (let i = 0; i < 3; i++) {
+      const resign = await handler(
+        post("request", { requestId: "dcr_1" }, { Cookie: cookie }),
+      );
+      expect(resign.status).toBe(200);
+    }
+    expect((await handler(post("request", {}))).status).toBe(429);
+  });
+
+  it("limits one session across IPs, and opens again after the window", async () => {
+    let clock = 0;
+    const { handler } = setup({
+      session: () => "alice",
+      rateLimit: createMemoryRateLimit({
+        max: 2,
+        windowMs: 1000,
+        now: () => clock,
+      }),
+    });
+
+    expect((await handler(from("203.0.113.1"))).status).toBe(200);
+    expect((await handler(from("203.0.113.2"))).status).toBe(200);
+    expect((await handler(from("203.0.113.3"))).status).toBe(429);
+    clock = 1000;
+    expect((await handler(from("203.0.113.3"))).status).toBe(200);
+  });
+
+  it("asks a custom limiter before creating, with the session's hash only", async () => {
+    const rateLimit = vi.fn(async () => ({
+      ok: false as const,
+      retryAfterSeconds: 30,
+    }));
+    const { accessRequestClient, handler } = setup({
+      session: () => "alice",
+      rateLimit,
+    });
+
+    const response = await handler(post("request", {}));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("30");
+    expect(accessRequestClient.createAccessRequest).not.toHaveBeenCalled();
+    const [input] = rateLimit.mock.calls[0] as unknown as [
+      { request: Request; session?: string },
+    ];
+    expect(input.request).toBeInstanceOf(Request);
+    expect(input.session).toEqual(expect.any(String));
+    expect(input.session).not.toContain("alice");
+  });
+
+  it("can be switched off when a limiter already sits in front", async () => {
+    const { handler } = setup({ rateLimit: false });
+    for (let i = 0; i < 12; i++) {
+      expect((await handler(post("request", {}))).status).toBe(200);
+    }
+  });
+
+  it("reads the client IP from the proxy's own hop", () => {
+    const request = (headers: Record<string, string>) =>
+      new Request(BASE, { headers });
+    expect(defaultClientIp(request({ "CF-Connecting-IP": "192.0.2.1" }))).toBe(
+      "192.0.2.1",
+    );
+    expect(
+      defaultClientIp(request({ "X-Forwarded-For": "6.6.6.6, 192.0.2.9" })),
+    ).toBe("192.0.2.9");
+    expect(defaultClientIp(request({}))).toBeNull();
+  });
+});
+
+describe("createVanaConnectHandler controller", () => {
+  it("names the connect methods a hand-written controller lacks", () => {
+    const { controller } = setup();
+    const handWritten = {
+      ...controller,
+      authorizeRequestRead: undefined,
+      getEnv: undefined,
+    };
+
+    expect(() =>
+      createVanaConnectHandler({
+        controller: handWritten,
+        returnUrl: `${APP}/connect/return`,
+      }),
+    ).toThrow(DirectConfigError);
+    expect(() =>
+      createVanaConnectHandler({
+        controller: handWritten,
+        returnUrl: `${APP}/connect/return`,
+      }),
+    ).toThrow(/authorizeRequestRead, getEnv/);
+  });
+
+  it("needs no deriveSecret when the binding secret is given", () => {
+    const { controller } = setup();
+    expect(() =>
+      createVanaConnectHandler({
+        controller: { ...controller, deriveSecret: undefined },
+        returnUrl: `${APP}/connect/return`,
+        bindingSecret: "rotate-me",
+      }),
+    ).not.toThrow();
+  });
+
+  it("takes the Account origin from the controller's environment, never a production default", async () => {
+    const { controller } = setup();
+    const handler = createVanaConnectHandler({
+      controller: {
+        ...controller,
+        getEndpoints: () => ({
+          ...controller.getEndpoints(),
+          accountOrigin: undefined,
+        }),
+      },
+      returnUrl: `${APP}/connect/return`,
+    });
+
+    const config = (await (await handler(get("config"))).json()) as {
+      accountOrigin: string;
+    };
+    expect(config.accountOrigin).toBe("https://account-dev.vana.org");
   });
 });
 

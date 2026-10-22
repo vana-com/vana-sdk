@@ -36,7 +36,6 @@ function fakeSheet() {
   const handle = {
     close: vi.fn(() => options?.onEvent?.({ reason: "api", type: "close" })),
     setRequestStatus: vi.fn(),
-    write: vi.fn(async () => true),
   } satisfies ConnectHandle;
   return {
     handle,
@@ -68,8 +67,8 @@ function setup(
     presentation: "sheet",
     pollIntervalMs: 1000,
     sheet: {
-      clientId: "lorebook",
-      appName: "Lorebook",
+      clientId: "example-app",
+      appName: "Example App",
       accountOrigin: "https://account-dev.vana.org",
       open: sheet.open,
       ...sheetOverrides,
@@ -90,8 +89,8 @@ describe('createDirectConnectFlow with presentation: "sheet"', () => {
 
     expect(sheet.open).toHaveBeenCalledTimes(1);
     expect(sheet.options()).toMatchObject({
-      appName: "Lorebook",
-      clientId: "lorebook",
+      appName: "Example App",
+      clientId: "example-app",
       vanaOrigin: "https://account-dev.vana.org",
     });
     expect(transports.createRequest).toHaveBeenCalledTimes(1);
@@ -180,7 +179,7 @@ describe('createDirectConnectFlow with presentation: "sheet"', () => {
     expect(flow.getState().type).toBe("done");
   });
 
-  it("keeps the sheet open after the read when asked, so the app can write", async () => {
+  it("keeps the sheet open after the read when asked", async () => {
     const { flow, sheet } = setup([APPROVED], { closeAfterDoneMs: null });
     await flow.start();
     await vi.advanceTimersByTimeAsync(1000);
@@ -188,8 +187,70 @@ describe('createDirectConnectFlow with presentation: "sheet"', () => {
 
     expect(flow.getState().type).toBe("done");
     expect(sheet.handle.close).not.toHaveBeenCalled();
-    await expect(flow.write("lorebook.notes", { a: 1 })).resolves.toBe(true);
-    expect(sheet.handle.write).toHaveBeenCalledWith("lorebook.notes", { a: 1 });
+  });
+
+  it("treats connected as approval, not delivery: only the backend poll and read finish the flow", async () => {
+    const { flow, sheet, transports } = setup([
+      { status: "pending" },
+      { status: "pending" },
+    ]);
+    await flow.start();
+    sheet.emit({
+      completion: "remote_collect",
+      status: "approved",
+      type: "connected",
+    });
+    sheet.emit({ phase: "writing", type: "progress" });
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(transports.readResult).not.toHaveBeenCalled();
+    expect(flow.getState()).toMatchObject({
+      type: "awaiting_approval",
+      sheet: { completion: "remote_collect", progress: "writing" },
+    });
+    flow.reset();
+  });
+
+  it("polls at once when the sheet reports approval, instead of waiting out the interval", async () => {
+    const { flow, sheet, transports } = setup([APPROVED]);
+    await flow.start();
+    expect(transports.getStatus).not.toHaveBeenCalled();
+
+    sheet.emit({
+      completion: "in_browser",
+      status: "approved",
+      type: "connected",
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(transports.getStatus).toHaveBeenCalledTimes(1);
+    expect(flow.getState().type).toBe("done");
+  });
+
+  it("polls once more right after an approval that lands while a poll is in flight", async () => {
+    const { flow, sheet, transports } = setup();
+    let answer: (status: AccessRequestStatus) => void = () => undefined;
+    transports.getStatus.mockImplementationOnce(
+      () =>
+        new Promise<AccessRequestStatus>((resolve) => {
+          answer = resolve;
+        }),
+    );
+    await flow.start();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(transports.getStatus).toHaveBeenCalledTimes(1);
+
+    sheet.emit({
+      completion: "in_browser",
+      status: "approved",
+      type: "connected",
+    });
+    expect(transports.getStatus).toHaveBeenCalledTimes(1);
+    answer(PENDING);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(transports.getStatus).toHaveBeenCalledTimes(2);
+    expect(flow.getState().type).toBe("done");
   });
 
   it("returns to idle when the person closes the sheet before approving", async () => {
@@ -201,7 +262,6 @@ describe('createDirectConnectFlow with presentation: "sheet"', () => {
 
     expect(flow.getState()).toEqual({ type: "idle" });
     expect(transports.getStatus).not.toHaveBeenCalled();
-    await expect(flow.write("lorebook.notes", {})).resolves.toBe(false);
   });
 
   it("keeps waiting for the data when the person closes the sheet after approving", async () => {
@@ -317,8 +377,9 @@ describe('createDirectConnectFlow with presentation: "sheet"', () => {
     vi.useFakeTimers();
     const sheet = fakeSheet();
     const loader = vi.fn(async () => ({
-      clientId: "lorebook",
-      appName: "Lorebook",
+      clientId: "example-app",
+      appName: "Example App",
+      accountOrigin: "https://account-dev.vana.org",
       open: sheet.open,
     }));
     const flow = createDirectConnectFlow(
@@ -347,7 +408,12 @@ describe('createDirectConnectFlow with presentation: "sheet"', () => {
       },
       {
         presentation: "sheet",
-        sheet: { clientId: "x", appName: "X", open: vi.fn() },
+        sheet: {
+          clientId: "x",
+          appName: "X",
+          accountOrigin: "https://account-dev.vana.org",
+          open: vi.fn(),
+        },
       },
     );
 

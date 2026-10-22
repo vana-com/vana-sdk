@@ -5,8 +5,20 @@ request, signs the sheet's short-lived read of it, and reports and reads it.
 `createVanaConnectHandler` (`@opendatalabs/vana-sdk/server`) is that backend
 for JavaScript. A backend in another language implements the routes below;
 the browser side (`useVanaConnect`, `createVanaConnectTransports`) then works
-unchanged. OpenPet's Go endpoint (`/f/vana-authorization`) is an existing
-non-JS implementation of the signing part.
+unchanged.
+
+A non-JS backend needs three things, all with the app key it already holds
+for the Direct flow:
+
+1. Create a data connection request, as it does for the tab flow.
+2. Remember which browser (and, ideally, which signed-in user) created it.
+3. Sign the [read authorization](#the-read-authorization) for that request,
+   and only that request, whenever the sheet asks.
+
+If it already has its own routes for creating and polling requests, it can
+keep them and expose only the signing step (any path, `POST`, returning the
+`authorization` object below); the browser then passes its own transports to
+`createDirectConnectFlow` instead of using `useVanaConnect`.
 
 ```
 browser                          your backend                     Vana
@@ -77,6 +89,13 @@ this browser already holds and creates nothing.
 - Sign `embed.authorization` on every call; Vana Account accepts it for about
   five minutes.
 - Refuse a `POST` whose `Origin` is not your own (`403 forbidden_origin`).
+- Rate-limit creates (`429 rate_limited`, with `Retry-After`). The SDK's
+  default is 10 a minute per client IP and per session, in memory; in
+  production use a shared limiter. Re-signs create nothing and need a binding,
+  so they are not limited.
+- Prefer requiring a signed-in user (`401 unauthenticated` otherwise): the
+  browser binding stops a stranger reading someone else's request, but not
+  creating requests in your app's name.
 
 ### `GET {base}/status?requestId=<id>`
 
@@ -84,6 +103,11 @@ this browser already holds and creates nothing.
 plus `mobileContinuationUrl` while a mobile deep request is pending. Only for a
 bound request. Do not return the grant id or Personal Server URL; the browser
 does not need them.
+
+This poll is the outcome. The sheet's `connected` event means the person
+approved, not that data arrived; the browser flow reads once this route says
+`approved` or `ready_for_read`, and fails on `denied`, `expired` or
+`completed`. The sheet sends no terminal event.
 
 ### `GET {base}/data?requestId=<id>`
 
@@ -105,7 +129,8 @@ reads nothing for anyone else. Any equivalent works; the SDK's default is:
 - `key = HKDF-SHA256(ikm = the 32 app key bytes, salt = "vana-sdk/derived-secret/v1", info = "vana-sdk/connect/request-binding/v1", 32 bytes)`.
 
 The cookie is internal to your backend, so another language may use its own
-scheme (OpenPet looks the request up through its existing flow cookie).
+scheme, for example looking the request up through a session or flow cookie
+it already sets.
 
 ## The read authorization
 
@@ -145,11 +170,19 @@ enforces:
 
 ## Partner page requirements
 
-- The sheet is framed from `accountOrigin`. With a Content-Security-Policy,
-  allow `frame-src <accountOrigin>` (`vanaConnectCsp(env)` returns it).
+- The sheet is framed from `accountOrigin`, and the launcher asks
+  `GET <accountOrigin>/api/embed/connect/client?client_id&origin` (no
+  credentials) whether this page may frame it. With a
+  Content-Security-Policy, allow `frame-src` and `connect-src` for
+  `<accountOrigin>` (`vanaConnectCsp(env)` returns both).
 - Vana Account serves the sheet only to the origin registered for the client
-  id; anywhere else it reports `origin_not_registered` and the SDK falls back
-  to the approval link.
+  id; anywhere else the client check (or the sheet) reports
+  `origin_not_registered` and the SDK falls back to the approval link.
+- `accountOrigin` comes from the deployment environment. Never derive it from
+  the page URL with a pattern; to point a preview build at a preview Vana
+  Account, use `resolveVanaAccountOrigin` with an exact allowlist.
+- The partner reads; it cannot write through the sheet. There is no
+  partner-to-sheet write message.
 
 ## Protocol versioning
 
@@ -159,3 +192,8 @@ The launcher accepts messages at any version from `MIN_PROTOCOL_VERSION` to
 `vana:ready` or `vana:error` at a version outside that range closes the sheet
 with `incompatible_version`, and the flow falls back to the approval link. An
 error code the launcher does not know is read as `sheet_failed`.
+
+Sheet error codes: `frame_blocked`, `incompatible_version`,
+`origin_not_registered`, `personal_server_unsupported`, `request_unavailable`,
+`sheet_failed`, `vana_unavailable` (Vana's own side is down or misconfigured;
+nothing the partner can fix).

@@ -57,7 +57,7 @@ function backend(clientId: string | null) {
           protocolVersion: 1,
           env: "dev",
           clientId,
-          appName: "Lorebook",
+          appName: "Example App",
           accountOrigin: "https://account-dev.vana.org",
         }
       : url.endsWith("/request")
@@ -84,23 +84,22 @@ it("opens the sheet with what the backend's config reports", async () => {
     (_options: ConnectOpenOptions): ConnectHandle => ({
       close: vi.fn(),
       setRequestStatus: vi.fn(),
-      write: vi.fn(async () => false),
     }),
   );
-  const options = { fetch: backend("lorebook"), sheet: { open } };
+  const options = { fetch: backend("example-app"), sheet: { open } };
 
   render(() => useVanaConnect(options));
   await flushEffects();
   const connect = render(() => useVanaConnect(options));
-  expect(connect.config?.clientId).toBe("lorebook");
+  expect(connect.config?.clientId).toBe("example-app");
 
   connect.start();
   await vi.waitFor(() => {
     expect(open).toHaveBeenCalledTimes(1);
   });
   expect(open.mock.calls[0][0]).toMatchObject({
-    clientId: "lorebook",
-    appName: "Lorebook",
+    clientId: "example-app",
+    appName: "Example App",
     vanaOrigin: "https://account-dev.vana.org",
   });
   connect.reset();

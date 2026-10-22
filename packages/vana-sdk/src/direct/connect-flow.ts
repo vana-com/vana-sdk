@@ -61,15 +61,20 @@ export interface DirectConnectSheetOptions {
   clientId: string;
   /** Label on the sheet chrome (Vana shows the registered name inside). */
   appName: string;
-  /** Vana Account origin. Defaults to production (`https://account.vana.org`). */
-  accountOrigin?: string;
+  /**
+   * Vana Account origin that serves the sheet. Required: there is no
+   * production default, so a dev app never silently talks to production.
+   * Use `VANA_ACCOUNT_ORIGINS[env]`, or `resolveVanaAccountOrigin` for
+   * preview deploys. `useVanaConnect` fills it from the backend's config.
+   */
+  accountOrigin: string;
   /** Element the sheet mounts in. Defaults to `document.body`. */
   container?: HTMLElement;
   /** How long to wait for the sheet to start before falling back. */
   readyTimeoutMs?: number;
   /**
    * Close the sheet this long (ms) after the data is read, so the person sees
-   * it finish. Defaults to 1500; `null` leaves it open (needed for `write`).
+   * it finish. Defaults to 1500; `null` leaves it open for the person to close.
    */
   closeAfterDoneMs?: number | null;
   /** Every raw launcher event, for logging or custom UI. */
@@ -78,11 +83,23 @@ export interface DirectConnectSheetOptions {
   open?: (options: ConnectOpenOptions) => ConnectHandle;
 }
 
-/** What the sheet has reported, while it presents approval. */
+/**
+ * What the sheet has reported, while it presents approval.
+ *
+ * @remarks
+ * These are hints for the UI, not outcomes. The flow settles only from the
+ * backend: `done` once the status poll says the request is readable and the
+ * read succeeds, `error` when the poll reports `denied`, `expired` or
+ * `completed`, or the read fails.
+ */
 export interface DirectConnectSheetState {
   /** `false` once the person closed the sheet after approving. */
   open: boolean;
-  /** Set once the person approved: how the data will arrive. */
+  /**
+   * Set once the person approved: how the data will arrive. Approval is not
+   * delivery; wait for `state.type === "done"` before treating data as
+   * delivered.
+   */
   completion?: ConnectCompletion;
   /** Coarse `remote_collect` progress. */
   progress?: ConnectProgressPhase;
@@ -240,12 +257,6 @@ export interface DirectConnectFlow<T = unknown> {
   retryRead(): Promise<DirectConnectRetryOutcome>;
   /** Reset to `idle` and stop any in-flight polling. */
   reset(): void;
-  /**
-   * Save `data` to a scope the person approved in the open sheet, through
-   * their Personal Server. Resolves `false` when no sheet is open, the scope
-   * was not approved, or the sheet refused.
-   */
-  write(scope: string, data: unknown): Promise<boolean>;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 1500;
@@ -346,6 +357,11 @@ export function createDirectConnectFlow<T = unknown>(
   let state: DirectConnectState<T> = { type: "idle" };
   const listeners = new Set<() => void>();
   let pollHandle: unknown = null;
+  // The request and deadline the poll loop is on, so a sheet event can ask
+  // for the next poll now instead of after the interval.
+  let pollTarget: { request: AccessRequest; deadline: number } | null = null;
+  let pollInFlight = false;
+  let pollNudged = false;
   let running = false;
   // Retained only after status proved this request had a read-ready grant.
   // A retry rechecks that status before trusting the prior consent.
@@ -380,6 +396,25 @@ export function createDirectConnectFlow<T = unknown>(
       clearTimeoutFn(pollHandle);
       pollHandle = null;
     }
+    pollTarget = null;
+    pollNudged = false;
+  }
+
+  /**
+   * Poll now rather than after the interval. Sheet events call this: they
+   * hint that the backend's status may have moved, but never settle the flow
+   * themselves. The poll stays the one authority for `done` and `error`.
+   */
+  function nudgePoll(): void {
+    if (!running) return;
+    if (pollInFlight) {
+      pollNudged = true;
+      return;
+    }
+    const target = pollTarget;
+    if (pollHandle === null || !target) return;
+    clearPoll();
+    void poll(target.request, target.deadline);
   }
 
   /** Close the opened tab if it is still blank (never navigated). */
@@ -448,10 +483,17 @@ export function createDirectConnectFlow<T = unknown>(
     setState({ type: "error", error });
   }
 
+  /**
+   * Sheet events update what the UI shows and nudge the status poll; none of
+   * them is an outcome. `connected` is the person's approval, not delivery.
+   * A future terminal sheet event belongs here too, as another nudge: the
+   * backend poll and read still decide `done` or `error`.
+   */
   function handleSheetEvent(event: ConnectEvent): void {
     switch (event.type) {
       case "connected":
         updateSheet({ completion: event.completion });
+        nudgePoll();
         return;
       case "progress":
         updateSheet({ progress: event.phase });
@@ -528,9 +570,13 @@ export function createDirectConnectFlow<T = unknown>(
   }
 
   function scheduleNextPoll(request: AccessRequest, deadline: number): void {
+    const delay = pollNudged ? 0 : pollIntervalMs;
+    pollNudged = false;
+    pollTarget = { request, deadline };
     pollHandle = setTimeoutFn(() => {
+      pollHandle = null;
       void poll(request, deadline);
-    }, pollIntervalMs);
+    }, delay);
   }
 
   function requestDeadline(request: AccessRequest): number {
@@ -550,6 +596,7 @@ export function createDirectConnectFlow<T = unknown>(
     request: AccessRequest,
     initialState: DirectConnectState<T>,
   ): void {
+    pollNudged = false;
     setState(initialState);
     const deadline = requestDeadline(request);
     if (now() >= deadline) {
@@ -574,6 +621,7 @@ export function createDirectConnectFlow<T = unknown>(
       return;
     }
     let status: AccessRequestStatus;
+    pollInFlight = true;
     try {
       status = await transports.getStatus(request.requestId);
     } catch (err) {
@@ -581,6 +629,8 @@ export function createDirectConnectFlow<T = unknown>(
       running = false;
       setState({ type: "error", error: toError(err) });
       return;
+    } finally {
+      pollInFlight = false;
     }
     if (!running) return;
 
@@ -790,12 +840,6 @@ export function createDirectConnectFlow<T = unknown>(
       closeUnnavigatedWindow();
       clearSheet();
       setState({ type: "idle" });
-    },
-
-    write(scope: string, data: unknown): Promise<boolean> {
-      return sheetHandle
-        ? sheetHandle.write(scope, data)
-        : Promise.resolve(false);
     },
   };
 

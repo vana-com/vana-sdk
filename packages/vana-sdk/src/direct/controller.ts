@@ -187,7 +187,7 @@ export interface DirectEscrowConfig extends Omit<
  *
  * @typeParam T - Shape of the data returned by {@link DirectDataController.readApprovedData}.
  */
-export interface DirectDataController {
+export interface DirectDataController extends Partial<DirectConnectCapabilities> {
   /** The on-chain address of the app, derived from `appPrivateKey`. */
   readonly appAddress: string;
 
@@ -262,7 +262,7 @@ export interface DirectDataController {
   /**
    * Fetch the current status of an access request.
    *
-   * @param requestId - The `dcr_*` id from {@link DirectDataController.createAccessRequest}.
+   * @param requestId - The `dcr_*` id from `createAccessRequest`.
    * @returns `{ status, personalServerUrl?, grantId?, scope?, scopes? }`.
    */
   getAccessRequestStatus(requestId: string): Promise<AccessRequestStatus>;
@@ -327,6 +327,23 @@ export interface DirectDataController {
     requestId: string;
   }): Promise<MultiScopeDataResult<T>>;
 
+  // Connect-sheet methods (authorizeRequestRead, getEndpoints, deriveSecret,
+  // getEnv) come from DirectConnectCapabilities and are optional here, so a
+  // hand-written controller keeps compiling. See isConnectCapableController.
+}
+
+/**
+ * What the embedded connect sheet needs from a controller, on top of
+ * {@link DirectDataController}.
+ *
+ * @remarks
+ * `createDirectDataController` implements all of it. On the base interface
+ * these methods are optional, so an existing hand-written
+ * `DirectDataController` keeps compiling in this minor version;
+ * `createVanaConnectHandler` checks for them with
+ * {@link isConnectCapableController} and names any that are missing.
+ */
+export interface DirectConnectCapabilities {
   /**
    * Sign the short-lived read capability the embedded connect sheet needs to
    * show a request (`presentation: "sheet"`).
@@ -338,7 +355,7 @@ export interface DirectDataController {
    * with a signed cookie). Sign on each ask; Vana Account accepts it for
    * about five minutes.
    *
-   * @param requestId - The `dcr_*` id from {@link DirectDataController.createAccessRequest}.
+   * @param requestId - The `dcr_*` id from `createAccessRequest`.
    * @returns `{ appAddress, timestamp, signature }`.
    * @throws {@link DirectConfigError} when `requestId` is not a request id.
    */
@@ -375,6 +392,45 @@ export interface DirectDataController {
   getEnv(): DirectEnv;
 }
 
+/** A controller that can back the embedded connect sheet. */
+export type ConnectCapableDirectDataController = DirectDataController &
+  DirectConnectCapabilities;
+
+/** The {@link DirectConnectCapabilities} method names, for checks and errors. */
+export const DIRECT_CONNECT_CAPABILITIES = [
+  "authorizeRequestRead",
+  "getEndpoints",
+  "deriveSecret",
+  "getEnv",
+] as const satisfies readonly (keyof DirectConnectCapabilities)[];
+
+/**
+ * The {@link DirectConnectCapabilities} methods a controller lacks.
+ *
+ * @param controller - Any {@link DirectDataController}.
+ * @returns Missing method names; empty when it can back the sheet.
+ */
+export function missingConnectCapabilities(
+  controller: DirectDataController,
+): (keyof DirectConnectCapabilities)[] {
+  return DIRECT_CONNECT_CAPABILITIES.filter(
+    (name) => typeof controller[name] !== "function",
+  );
+}
+
+/**
+ * Whether a controller implements every {@link DirectConnectCapabilities}
+ * method (any controller from `createDirectDataController` does).
+ *
+ * @param controller - Any {@link DirectDataController}.
+ * @returns `true` when it can back `createVanaConnectHandler`.
+ */
+export function isConnectCapableController(
+  controller: DirectDataController,
+): controller is ConnectCapableDirectDataController {
+  return missingConnectCapabilities(controller).length === 0;
+}
+
 function isHexPrivateKey(value: string): value is Hex {
   return /^0x[0-9a-fA-F]{64}$/.test(value);
 }
@@ -400,7 +456,7 @@ function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
  */
 export function createDirectDataController(
   config: DirectDataControllerConfig,
-): DirectDataController {
+): ConnectCapableDirectDataController {
   // `appPrivateKey` is the documented field; `builderPrivateKey` is a
   // deprecated alias kept for backwards compatibility.
   const privateKey = config.appPrivateKey ?? config.builderPrivateKey;

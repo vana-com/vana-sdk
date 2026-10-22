@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   PROTOCOL_VERSION,
+  clientCheckUrl,
   isRequestId,
+  parseClientCheck,
   parsePartnerMessage,
   parseSheetMessage,
   readIncompatibleVersion,
@@ -44,14 +46,6 @@ describe("parseSheetMessage", () => {
         v: 1,
       }),
     ).toMatchObject({ completion: "in_browser" });
-    expect(
-      parseSheetMessage({
-        id: "w1",
-        ok: true,
-        type: "vana:write-result",
-        v: 1,
-      }),
-    ).toEqual({ id: "w1", ok: true, type: "vana:write-result", v: 1 });
   });
 
   it("reads the coarse collection progress and nothing finer", () => {
@@ -89,6 +83,10 @@ describe("parseSheetMessage", () => {
     ],
     ["a non-object", "vana:ready"],
     ["a fractional version", { type: "vana:ready", v: 1.5 }],
+    [
+      "the retired write result",
+      { id: "w1", ok: true, type: "vana:write-result", v: 1 },
+    ],
   ])("rejects %s", (_label, data) => {
     expect(parseSheetMessage(data)).toBeNull();
   });
@@ -105,14 +103,48 @@ describe("parseSheetMessage", () => {
       }),
     ).toEqual({ code: "incompatible_version", type: "vana:error", v: 1 });
   });
+
+  it("names Vana's own misconfiguration apart from a sheet failure", () => {
+    expect(
+      parseSheetMessage({ code: "vana_unavailable", type: "vana:error", v: 1 }),
+    ).toEqual({ code: "vana_unavailable", type: "vana:error", v: 1 });
+  });
+});
+
+describe("client check", () => {
+  it("asks the Vana origin about this client id and partner origin", () => {
+    const url = new URL(
+      clientCheckUrl({
+        clientId: "example-app",
+        partnerOrigin: "https://partner.example",
+        vanaOrigin: "https://account.vana.org/ignored",
+      }),
+    );
+    expect(url.origin).toBe("https://account.vana.org");
+    expect(url.pathname).toBe("/api/embed/connect/client");
+    expect(url.searchParams.get("client_id")).toBe("example-app");
+    expect(url.searchParams.get("origin")).toBe("https://partner.example");
+  });
+
+  it("reads only a boolean registered", () => {
+    expect(parseClientCheck({ registered: false, extra: 1 })).toEqual({
+      registered: false,
+    });
+    expect(parseClientCheck({ registered: true })).toEqual({
+      registered: true,
+    });
+    for (const bad of [null, [], "yes", { registered: "false" }, {}]) {
+      expect(parseClientCheck(bad)).toBeNull();
+    }
+  });
 });
 
 describe("version handshake", () => {
   it("puts the version the launcher speaks in the sheet URL", () => {
     const url = new URL(
       sheetUrl({
-        clientId: "lorebook",
-        partnerOrigin: "https://lorebook.example",
+        clientId: "example-app",
+        partnerOrigin: "https://partner.example",
         vanaOrigin: "https://account.vana.org",
       }),
     );
@@ -144,19 +176,28 @@ describe("isRequestId", () => {
 });
 
 describe("vanaConnectCsp", () => {
-  it("allows framing the environment's Vana Account", () => {
-    expect(vanaConnectCsp()).toEqual({
+  it("allows framing and the client check for the environment's Vana Account", () => {
+    expect(vanaConnectCsp("production")).toEqual({
+      "connect-src": ["https://account.vana.org"],
       "frame-src": ["https://account.vana.org"],
     });
     expect(vanaConnectCsp("dev")).toEqual({
+      "connect-src": ["https://account-dev.vana.org"],
       "frame-src": ["https://account-dev.vana.org"],
     });
     expect(
       vanaConnectCsp({ accountOrigin: "http://localhost:3084/embed" }),
-    ).toEqual({ "frame-src": ["http://localhost:3084"] });
+    ).toEqual({
+      "connect-src": ["http://localhost:3084"],
+      "frame-src": ["http://localhost:3084"],
+    });
   });
 
-  it("refuses a non-http origin", () => {
+  it("has no default target and refuses anything but an environment or http(s) origin", () => {
+    expect(() => (vanaConnectCsp as (t?: unknown) => unknown)()).toThrow(
+      TypeError,
+    );
+    expect(() => vanaConnectCsp("staging" as never)).toThrow(TypeError);
     expect(() => vanaConnectCsp({ accountOrigin: "javascript:x" })).toThrow(
       TypeError,
     );
@@ -202,27 +243,12 @@ describe("parsePartnerMessage", () => {
     ).toBeNull();
   });
 
-  it("accepts a write to a well-formed scope only", () => {
+  it("rejects the retired partner write", () => {
     expect(
       parsePartnerMessage({
         data: { city: "Lisbon" },
         id: "w1",
         scope: "vana.profile",
-        type: "vana:write",
-        v: 1,
-      }),
-    ).toEqual({
-      data: { city: "Lisbon" },
-      id: "w1",
-      scope: "vana.profile",
-      type: "vana:write",
-      v: 1,
-    });
-    expect(
-      parsePartnerMessage({
-        data: {},
-        id: "w1",
-        scope: "profile",
         type: "vana:write",
         v: 1,
       }),

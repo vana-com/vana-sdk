@@ -9,8 +9,10 @@ export const runtime = "nodejs";
 let connect: VanaConnectHandler | undefined;
 
 // Every route the in-page sheet needs (config, request, status, data), bound
-// to the browser that created each request. Before production, also bind it to
-// a signed-in user (`session`) and rate-limit it.
+// to the browser that created each request. The Account origin follows the
+// controller's VANA_ENV. Creates are rate limited in memory by default; before
+// production, also bind requests to a signed-in user (`session`) and pass a
+// shared `rateLimit`.
 function handler(request: Request): Promise<Response> {
   connect ??= createVanaConnectHandler({
     controller: getVanaController(),

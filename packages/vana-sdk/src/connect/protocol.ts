@@ -10,6 +10,9 @@
  * ```
  *   partner page                                   Vana sheet (iframe)
  *   ────────────                                   ───────────────────
+ *   GET clientCheckUrl(...)             ───────▶   Vana's server: { registered }
+ *                                                  (alongside framing; false ends it
+ *                                                  with origin_not_registered)
  *   iframe src = sheetUrl(...)          ───────▶   renders, bound to partner origin
  *                                       ◀───────   vana:ready
  *                                       ◀───────   vana:resize { height }
@@ -21,14 +24,19 @@
  *                                       ◀───────   vana:progress { phase }
  *                                                  (remote_collect only; coarse, no source detail)
  *   vana:request-status { status }      ───────▶   shows the partner-observed outcome
- *   vana:write { id, scope, data }      ───────▶   saves to an approved scope
- *                                       ◀───────   vana:write-result { id, ok }
  *                                       ◀───────   vana:close | vana:error { code }
  * ```
  *
  * Every message carries `v`. Both sides post with an exact `targetOrigin` and
  * check `event.origin` and `event.source` before parsing. Tokens never cross
  * this boundary: the sheet only reports outcomes.
+ *
+ * The partner reads; it never writes. Approving a read request grants no
+ * write access, so there is no partner-to-sheet message that saves data.
+ *
+ * `vana:connected` means the person approved. It is not delivery: the data
+ * is ready only once the partner's backend reads it (the status poll and the
+ * read of the Direct flow say so).
  *
  * Versioning: the sheet URL carries the highest version the launcher speaks
  * (`v`). Parsers accept any version from {@link MIN_PROTOCOL_VERSION} to
@@ -53,6 +61,16 @@ export type ProtocolVersion = typeof PROTOCOL_VERSION;
 /** Path of the sheet page on the Vana Account origin. */
 export const SHEET_PATH = "/embed/connect";
 
+/**
+ * Says whether a (client id, partner origin) pair may frame the sheet.
+ *
+ * @remarks
+ * The browser refuses an unregistered frame silently, so the launcher asks
+ * here (without credentials) to name that failure instead of waiting out
+ * `frame_blocked`.
+ */
+export const CLIENT_CHECK_PATH = "/api/embed/connect/client";
+
 /** Query parameters the sheet reads. The origin is re-checked server side. */
 export const SHEET_QUERY = {
   clientId: "client_id",
@@ -69,7 +87,15 @@ export const VANA_ACCOUNT_ORIGINS = {
 /** Environment names {@link VANA_ACCOUNT_ORIGINS} is keyed by. */
 export type VanaConnectEnv = keyof typeof VANA_ACCOUNT_ORIGINS;
 
-/** The production Vana Account origin, which serves the sheet. */
+/**
+ * The production Vana Account origin.
+ *
+ * @remarks
+ * Never used as an implicit default: the launcher, the flow and the CSP
+ * helper all need an explicit environment or origin, so a dev app cannot
+ * silently talk to production. Resolve the origin with
+ * `resolveVanaAccountOrigin` instead.
+ */
 export const DEFAULT_VANA_ORIGIN = VANA_ACCOUNT_ORIGINS.production;
 
 /**
@@ -134,14 +160,28 @@ export interface ConnectRequest {
   id: string;
 }
 
-/** Error codes the sheet reports. */
+/**
+ * Error codes the sheet reports.
+ *
+ * @remarks
+ * `frame_blocked`: no `vana:ready` in time, usually the page's own CSP.
+ * `incompatible_version`: the sheet speaks a protocol version this SDK does
+ * not (detected by the launcher).
+ * `origin_not_registered`: this page's origin is not registered for the
+ * client id.
+ * `vana_unavailable`: Vana itself is misconfigured or down here. Nothing the
+ * partner did, and nothing the partner can fix; the sheet stays open to say
+ * so.
+ * `sheet_failed`: the sheet could not finish this request.
+ */
 export type SheetErrorCode =
   | "frame_blocked"
   | "incompatible_version"
   | "origin_not_registered"
   | "personal_server_unsupported"
   | "request_unavailable"
-  | "sheet_failed";
+  | "sheet_failed"
+  | "vana_unavailable";
 
 /** Sheet to partner. */
 export type SheetMessage =
@@ -160,12 +200,6 @@ export type SheetMessage =
       type: "vana:progress";
       v: ProtocolVersion;
     }
-  | {
-      id: string;
-      ok: boolean;
-      type: "vana:write-result";
-      v: ProtocolVersion;
-    }
   | { type: "vana:close"; v: ProtocolVersion }
   | { code: SheetErrorCode; type: "vana:error"; v: ProtocolVersion };
 
@@ -179,14 +213,6 @@ export type PartnerMessage =
   | {
       status: RequestStatus;
       type: "vana:request-status";
-      v: ProtocolVersion;
-    }
-  | {
-      /** Saved as-is; the sheet refuses scopes this person did not approve. */
-      data: unknown;
-      id: string;
-      scope: string;
-      type: "vana:write";
       v: ProtocolVersion;
     };
 
@@ -205,13 +231,12 @@ const SHEET_ERROR_CODES: readonly SheetErrorCode[] = [
   "personal_server_unsupported",
   "request_unavailable",
   "sheet_failed",
+  "vana_unavailable",
 ];
 
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const HEX_SIGNATURE = /^0x[0-9a-fA-F]{130}$/;
 const REQUEST_ID = /^[A-Za-z0-9_-]{1,128}$/;
-const WRITE_ID = /^[A-Za-z0-9_-]{1,64}$/;
-const SCOPE = /^[a-z0-9_]+(\.[A-Za-z0-9_]+)+$/;
 const TIMESTAMP = /^[0-9]{10,16}$/;
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -350,12 +375,6 @@ export function parseSheetMessage(data: unknown): SheetMessage | null {
       const phase = PROGRESS_PHASES.find((known) => known === message.phase);
       return phase ? { phase, type: "vana:progress", v } : null;
     }
-    case "vana:write-result":
-      return typeof message.id === "string" &&
-        WRITE_ID.test(message.id) &&
-        typeof message.ok === "boolean"
-        ? { id: message.id, ok: message.ok, type: "vana:write-result", v }
-        : null;
     case "vana:error": {
       if (typeof message.code !== "string") {
         return null;
@@ -391,19 +410,6 @@ export function parsePartnerMessage(data: unknown): PartnerMessage | null {
       const status = REQUEST_STATUSES.find((known) => known === message.status);
       return status ? { status, type: "vana:request-status", v } : null;
     }
-    case "vana:write":
-      return typeof message.id === "string" &&
-        WRITE_ID.test(message.id) &&
-        typeof message.scope === "string" &&
-        SCOPE.test(message.scope)
-        ? {
-            data: message.data,
-            id: message.id,
-            scope: message.scope,
-            type: "vana:write",
-            v,
-          }
-        : null;
     default:
       return null;
   }
@@ -425,6 +431,39 @@ export function normalizeOrigin(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Build the client-check URL the launcher asks before the sheet is ready.
+ *
+ * @param input - The registered client id, the partner page origin, and the
+ * Vana Account origin.
+ * @returns `<vanaOrigin>/api/embed/connect/client?client_id&origin`.
+ */
+export function clientCheckUrl(input: {
+  clientId: string;
+  partnerOrigin: string;
+  vanaOrigin: string;
+}): string {
+  const url = new URL(CLIENT_CHECK_PATH, input.vanaOrigin);
+  url.searchParams.set(SHEET_QUERY.clientId, input.clientId);
+  url.searchParams.set(SHEET_QUERY.origin, input.partnerOrigin);
+  return url.toString();
+}
+
+/**
+ * Parse the client-check response body.
+ *
+ * @param data - Untrusted JSON.
+ * @returns `{ registered }`, or `null` for anything else.
+ */
+export function parseClientCheck(
+  data: unknown,
+): { registered: boolean } | null {
+  const body = record(data);
+  return body && typeof body.registered === "boolean"
+    ? { registered: body.registered }
+    : null;
 }
 
 /**
@@ -451,13 +490,16 @@ export function sheetUrl(input: {
  *
  * @remarks
  * The launcher is bundled into the partner's own code, so only the frame
- * needs allowing. Merge the result into your existing policy; if the page
- * sets `child-src` but not `frame-src`, add the origin there instead.
+ * and the launcher's client check (a credential-less `fetch`) need
+ * allowing. Merge the result into your existing policy; if the page sets
+ * `child-src` but not `frame-src`, add the origin there instead. There is no
+ * default target, so a dev app never allows production by accident.
  *
  * @example
  * ```typescript
  * const csp = vanaConnectCsp("production");
- * // { "frame-src": ["https://account.vana.org"] }
+ * // { "frame-src": ["https://account.vana.org"],
+ * //   "connect-src": ["https://account.vana.org"] }
  * const header = Object.entries(csp)
  *   .map(([directive, sources]) => `${directive} 'self' ${sources.join(" ")}`)
  *   .join("; ");
@@ -468,14 +510,20 @@ export function sheetUrl(input: {
  * @returns The directives to add, each with the sources it needs.
  */
 export function vanaConnectCsp(
-  target: VanaConnectEnv | { accountOrigin: string } = "production",
-): { "frame-src": string[] } {
+  target: VanaConnectEnv | { accountOrigin: string },
+): { "connect-src": string[]; "frame-src": string[] } {
   const origin =
-    typeof target === "string"
+    target === "production" || target === "dev"
       ? VANA_ACCOUNT_ORIGINS[target]
-      : normalizeOrigin(target.accountOrigin);
+      : typeof target === "object" &&
+          target !== null &&
+          typeof target.accountOrigin === "string"
+        ? normalizeOrigin(target.accountOrigin)
+        : null;
   if (!origin) {
-    throw new TypeError("accountOrigin must be an http(s) origin");
+    throw new TypeError(
+      'vanaConnectCsp needs "production", "dev" or an http(s) accountOrigin',
+    );
   }
-  return { "frame-src": [origin] };
+  return { "connect-src": [origin], "frame-src": [origin] };
 }

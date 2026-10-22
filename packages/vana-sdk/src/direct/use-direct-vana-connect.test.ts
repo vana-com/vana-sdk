@@ -75,7 +75,6 @@ it("uses the latest transports after a rerender and exposes ready_to_open on mob
     "retryRead",
     "start",
     "state",
-    "write",
   ]);
 
   connect.start();

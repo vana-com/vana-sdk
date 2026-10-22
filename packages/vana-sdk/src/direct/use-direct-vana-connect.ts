@@ -37,11 +37,6 @@ export interface UseDirectVanaConnectResult<T = unknown> {
   retryRead: () => Promise<DirectConnectRetryOutcome>;
   /** Reset back to `idle` and cancel any in-flight polling. */
   reset: () => void;
-  /**
-   * Save `data` to a scope the person approved in the open sheet
-   * (`presentation: "sheet"`). Resolves `false` when no sheet is open.
-   */
-  write: (scope: string, data: unknown) => Promise<boolean>;
 }
 
 /**
@@ -129,10 +124,5 @@ export function useDirectVanaConnect<T = unknown>(
 
   const retryRead = useCallback(() => flow.retryRead(), [flow]);
 
-  const write = useCallback(
-    (scope: string, data: unknown) => flow.write(scope, data),
-    [flow],
-  );
-
-  return { state, start, retryRead, reset, write };
+  return { state, start, retryRead, reset };
 }

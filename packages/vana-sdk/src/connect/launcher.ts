@@ -2,8 +2,8 @@
  * Partner-side launcher for the Vana connect sheet.
  *
  * @remarks
- * `connect.open({ clientId, appName, getRequest, onEvent })` returns
- * `{ close, setRequestStatus, write }`. Only launcher, chrome and message
+ * `connect.open({ clientId, appName, env, getRequest, onEvent })` returns
+ * `{ close, setRequestStatus }`. Only launcher, chrome and message
  * protocol live here. Identity, consent and signing live in the Vana-hosted
  * iframe and Vana's servers; no token ever crosses into the partner page.
  *
@@ -11,8 +11,13 @@
  * `useVanaConnect`) with `presentation: "sheet"` open it and wire it to the
  * request, the status poll and the read.
  *
- * Ported from `@vana-unity/connect-embed` with one addition: the version
- * handshake (`incompatible_version`).
+ * Ported from `@vana-unity/connect-embed` with two differences: the version
+ * handshake (`incompatible_version`), and no default Vana origin (pass `env`
+ * or `vanaOrigin`).
+ *
+ * `connected` means the person approved; it is not delivery. Treat the data
+ * as delivered only once your backend's status poll and read say so (the
+ * connect flow's `done`).
  *
  * @category Connect
  * @module connect/launcher
@@ -27,22 +32,32 @@ import {
   type ConnectCompletion,
   type ConnectProgressPhase,
   type ConnectRequest,
-  DEFAULT_VANA_ORIGIN,
+  clientCheckUrl,
   MIN_SHEET_HEIGHT_PX,
   normalizeOrigin,
   type PartnerMessage,
   PROTOCOL_VERSION,
+  parseClientCheck,
   parseSheetMessage,
   readIncompatibleVersion,
   type RequestStatus,
   type SheetErrorCode,
   type SheetMessage,
   sheetUrl,
+  VANA_ACCOUNT_ORIGINS,
+  type VanaConnectEnv,
 } from "./protocol";
 
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
 
-/** What the launcher reports to `onEvent`. */
+/**
+ * What the launcher reports to `onEvent`.
+ *
+ * @remarks
+ * `connected` is approval, not delivery: data is delivered only when the
+ * partner's backend reads it. The sheet sends no terminal "delivered" event
+ * today; the connect flow settles from the status poll instead.
+ */
 export type ConnectEvent =
   | { type: "ready" }
   | { type: "signed-in" }
@@ -58,11 +73,29 @@ export type ConnectCloseReason =
   | "escape"
   | "frame_blocked"
   | "incompatible_version"
+  | "origin_not_registered"
   | "replaced"
   | "sheet";
 
-/** Options for {@link open}. */
-export interface ConnectOpenOptions {
+/**
+ * Which Vana Account serves the sheet: an environment, or an exact origin
+ * (resolve preview origins with `resolveVanaAccountOrigin`). Required, so a
+ * dev app never silently frames production.
+ */
+export type ConnectTarget =
+  | {
+      /** Vana deployment; the sheet comes from `VANA_ACCOUNT_ORIGINS[env]`. */
+      env: VanaConnectEnv;
+      vanaOrigin?: undefined;
+    }
+  | {
+      /** Vana Account origin. */
+      vanaOrigin: string;
+      env?: undefined;
+    };
+
+/** Options for {@link open}, besides the {@link ConnectTarget}. */
+export interface ConnectOpenBaseOptions {
   /** Chrome label only. Vana never trusts it; the sheet shows registered names. */
   appName: string;
   /** Registered embed client id. */
@@ -81,9 +114,10 @@ export interface ConnectOpenOptions {
    * `frame_blocked`.
    */
   readyTimeoutMs?: number;
-  /** Vana Account origin. Defaults to production (`https://account.vana.org`). */
-  vanaOrigin?: string;
 }
+
+/** Options for {@link open}. */
+export type ConnectOpenOptions = ConnectOpenBaseOptions & ConnectTarget;
 
 /** The open sheet. */
 export interface ConnectHandle {
@@ -91,11 +125,6 @@ export interface ConnectHandle {
   close(): void;
   /** Report the request outcome the partner's backend observed. */
   setRequestStatus(status: RequestStatus): void;
-  /**
-   * Saves `data` to one scope this person approved in the sheet, through
-   * their Vana Personal Server. Resolves false when refused or not approved.
-   */
-  write(scope: string, data: unknown): Promise<boolean>;
 }
 
 /** Closes the open sheet, if any. One sheet at a time. */
@@ -106,14 +135,20 @@ let closeCurrent: ((reason: ConnectCloseReason) => void) | null = null;
  * opening another closes the first with reason `"replaced"`.
  *
  * @param options - Client id, app name, the request source and event sink.
- * @returns A handle to close the sheet, report status, and write.
- * @throws TypeError when `vanaOrigin` is not an http(s) origin.
+ * @remarks
+ * Alongside framing, it asks Vana (`GET /api/embed/connect/client`, no
+ * credentials, no cache) whether this page's origin is registered for the
+ * client id, and closes with `origin_not_registered` on a definite no. If
+ * that check cannot be answered, the ready deadline decides.
+ *
+ * @param options - Client id, app name, Vana target, the request source and
+ * event sink.
+ * @returns A handle to close the sheet and report status.
+ * @throws TypeError when neither (or both) of `env` and `vanaOrigin` is
+ * given, or `vanaOrigin` is not an http(s) origin.
  */
 export function open(options: ConnectOpenOptions): ConnectHandle {
-  const vanaOrigin = normalizeOrigin(options.vanaOrigin ?? DEFAULT_VANA_ORIGIN);
-  if (!vanaOrigin) {
-    throw new TypeError("vanaOrigin must be an http(s) origin");
-  }
+  const vanaOrigin = resolveTarget(options);
   closeCurrent?.("replaced");
 
   const emit = (event: ConnectEvent) => options.onEvent?.(event);
@@ -127,8 +162,6 @@ export function open(options: ConnectOpenOptions): ConnectHandle {
   /** Latest status reported before the sheet was ready, sent on ready. */
   let pendingStatus: RequestStatus | null = null;
   let chrome: SheetChrome | null = null;
-  const pendingWrites = new Map<string, (ok: boolean) => void>();
-  let writeCount = 0;
 
   const post = (message: PartnerMessage) => {
     chrome?.iframe.contentWindow?.postMessage(message, vanaOrigin);
@@ -143,10 +176,6 @@ export function open(options: ConnectOpenOptions): ConnectHandle {
     window.removeEventListener("message", onMessage);
     document.removeEventListener("keydown", onKeyDown);
     chrome?.remove();
-    for (const settle of pendingWrites.values()) {
-      settle(false);
-    }
-    pendingWrites.clear();
     document.body.style.overflow = previousOverflow;
     previousFocus?.focus();
     if (closeCurrent === close) {
@@ -210,14 +239,12 @@ export function open(options: ConnectOpenOptions): ConnectHandle {
       case "vana:progress":
         emit({ phase: message.phase, type: "progress" });
         return;
-      case "vana:write-result":
-        pendingWrites.get(message.id)?.(message.ok);
-        pendingWrites.delete(message.id);
-        return;
       case "vana:close":
         close("sheet");
         return;
       case "vana:error":
+        // The frame runs, so it is not blocked; the sheet stays open to say why.
+        window.clearTimeout(readyTimer);
         emit({ code: message.code, type: "error" });
         return;
       default:
@@ -264,17 +291,6 @@ export function open(options: ConnectOpenOptions): ConnectHandle {
       }
       post({ status, type: "vana:request-status", v: PROTOCOL_VERSION });
     },
-    write(scope, data) {
-      if (closed || !ready) {
-        return Promise.resolve(false);
-      }
-      writeCount += 1;
-      const id = `w${writeCount}`;
-      return new Promise((resolve) => {
-        pendingWrites.set(id, resolve);
-        post({ data, id, scope, type: "vana:write", v: PROTOCOL_VERSION });
-      });
-    },
   };
 
   window.addEventListener("message", onMessage);
@@ -283,6 +299,20 @@ export function open(options: ConnectOpenOptions): ConnectHandle {
     emit({ code: "frame_blocked", type: "error" });
     close("frame_blocked");
   }, options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS);
+
+  checkClient(
+    clientCheckUrl({
+      clientId: options.clientId,
+      partnerOrigin: window.location.origin,
+      vanaOrigin,
+    }),
+    () => {
+      if (!(closed || ready)) {
+        emit({ code: "origin_not_registered", type: "error" });
+        close("origin_not_registered");
+      }
+    },
+  );
 
   chrome = createSheetChrome({
     ariaLabel: `${options.appName} uses Vana`,
@@ -300,6 +330,47 @@ export function open(options: ConnectOpenOptions): ConnectHandle {
 
   closeCurrent = close;
   return handle;
+}
+
+function resolveTarget(target: ConnectTarget): string {
+  const { env, vanaOrigin } = target as {
+    env?: unknown;
+    vanaOrigin?: unknown;
+  };
+  if ((env === undefined) === (vanaOrigin === undefined)) {
+    throw new TypeError("Pass exactly one of env and vanaOrigin");
+  }
+  if (env !== undefined) {
+    if (env !== "production" && env !== "dev") {
+      throw new TypeError('env must be "production" or "dev"');
+    }
+    return VANA_ACCOUNT_ORIGINS[env];
+  }
+  const origin =
+    typeof vanaOrigin === "string" ? normalizeOrigin(vanaOrigin) : null;
+  if (!origin) {
+    throw new TypeError("vanaOrigin must be an http(s) origin");
+  }
+  return origin;
+}
+
+/**
+ * Ask Vana whether this page may frame the sheet, alongside framing it, and
+ * call `onRefused` only on a definite no. Any failure to ask leaves the ready
+ * deadline to decide, so the check can only end the sheet sooner.
+ */
+function checkClient(url: string, onRefused: () => void): void {
+  if (typeof fetch !== "function") {
+    return;
+  }
+  fetch(url, { cache: "no-store", credentials: "omit" })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((body: unknown) => {
+      if (parseClientCheck(body)?.registered === false) {
+        onRefused();
+      }
+    })
+    .catch(() => undefined);
 }
 
 /** Alias of {@link open}, for call sites where `open` would be ambiguous. */

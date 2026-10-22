@@ -25,6 +25,11 @@
 
 export {
   createDirectDataController,
+  isConnectCapableController,
+  missingConnectCapabilities,
+  DIRECT_CONNECT_CAPABILITIES,
+  type ConnectCapableDirectDataController,
+  type DirectConnectCapabilities,
   type DirectDataController,
   type DirectDataControllerConfig,
   type DirectEscrowConfig,
@@ -37,6 +42,11 @@ export {
   toNodeHandler,
   connectBindingCookieName,
   CONNECT_BINDING_KEY_PURPOSE,
+  createMemoryRateLimit,
+  defaultClientIp,
+  type MemoryRateLimitOptions,
+  type VanaConnectRateLimit,
+  type VanaConnectRateLimitDecision,
   type VanaConnectHandler,
   type VanaConnectHandlerOptions,
   type VanaConnectCreateOptions,
@@ -61,6 +71,11 @@ export {
   type RequestAuthorization,
   type VanaConnectEnv,
 } from "./connect/protocol";
+export {
+  parseOriginAllowlist,
+  resolveVanaAccountOrigin,
+  type ResolveVanaAccountOriginInput,
+} from "./connect/account-origin";
 
 // Lower-level building blocks (advanced use / custom transports).
 export {

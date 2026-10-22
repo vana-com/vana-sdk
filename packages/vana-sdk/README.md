@@ -476,9 +476,15 @@ const handler = createVanaConnectHandler({
   controller: vana,
   returnUrl: `${process.env.APP_URL}/connect/return`,
   clientId: "my-app", // the embed client id Vana Account registered for your origin
+  // Recommended in production: only your signed-in users create requests.
+  session: async (request) => (await getSession(request))?.userId ?? null,
 });
 export { handler as GET, handler as POST };
 ```
+
+The handler reports the Vana Account origin from the controller's `env`
+(`account.vana.org` for `production`, `account-dev.vana.org` for `dev`), so a
+dev app never frames production.
 
 Frontend:
 
@@ -513,22 +519,69 @@ export function ConnectButton() {
 - While the sheet is up, `state.sheet` reports `completion` (`in_browser` or
   `remote_collect`) once the person approves, coarse `progress`
   (`collecting`, `writing`), and any `error` it is showing.
+- **Approval is not delivery.** The sheet's `connected` event (and
+  `state.sheet.completion`) means the person approved; the data may still be
+  collecting. The flow reaches `done` only when your backend's status poll
+  says the request is readable and the read succeeds, and `error` when the
+  poll reports `denied`, `expired` or `completed` or the read fails. The sheet
+  sends no terminal event of its own; its events only make the flow poll
+  sooner.
 - Closing the sheet before approving returns to `idle`. Closing it after
   approving keeps polling, since the data may still be readable.
 - If the frame cannot run (`frame_blocked`, `origin_not_registered`,
   `incompatible_version`), the flow falls back to the tab presentation with
   `popupBlocked: true`, so the "Open approval" link above still finishes it.
-- `write(scope, data)` saves to a scope the person approved, through the sheet.
-  Pass `sheet: { closeAfterDoneMs: null }` to keep it open after the read.
-- If your page sets a CSP, allow the frame: `vanaConnectCsp(env)` from
-  `/server` (or `/connect/protocol`) returns `{ "frame-src": [accountOrigin] }`.
+  `origin_not_registered` arrives at once: the launcher asks Vana
+  (`GET <account>/api/embed/connect/client`, no credentials) alongside
+  framing. `vana_unavailable` means Vana's own side is down or misconfigured;
+  the sheet stays open and says so.
+- The partner reads; it cannot write through the sheet. Pass
+  `sheet: { closeAfterDoneMs: null }` to leave the sheet open after the read.
+- If your page sets a CSP, allow the frame and the client check:
+  `vanaConnectCsp(env)` from `/server` (or `/connect/protocol`) returns
+  `{ "frame-src": [accountOrigin], "connect-src": [accountOrigin] }`. It has
+  no default environment.
 - `createVanaConnectHandler` takes `session` to bind requests to your own
-  signed-in user, `createOptions` for per-request create input (questions,
-  owner), and `read` to replace the default `readApprovedData`. Use
-  `toNodeHandler(handler)` for Express or plain `http`.
+  signed-in user (recommended: without it anyone who loads your page can
+  create requests as your app), `createOptions` for per-request create input
+  (questions, owner), and `read` to replace the default `readApprovedData`.
+  Use `toNodeHandler(handler)` for Express or plain `http`.
+- Creating a request is rate limited. The default, `createMemoryRateLimit()`,
+  allows 10 creates a minute per client IP and per session, in memory. It is
+  not production-grade (each instance counts alone, and the IP comes from
+  proxy headers): pass `rateLimit` backed by a shared store, or `false` when
+  a limiter already sits in front of the route. A refusal is
+  `429 rate_limited` with `Retry-After`.
+
+Choosing the Vana Account origin yourself (a custom flow, or preview deploys
+of Vana Account) goes through `resolveVanaAccountOrigin`; never match origins
+with your own pattern. It returns the environment's origin unless overrides
+are switched on for this build and the override is exactly an `https` origin
+on your allowlist:
+
+```ts
+import {
+  parseOriginAllowlist,
+  resolveVanaAccountOrigin,
+} from "@opendatalabs/vana-sdk/connect";
+
+const accountOrigin = resolveVanaAccountOrigin({
+  env: "dev",
+  override: new URLSearchParams(location.search).get("vana_account"),
+  previewOrigins: parseOriginAllowlist(
+    process.env.NEXT_PUBLIC_VANA_ACCOUNT_PREVIEW_ORIGINS,
+  ),
+  // From build-time config, never the request. Off in production.
+  allowOverride: process.env.NEXT_PUBLIC_DEPLOY_ENV === "preview",
+});
+```
+
+`createDirectConnectFlow` and the launcher take that origin (or an `env`)
+explicitly; neither falls back to production.
 
 Lower-level pieces: `createDirectConnectFlow(transports, { presentation:
-"sheet", sheet })` with an `authorizeRequest` transport backed by
+"sheet", sheet: { clientId, appName, accountOrigin } })` with an
+`authorizeRequest` transport backed by
 `controller.authorizeRequestRead(requestId)`; the launcher itself
 (`@opendatalabs/vana-sdk/connect`); and the zero-dependency message protocol
 (`@opendatalabs/vana-sdk/connect/protocol`). A backend in another language

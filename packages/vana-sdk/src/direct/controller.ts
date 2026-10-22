@@ -26,6 +26,12 @@ import { hexToBytes, type Hex } from "viem";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 import { parseScope } from "../protocol/scopes";
 import { parseScopeEntry } from "../protocol/scope-actions";
+import {
+  PDPP_SCOPE_NAMESPACE,
+  grantRequestScopes,
+  isPdppScopeKey,
+  type PdppGrant,
+} from "../protocol/pdpp-scopes";
 import { createEscrowGatewayClient } from "../protocol/escrow";
 import { createGatewayClient } from "../protocol/gateway";
 import {
@@ -104,7 +110,22 @@ export interface DirectDataControllerConfig {
   /** Data source key (e.g. `"icloud_notes"`). */
   source: string;
   /**
-   * Grant scope entries to request. At least one required.
+   * PDPP grants to request: a registry `source_id` and the streams wanted
+   * from it, e.g.
+   * `[{ source_id: "https://registry.pdpp.dev/sources/chatgpt", streams: ["conversations", "messages"] }]`.
+   *
+   * Each stream is requested as the read scope `pdpp.<source>.<stream>` (see
+   * `pdppScopeKey`), which is what the grant carries and what
+   * `readApprovedData({ scope })` reads. Together with
+   * {@link DirectDataControllerConfig.scopes} at least one entry is required;
+   * when both are set the request is their union. An invalid `source_id` or
+   * stream throws `InvalidPdppGrantError` at construction.
+   */
+  grants?: PdppGrant[];
+  /**
+   * Legacy grant scope entries to request. Optional when
+   * {@link DirectDataControllerConfig.grants} names at least one stream;
+   * otherwise at least one is required.
    *
    * Each entry is `[operation:]scope` (see `parseScopeEntry`): a bare entry
    * such as `"icloud_notes.notes"` requests read, and `"write:coach.weekly"`
@@ -117,7 +138,7 @@ export interface DirectDataControllerConfig {
    * patterns (`chatgpt.*`, `write:chatgpt.*`) are not accepted here for
    * either operation.
    */
-  scopes: string[];
+  scopes?: string[];
   /**
    * Override the resolved service endpoints (partial). Useful for pointing at a
    * non-standard deployment.
@@ -449,7 +470,10 @@ function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
  * @param config - Controller configuration (env, key, app identity, source, scopes).
  * @returns A ready-to-use controller.
  * @throws {@link DirectConfigError} when the key is missing or malformed, when
- * `scopes` is empty, or when no escrow contract can be resolved.
+ * `scopes` and `grants` together request nothing, or when no escrow contract
+ * can be resolved.
+ * @throws InvalidPdppGrantError when a `grants` entry does not fit the PDPP
+ * grant grammar.
  * @throws InvalidScopeEntryError when a `scopes` entry does not fit the
  * `[operation:]scope` grammar (an unknown operation prefix such as `delete:`).
  * @throws ZodError when the scope part of an entry is not a valid scope.
@@ -465,8 +489,16 @@ export function createDirectDataController(
       "appPrivateKey must be a 0x-prefixed 32-byte hex string",
     );
   }
-  if (!config.scopes || config.scopes.length === 0) {
-    throw new DirectConfigError("At least one scope is required");
+  // The scopes every request starts from: legacy entries verbatim, then the
+  // keys derived from PDPP grants.
+  const scopes = grantRequestScopes({
+    grants: config.grants,
+    scopes: config.scopes,
+  });
+  if (scopes.length === 0) {
+    throw new DirectConfigError(
+      "At least one scope or PDPP grant stream is required",
+    );
   }
   // Validate scopes eagerly so misconfiguration fails at construction. Each
   // element is a grant scope entry (`[operation:]scope`), so the operation
@@ -475,8 +507,20 @@ export function createDirectDataController(
   // an unknown operation (`delete:x`) throws rather than being taken as read.
   // The entries themselves are passed through to the access request verbatim,
   // prefix included.
-  for (const entry of config.scopes) {
-    parseScope(parseScopeEntry(entry).scope);
+  for (const entry of scopes) {
+    const scope = parseScopeEntry(entry).scope;
+    parseScope(scope);
+    // `pdpp.` is reserved for keys derived from PDPP grants; a hand-written
+    // `pdpp.chatgpt` would read as one without being one.
+    if (
+      scope.startsWith(`${PDPP_SCOPE_NAMESPACE}.`) &&
+      !isPdppScopeKey(scope)
+    ) {
+      throw new DirectConfigError(
+        `"${entry}" is in the reserved "${PDPP_SCOPE_NAMESPACE}." namespace but is not a PDPP scope key. Request PDPP data with grants: [{ source_id, streams }].`,
+        { entry },
+      );
+    }
   }
 
   const env: DirectEnv = config.env ?? "production";
@@ -545,8 +589,8 @@ export function createDirectDataController(
     // verbatim (duplicates and order included), so bodies and their
     // signatures match SDKs that predate the grant union.
     const requestedOnly = {
-      ...unionGrantScopes([], config.scopes, options.removeScopes),
-      scopes: [...config.scopes],
+      ...unionGrantScopes([], scopes, options.removeScopes),
+      scopes: [...scopes],
     };
     if (!options.merge) {
       return { status: "disabled", ...requestedOnly };
@@ -560,7 +604,7 @@ export function createDirectDataController(
         gateway,
         owner,
         appAddress: account.address,
-        scopes: config.scopes,
+        scopes,
         removeScopes: options.removeScopes,
       });
     } catch (error) {
@@ -593,7 +637,7 @@ export function createDirectDataController(
       // rejected by the access-request service anyway, after a signed round
       // trip.
       if (input.questions !== undefined) {
-        validateAccessRequestQuestions(input.questions, config.scopes);
+        validateAccessRequestQuestions(input.questions, scopes);
       }
       const removeScopes = input.removeScopes ?? [];
       for (const entry of removeScopes) {

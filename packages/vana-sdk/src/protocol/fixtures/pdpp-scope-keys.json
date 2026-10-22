@@ -1,0 +1,133 @@
+{
+  "description": "Conformance vectors for the PDPP scope key: pdppScopeKey(source_id, stream) = pdpp.<source>.<stream>. source_id must match ^https://registry\\.pdpp\\.dev/sources/([a-z0-9][a-z0-9_]*)$ and stream ^[a-z0-9][a-z0-9_]*$, matched against the whole string (no trailing newline, no trimming). Owned by vana-sdk src/protocol/pdpp-scopes.ts; copy this file verbatim to test another implementation.",
+  "version": 1,
+  "keys": [
+    {
+      "source_id": "https://registry.pdpp.dev/sources/chatgpt",
+      "stream": "conversations",
+      "key": "pdpp.chatgpt.conversations"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/chatgpt",
+      "stream": "messages",
+      "key": "pdpp.chatgpt.messages"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/claude",
+      "stream": "project_documents",
+      "key": "pdpp.claude.project_documents"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/icloud_notes",
+      "stream": "notes",
+      "key": "pdpp.icloud_notes.notes"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/oura",
+      "stream": "sleep",
+      "key": "pdpp.oura.sleep"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/x2",
+      "stream": "v1_items",
+      "key": "pdpp.x2.v1_items"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/0",
+      "stream": "9",
+      "key": "pdpp.0.9"
+    }
+  ],
+  "rejectedSourceIds": [
+    { "source_id": "", "why": "empty" },
+    { "source_id": "chatgpt", "why": "bare source key, not a registry URI" },
+    {
+      "source_id": "http://registry.pdpp.dev/sources/chatgpt",
+      "why": "not https"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/connectors/chatgpt",
+      "why": "connector URI, not a source URI"
+    },
+    {
+      "source_id": "https://REGISTRY.pdpp.dev/sources/chatgpt",
+      "why": "host is matched exactly"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev.example/sources/chatgpt",
+      "why": "other host"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/",
+      "why": "empty source segment"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/ChatGPT",
+      "why": "uppercase"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/spotify-browser",
+      "why": "hyphen (not slugified)"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/chat.gpt",
+      "why": "dot would split the scope key"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/_chatgpt",
+      "why": "leading underscore fails ScopeSchema"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/chatgpt/",
+      "why": "trailing slash"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/chatgpt/v2",
+      "why": "extra path segment"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/chatgpt?v=1",
+      "why": "query"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/chatgpt#x",
+      "why": "fragment"
+    },
+    {
+      "source_id": " https://registry.pdpp.dev/sources/chatgpt",
+      "why": "leading space (no trimming)"
+    },
+    {
+      "source_id": "https://registry.pdpp.dev/sources/chatgpt\n",
+      "why": "trailing newline ($ must not match before it)"
+    }
+  ],
+  "rejectedStreams": [
+    { "stream": "", "why": "empty" },
+    { "stream": "Conversations", "why": "uppercase" },
+    { "stream": "savedTracks", "why": "camelCase" },
+    { "stream": "conversation-items", "why": "hyphen (not slugified)" },
+    { "stream": "conversations.shared", "why": "dot would add a segment" },
+    { "stream": "*", "why": "wildcard is not a stream" },
+    { "stream": "_private", "why": "leading underscore fails ScopeSchema" },
+    { "stream": "write:messages", "why": "operation prefix" },
+    { "stream": "messages ", "why": "trailing space (no trimming)" },
+    { "stream": "messages\n", "why": "trailing newline" }
+  ],
+  "notPdppKeys": [
+    "chatgpt.conversations",
+    "pdpp.chatgpt",
+    "pdpp.chatgpt.*",
+    "pdpp.*",
+    "write:pdpp.chatgpt.conversations",
+    "PDPP.chatgpt.conversations",
+    "pdpp.ChatGPT.conversations",
+    "pdpp.chatgpt.Conversations",
+    "pdpp.chatgpt.conversations.shared",
+    "pdpp.spotify-browser.top_tracks",
+    "pdpp._chatgpt.conversations",
+    "pdpp..conversations",
+    "pdpp.chatgpt.conversations\n",
+    ""
+  ]
+}

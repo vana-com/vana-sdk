@@ -261,6 +261,49 @@ accepts write entries in `scopes`, but its scope part must be a concrete
 scope: this flow reads approved scopes back one at a time, so wildcards are
 rejected there for read and write alike.
 
+### PDPP grants
+
+Ask for PDPP data as **grants**: a registry `source_id` and the streams you
+want from it. The controller turns each stream into one scope key,
+`pdpp.<source>.<stream>`, and that key is what the request, the signed grant
+and your reads carry.
+
+```typescript
+export const vana = createDirectDataController({
+  // ...
+  source: "chatgpt",
+  grants: [
+    {
+      source_id: "https://registry.pdpp.dev/sources/chatgpt",
+      streams: ["conversations", "messages"],
+    },
+  ],
+});
+// Requests ["pdpp.chatgpt.conversations", "pdpp.chatgpt.messages"].
+
+await vana.readApprovedData({ requestId, scope: "pdpp.chatgpt.messages" });
+```
+
+- `grants` and `scopes` can be combined. The request is the union: your
+  `scopes` verbatim, then the derived keys that are not already in it.
+  Existing apps that pass only `scopes` are unchanged.
+- The `pdpp.` namespace is separate from legacy scopes. PDPP's ChatGPT
+  `conversations` stream is `pdpp.chatgpt.conversations`, not the legacy
+  `chatgpt.conversations`, and `pdpp.chatgpt.*` covers only PDPP streams.
+  A legacy `scopes` entry under `pdpp.` that is not a valid key is rejected.
+- The mapping is strict and never slugifies. `source_id` must be
+  `https://registry.pdpp.dev/sources/<source>`, and `<source>` and each stream
+  must be lowercase letters, digits and underscores, not starting with an
+  underscore. Anything else throws `InvalidPdppGrantError` when the controller
+  is created.
+- `pdppScopeKey(source_id, stream)`, `parsePdppScopeKey(key)` (`{ source_id,
+stream }` or `null`), `isPdppScopeKey(key)`, `pdppGrantsToScopes(grants)`
+  and `grantRequestScopes({ grants, scopes })` are exported from `/server`,
+  the root entry points and `@opendatalabs/vana-sdk/protocol/scopes`. Use them
+  rather than building keys by hand. Other implementations can check
+  themselves against the vectors in
+  [`src/protocol/fixtures/pdpp-scope-keys.json`](src/protocol/fixtures/pdpp-scope-keys.json).
+
 ### Backend controller
 
 ```typescript
@@ -465,12 +508,14 @@ sheet is `presentation: "sheet"` of the same flow: the request, the status poll
 and the read are unchanged. The integration is two files.
 
 Backend: one catch-all route serves `config`, `request`, `status` and `data`,
-binding each request to the browser that created it.
+binding each request to the browser that created it. The controller decides
+what is requested (its `grants` and `scopes`, see [PDPP grants](#pdpp-grants));
+the browser never chooses.
 
 ```ts
 // app/api/vana/[action]/route.ts
 import { createVanaConnectHandler } from "@opendatalabs/vana-sdk/server";
-import { vana } from "@/lib/vana"; // your createDirectDataController(...)
+import { vana } from "@/lib/vana"; // your createDirectDataController({ grants, ... })
 
 const handler = createVanaConnectHandler({
   controller: vana,

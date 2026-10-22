@@ -107,6 +107,41 @@ describe("unionGrantScopes", () => {
     expect(union.notCarried).toEqual(["chatgpt.*"]);
   });
 
+  it("carries PDPP scope keys, read and write, like any concrete scope", () => {
+    const live = [
+      "pdpp.chatgpt.conversations",
+      "write:pdpp.chatgpt.messages",
+      "chatgpt.conversations",
+    ];
+    const union = unionGrantScopes(live, ["pdpp.claude.projects"]);
+    expect(union.kept).toEqual(live);
+    expect(union.notCarried).toEqual([]);
+    expect(union.scopes).toEqual([...live, "pdpp.claude.projects"]);
+  });
+
+  it("reports every entry a request cannot hold instead of carrying it", () => {
+    // Wildcards cannot be read back one scope at a time; unknown or malformed
+    // operations and malformed scopes never authorize anything. All of them
+    // are listed in notCarried, and the approval page's union keeps them.
+    const notCarryable = [
+      "*",
+      "write:*",
+      "chatgpt.*",
+      "pdpp.chatgpt.*",
+      "pdpp.*",
+      "delete:pdpp.chatgpt.messages",
+      "read:pdpp.chatgpt.messages",
+      "pdpp.chatgpt.conversations.shared",
+      "Chatgpt.conversations",
+    ];
+    const union = unionGrantScopes(
+      [...notCarryable, "pdpp.chatgpt.messages"],
+      ["x.y"],
+    );
+    expect(union.notCarried).toEqual(notCarryable);
+    expect(union.scopes).toEqual(["pdpp.chatgpt.messages", "x.y"]);
+  });
+
   it("refuses an entry that is both requested and removed", () => {
     expect(() => unionGrantScopes([], ["oura.sleep"], ["oura.sleep"])).toThrow(
       DirectConfigError,
@@ -297,6 +332,50 @@ describe("createDirectDataController — grant union", () => {
       kept: ["oura.sleep"],
       added: ["whoop.recovery"],
       removed: ["github.repositories"],
+    });
+  });
+
+  it("extends the live grant with the keys derived from PDPP grants", async () => {
+    const gateway = fakeGateway(
+      {
+        [OWNER]: [grant({ id: "0xg", scopes: ["pdpp.chatgpt.conversations"] })],
+      },
+      { [APP_ADDRESS.toLowerCase()]: BUILDER_ID },
+    );
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(async () => ({
+        requestId: "dcr_1",
+        approvalUrl: "https://app.vana.org/data-connection-requests/dcr_1",
+        appAddress: APP_ADDRESS,
+      })),
+      getAccessRequestStatus: vi.fn(),
+    };
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "chatgpt",
+      grants: [
+        {
+          source_id: "https://registry.pdpp.dev/sources/chatgpt",
+          streams: ["conversations", "messages"],
+        },
+      ],
+      accessRequestClient,
+      gateway,
+    });
+    const result = await vana.createAccessRequest({
+      returnUrl: "https://pet.example/return",
+      owner: OWNER,
+    });
+    expect(result.scopes).toEqual([
+      "pdpp.chatgpt.conversations",
+      "pdpp.chatgpt.messages",
+    ]);
+    expect(result.grantUnion).toMatchObject({
+      status: "merged",
+      kept: ["pdpp.chatgpt.conversations"],
+      added: ["pdpp.chatgpt.messages"],
+      notCarried: [],
     });
   });
 

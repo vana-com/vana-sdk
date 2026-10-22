@@ -507,3 +507,52 @@ describe("toNodeHandler", () => {
     ]);
   });
 });
+
+describe("createVanaConnectHandler with PDPP grants", () => {
+  it("creates the request with the derived scope keys and reports them", async () => {
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: vi.fn(async ({ appAddress }) => ({
+        requestId: "dcr_pdpp",
+        approvalUrl:
+          "https://app.vana.org/data-connection-requests/dcr_pdpp?mode=page",
+        appAddress,
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      })),
+      getAccessRequestStatus: vi.fn(async () => ({
+        status: "pending" as const,
+      })),
+    };
+    const controller = createDirectDataController({
+      env: "dev",
+      appPrivateKey: KEY,
+      app: { id: "example-app", name: "Example App", homepageUrl: APP },
+      source: "chatgpt",
+      scopes: ["spotify.savedTracks"],
+      grants: [
+        {
+          source_id: "https://registry.pdpp.dev/sources/chatgpt",
+          streams: ["conversations", "messages"],
+        },
+      ],
+      accessRequestClient,
+    });
+    const handler = createVanaConnectHandler({
+      controller,
+      returnUrl: `${APP}/connect/return`,
+      clientId: "example-app",
+    });
+
+    const response = await handler(post("request", {}));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { request: { scopes: string[] } };
+    const expected = [
+      "spotify.savedTracks",
+      "pdpp.chatgpt.conversations",
+      "pdpp.chatgpt.messages",
+    ];
+    expect(body.request.scopes).toEqual(expected);
+    expect(accessRequestClient.createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: expected }),
+    );
+  });
+});

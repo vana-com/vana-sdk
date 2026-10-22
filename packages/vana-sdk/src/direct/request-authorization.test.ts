@@ -112,8 +112,17 @@ describe("controller.authorizeRequestRead", () => {
       signature: headers["X-Vana-App-Signature"] as `0x${string}`,
     });
 
-    expect(recovered).toBe(authorization.appAddress);
+    expect(recovered).toBe(controller.appAddress);
     expect(authorization.appAddress).toBe(controller.appAddress);
+    // The capability itself verifies, over the same message shape.
+    const signer = await recoverMessageAddress({
+      message: buildRequestReadAuthorizationMessage(
+        VECTOR.requestId,
+        authorization.timestamp,
+      ),
+      signature: authorization.signature,
+    });
+    expect(signer).toBe(controller.appAddress);
   });
 
   it("derives independent secrets per purpose without exposing the key", async () => {

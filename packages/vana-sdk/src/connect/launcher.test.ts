@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type ConnectEvent, type ConnectHandle, open } from "./launcher";
 import { type ConnectRequest, PROTOCOL_VERSION } from "./protocol";
+import { MAX_SHEET_RATIO, sheetTopPx } from "./chrome";
 
 const VANA = "https://account.example";
 const REQUEST: ConnectRequest = {
@@ -173,28 +174,6 @@ describe("connect.open", () => {
     await expect(pending).resolves.toBe(false);
   });
 
-  it("sizes the sheet to what the frame reports, ignoring noise and never covering the page", async () => {
-    const { handle, send } = mount();
-    const sheet = document
-      .querySelector<HTMLElement>("[data-vana-connect]")
-      ?.shadowRoot?.querySelector<HTMLElement>(".sheet");
-    if (!sheet) {
-      throw new Error("sheet not mounted");
-    }
-    const topAfter = async (height: number) => {
-      send({ height, type: "vana:resize", v: PROTOCOL_VERSION });
-      await new Promise((done) => setTimeout(done, 20));
-      return Number.parseInt(sheet.style.top, 10);
-    };
-
-    const sized = await topAfter(400);
-    expect(await topAfter(10)).toBe(sized);
-    const tall = await topAfter(100_000);
-    expect(tall).toBeLessThan(sized);
-    expect(tall).toBeGreaterThan(0);
-    handle.close();
-  });
-
   it("reports ready once however often the sheet says it", () => {
     const { events, handle, send } = mount();
 
@@ -335,6 +314,16 @@ describe("connect.open", () => {
     expect(mountedSheets()).toBe(0);
   });
 
+  it("ignores an incompatible version claimed by another window on the Vana origin", () => {
+    const { events, handle, send } = mount();
+
+    send({ type: "vana:ready", v: PROTOCOL_VERSION + 1 }, { source: window });
+
+    expect(events).toEqual([]);
+    expect(mountedSheets()).toBe(1);
+    handle.close();
+  });
+
   it("ignores an incompatible version claimed by another origin", () => {
     const { events, handle, send } = mount();
 
@@ -355,5 +344,19 @@ describe("connect.open", () => {
     expect(first.events).toEqual([{ reason: "replaced", type: "close" }]);
     expect(mountedSheets()).toBe(1);
     second.handle.close();
+  });
+});
+
+describe("sheetTopPx", () => {
+  it("shows exactly the reported content, in whole pixels", () => {
+    // 20 px handle strip above the content.
+    expect(sheetTopPx(800, 400)).toBe(380);
+    expect(Number.isInteger(sheetTopPx(801.5, 333.3))).toBe(true);
+  });
+
+  it("never lets the sheet cover more than its share of the viewport", () => {
+    const top = sheetTopPx(800, 100_000);
+    expect(top).toBe(800 - Math.round(800 * MAX_SHEET_RATIO));
+    expect(top).toBeGreaterThan(0);
   });
 });

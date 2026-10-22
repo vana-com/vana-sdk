@@ -120,6 +120,37 @@ describe('createDirectConnectFlow with presentation: "sheet"', () => {
     flow.reset();
   });
 
+  it("answers an ask that arrives before the request exists with that same request", async () => {
+    const { flow, sheet, transports } = setup([]);
+    let resolveCreate: (request: AccessRequest) => void = () => undefined;
+    transports.createRequest.mockImplementationOnce(
+      () =>
+        new Promise<AccessRequest>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    const started = flow.start();
+    await vi.waitFor(() => {
+      expect(sheet.open).toHaveBeenCalled();
+    });
+    const asked = sheet.options().getRequest();
+    expect(flow.getState().type).toBe("creating");
+    resolveCreate(REQUEST);
+
+    await expect(asked).resolves.toEqual({
+      id: "dcr_1",
+      authorization: AUTHORIZATION,
+    });
+    await started;
+    expect(transports.createRequest).toHaveBeenCalledTimes(1);
+    expect(flow.getState()).toMatchObject({
+      type: "awaiting_approval",
+      request: REQUEST,
+    });
+    flow.reset();
+  });
+
   it("reads once approved, tells the sheet, and closes it after it shows the finish", async () => {
     const { flow, sheet, transports } = setup([
       { status: "pending" },

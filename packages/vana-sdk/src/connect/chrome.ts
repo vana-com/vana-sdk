@@ -95,9 +95,22 @@ function capPx(): number {
 
 /** Places the sheet so exactly `content` px of the frame show above the fold. */
 function placeSheet(sheet: HTMLElement, content: number): void {
-  const visible = Math.min(content, capPx() - HANDLE_STRIP_PX);
+  sheet.style.top = `${sheetTopPx(viewportPx(), content)}px`;
+}
+
+/**
+ * Where the sheet's top edge goes so `content` px of the frame show, capped
+ * at {@link MAX_SHEET_RATIO} of the viewport.
+ *
+ * @param viewport - Viewport height in px.
+ * @param content - Content height the sheet reported, in px.
+ * @returns The sheet's `top`, in whole px.
+ */
+export function sheetTopPx(viewport: number, content: number): number {
+  const cap = Math.round(viewport * MAX_SHEET_RATIO);
+  const visible = Math.min(content, cap - HANDLE_STRIP_PX);
   // Whole pixels: a fractional offset blurs the framed text.
-  sheet.style.top = `${Math.round(viewportPx() - HANDLE_STRIP_PX - visible)}px`;
+  return Math.round(viewport - HANDLE_STRIP_PX - visible);
 }
 
 /** Scrim taps this soon after the page returns to view are ignored. */

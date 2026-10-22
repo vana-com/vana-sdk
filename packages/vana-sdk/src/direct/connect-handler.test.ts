@@ -194,6 +194,40 @@ describe("createVanaConnectHandler", () => {
     ).toBe(403);
   });
 
+  it("never reads data for a request this browser does not hold", async () => {
+    const read = vi.fn(async () => ({ scope: "s.a", data: 1 }));
+    const { handler } = setup({ read });
+    const { cookie } = await create(handler);
+    const forged = `${cookie.slice(0, -4)}AAAA`;
+
+    for (const headers of [{}, { Cookie: forged }] as Record<
+      string,
+      string
+    >[]) {
+      const response = await handler(get("data?requestId=dcr_1", headers));
+      expect(response.status).toBe(403);
+    }
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("refuses a cross-site re-sign even with the binding cookie", async () => {
+    const { handler } = setup();
+    const { cookie } = await create(handler);
+
+    const response = await handler(
+      post(
+        "request",
+        { requestId: "dcr_1" },
+        { Cookie: cookie, Origin: "https://evil.example" },
+      ),
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      error: { code: "forbidden_origin" },
+    });
+  });
+
   it("refuses a cross-site create", async () => {
     const { accessRequestClient, handler } = setup();
 

@@ -14,8 +14,15 @@
  *   env: process.env.VANA_ENV === "dev" ? "dev" : "production",
  *   appPrivateKey: process.env.VANA_APP_PRIVATE_KEY!,
  *   app: { id: "notes-lens", name: "Notes Lens", homepageUrl: process.env.VANA_APP_URL! },
- *   source: "icloud_notes",
- *   scopes: ["icloud_notes.notes"],
+ *   source: "chatgpt",
+ *   // PDPP grants; each stream is requested as `pdpp.<source>.<stream>`.
+ *   grants: [
+ *     {
+ *       source_id: "https://registry.pdpp.dev/sources/chatgpt",
+ *       streams: ["conversations", "messages"],
+ *     },
+ *   ],
+ *   // Legacy `scopes` entries are still accepted, alone or with `grants`.
  * });
  * ```
  *
@@ -132,8 +139,9 @@ export {
   DEV_ENDPOINTS,
 } from "./direct/endpoints";
 // Grant scope entries: the `[operation:]scope` vocabulary the controller's
-// `scopes` are written in, so a backend can build and read them without
-// reaching for a platform entry point.
+// `scopes` are written in, and the PDPP grant -> scope key mapping its
+// `grants` use, so a backend can build and read them without reaching for a
+// platform entry point.
 export {
   ScopeSchema,
   parseScope,
@@ -155,6 +163,18 @@ export {
   type ParsedScopeEntry,
   type GrantPermission,
 } from "./protocol/scope-actions";
+export {
+  PDPP_SCOPE_NAMESPACE,
+  PDPP_SOURCE_ID_PREFIX,
+  InvalidPdppGrantError,
+  pdppScopeKey,
+  parsePdppScopeKey,
+  isPdppScopeKey,
+  pdppGrantsToScopes,
+  grantRequestScopes,
+  type PdppGrant,
+  type PdppScopeKeyParts,
+} from "./protocol/pdpp-scopes";
 
 // Errors
 export {

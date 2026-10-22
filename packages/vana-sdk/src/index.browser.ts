@@ -394,6 +394,18 @@ export {
   type GrantPermission,
 } from "./protocol/scope-actions";
 export {
+  PDPP_SCOPE_NAMESPACE,
+  PDPP_SOURCE_ID_PREFIX,
+  InvalidPdppGrantError,
+  pdppScopeKey,
+  parsePdppScopeKey,
+  isPdppScopeKey,
+  pdppGrantsToScopes,
+  grantRequestScopes,
+  type PdppGrant,
+  type PdppScopeKeyParts,
+} from "./protocol/pdpp-scopes";
+export {
   WRITE_SESSION_PATH,
   WRITE_SIGNATURE_HEADER,
   WRITE_METADATA_HEADER,

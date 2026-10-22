@@ -1,4 +1,16 @@
-# Moksha identity fixture
+# Protocol fixtures
+
+## PDPP scope keys
+
+`pdpp-scope-keys.json` holds the conformance vectors for `pdppScopeKey`,
+`parsePdppScopeKey` and `isPdppScopeKey` (`../pdpp-scopes.ts`): `keys` map a
+`source_id` and stream to their key and back, `rejectedSourceIds` and
+`rejectedStreams` must throw, and `notPdppKeys` must not parse. vana-sdk owns
+the mapping. Personal Server and Vana surfaces copy this file verbatim to test
+their own code; change it only together with the mapping, and bump `version`
+when an existing vector changes.
+
+## Moksha identity
 
 `moksha-identity.json` is public identity evidence read on September 9, 2026 from
 `https://dp-rpc-moksha-spike-b3.vercel.app/v1/identity?owner=0xF35b0b806DE33F2efcB8A3EbC84bDCe58Eb1DB03&chainId=14800`.

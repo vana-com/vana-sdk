@@ -21,6 +21,10 @@
  * app's own signed-in user). See `src/connect/WIRE_CONTRACT.md` for the
  * wire contract a non-JS backend implements instead.
  *
+ * What a request asks for is the controller's: its PDPP `grants` (each
+ * stream requested as `pdpp.<source>.<stream>`) and legacy `scopes`. The
+ * browser never chooses; `POST request` reports the scopes it sent.
+ *
  * Creating a request is rate limited (`rateLimit`; by default in memory,
  * per client IP and per session, which is not production-grade). In
  * production, require a signed-in user with `session` and put a shared
@@ -387,6 +391,7 @@ function readCookie(request: Request, name: string): string | null {
  * ```typescript
  * // app/api/vana/[action]/route.ts
  * import { createVanaConnectHandler } from "@opendatalabs/vana-sdk/server";
+ * // createDirectDataController({ grants: [{ source_id, streams }], ... })
  * import { vana } from "@/lib/vana";
  *
  * const handler = createVanaConnectHandler({

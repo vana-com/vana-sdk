@@ -1,3 +1,4 @@
+import { ConnectSheetButton } from "./components/ConnectSheetButton";
 import { ConnectSpotifyButton } from "./components/ConnectSpotifyButton";
 import { getExampleAppInfo } from "@/lib/vana";
 
@@ -7,6 +8,7 @@ export default function Home() {
   return (
     <main className="app-shell">
       <ConnectSpotifyButton />
+      <ConnectSheetButton />
 
       <aside className="config-panel" aria-label="App configuration">
         <h2>Backend configuration</h2>

@@ -22,10 +22,16 @@
  */
 
 import { privateKeyToAccount } from "viem/accounts";
-import type { Hex } from "viem";
+import { hexToBytes, type Hex } from "viem";
 import type { Web3SignedSignFn } from "../auth/web3-signed-builder";
 import { parseScope } from "../protocol/scopes";
 import { parseScopeEntry } from "../protocol/scope-actions";
+import {
+  PDPP_SCOPE_NAMESPACE,
+  grantRequestScopes,
+  isPdppScopeKey,
+  type PdppGrant,
+} from "../protocol/pdpp-scopes";
 import { createEscrowGatewayClient } from "../protocol/escrow";
 import { createGatewayClient } from "../protocol/gateway";
 import {
@@ -53,6 +59,8 @@ import {
   type EscrowPaymentConfig,
   type SignTypedDataFn,
 } from "./escrow-payment";
+import { signRequestReadAuthorization } from "./request-authorization";
+import type { RequestAuthorization } from "../connect/protocol";
 import {
   readPersonalServerData,
   type PersonalServerFetch,
@@ -102,7 +110,22 @@ export interface DirectDataControllerConfig {
   /** Data source key (e.g. `"icloud_notes"`). */
   source: string;
   /**
-   * Grant scope entries to request. At least one required.
+   * PDPP grants to request: a registry `source_id` and the streams wanted
+   * from it, e.g.
+   * `[{ source_id: "https://registry.pdpp.dev/sources/chatgpt", streams: ["conversations", "messages"] }]`.
+   *
+   * Each stream is requested as the read scope `pdpp.<source>.<stream>` (see
+   * `pdppScopeKey`), which is what the grant carries and what
+   * `readApprovedData({ scope })` reads. Together with
+   * {@link DirectDataControllerConfig.scopes} at least one entry is required;
+   * when both are set the request is their union. An invalid `source_id` or
+   * stream throws `InvalidPdppGrantError` at construction.
+   */
+  grants?: PdppGrant[];
+  /**
+   * Legacy grant scope entries to request. Optional when
+   * {@link DirectDataControllerConfig.grants} names at least one stream;
+   * otherwise at least one is required.
    *
    * Each entry is `[operation:]scope` (see `parseScopeEntry`): a bare entry
    * such as `"icloud_notes.notes"` requests read, and `"write:coach.weekly"`
@@ -115,7 +138,7 @@ export interface DirectDataControllerConfig {
    * patterns (`chatgpt.*`, `write:chatgpt.*`) are not accepted here for
    * either operation.
    */
-  scopes: string[];
+  scopes?: string[];
   /**
    * Override the resolved service endpoints (partial). Useful for pointing at a
    * non-standard deployment.
@@ -185,7 +208,7 @@ export interface DirectEscrowConfig extends Omit<
  *
  * @typeParam T - Shape of the data returned by {@link DirectDataController.readApprovedData}.
  */
-export interface DirectDataController {
+export interface DirectDataController extends Partial<DirectConnectCapabilities> {
   /** The on-chain address of the app, derived from `appPrivateKey`. */
   readonly appAddress: string;
 
@@ -260,7 +283,7 @@ export interface DirectDataController {
   /**
    * Fetch the current status of an access request.
    *
-   * @param requestId - The `dcr_*` id from {@link DirectDataController.createAccessRequest}.
+   * @param requestId - The `dcr_*` id from `createAccessRequest`.
    * @returns `{ status, personalServerUrl?, grantId?, scope?, scopes? }`.
    */
   getAccessRequestStatus(requestId: string): Promise<AccessRequestStatus>;
@@ -324,6 +347,109 @@ export interface DirectDataController {
   readAllApprovedData<T = unknown>(input: {
     requestId: string;
   }): Promise<MultiScopeDataResult<T>>;
+
+  // Connect-sheet methods (authorizeRequestRead, getEndpoints, deriveSecret,
+  // getEnv) come from DirectConnectCapabilities and are optional here, so a
+  // hand-written controller keeps compiling. See isConnectCapableController.
+}
+
+/**
+ * What the embedded connect sheet needs from a controller, on top of
+ * {@link DirectDataController}.
+ *
+ * @remarks
+ * `createDirectDataController` implements all of it. On the base interface
+ * these methods are optional, so an existing hand-written
+ * `DirectDataController` keeps compiling in this minor version;
+ * `createVanaConnectHandler` checks for them with
+ * {@link isConnectCapableController} and names any that are missing.
+ */
+export interface DirectConnectCapabilities {
+  /**
+   * Sign the short-lived read capability the embedded connect sheet needs to
+   * show a request (`presentation: "sheet"`).
+   *
+   * @remarks
+   * The same Direct SDK signature this controller sends when it polls the
+   * request's status. It does not check whose request this is: call it only
+   * for a request this browser created (`createVanaConnectHandler` binds them
+   * with a signed cookie). Sign on each ask; Vana Account accepts it for
+   * about five minutes.
+   *
+   * @param requestId - The `dcr_*` id from `createAccessRequest`.
+   * @returns `{ appAddress, timestamp, signature }`.
+   * @throws {@link DirectConfigError} when `requestId` is not a request id.
+   */
+  authorizeRequestRead(requestId: string): Promise<RequestAuthorization>;
+
+  /**
+   * The resolved service endpoints, including the Vana Account origin that
+   * serves the connect sheet.
+   *
+   * @returns The endpoints this controller talks to.
+   */
+  getEndpoints(): DirectServiceEndpoints;
+
+  /**
+   * Derive a purpose-bound secret from the app key, without revealing it.
+   *
+   * @remarks
+   * HKDF-SHA256 over the 32 key bytes, salt `"vana-sdk/derived-secret/v1"`,
+   * `info` = `purpose`. Different purposes give independent secrets, so a
+   * leaked derived secret never exposes the key or another purpose's secret.
+   * `createVanaConnectHandler` keys its request-binding cookie with
+   * `deriveSecret("vana-sdk/connect/request-binding/v1")`.
+   *
+   * @param purpose - A label naming what the secret is for.
+   * @returns 32 secret bytes.
+   */
+  deriveSecret(purpose: string): Promise<ArrayBuffer>;
+
+  /**
+   * The resolved deployment environment.
+   *
+   * @returns `"production"` or `"dev"`.
+   */
+  getEnv(): DirectEnv;
+}
+
+/** A controller that can back the embedded connect sheet. */
+export type ConnectCapableDirectDataController = DirectDataController &
+  DirectConnectCapabilities;
+
+/** The {@link DirectConnectCapabilities} method names, for checks and errors. */
+export const DIRECT_CONNECT_CAPABILITIES = [
+  "authorizeRequestRead",
+  "getEndpoints",
+  "deriveSecret",
+  "getEnv",
+] as const satisfies readonly (keyof DirectConnectCapabilities)[];
+
+/**
+ * The {@link DirectConnectCapabilities} methods a controller lacks.
+ *
+ * @param controller - Any {@link DirectDataController}.
+ * @returns Missing method names; empty when it can back the sheet.
+ */
+export function missingConnectCapabilities(
+  controller: DirectDataController,
+): (keyof DirectConnectCapabilities)[] {
+  return DIRECT_CONNECT_CAPABILITIES.filter(
+    (name) => typeof controller[name] !== "function",
+  );
+}
+
+/**
+ * Whether a controller implements every {@link DirectConnectCapabilities}
+ * method (any controller from `createDirectDataController` does).
+ *
+ * @param controller - Any {@link DirectDataController}.
+ * @returns `true` when it can back `createVanaConnectHandler`.
+ */
+export function isConnectCapableController(
+  controller: DirectDataController,
+): controller is ConnectCapableDirectDataController {
+  return missingConnectCapabilities(controller).length === 0;
 }
 
 function isHexPrivateKey(value: string): value is Hex {
@@ -344,14 +470,17 @@ function isReadReadyStatus(status: AccessRequestStatusValue): boolean {
  * @param config - Controller configuration (env, key, app identity, source, scopes).
  * @returns A ready-to-use controller.
  * @throws {@link DirectConfigError} when the key is missing or malformed, when
- * `scopes` is empty, or when no escrow contract can be resolved.
+ * `scopes` and `grants` together request nothing, or when no escrow contract
+ * can be resolved.
+ * @throws InvalidPdppGrantError when a `grants` entry does not fit the PDPP
+ * grant grammar.
  * @throws InvalidScopeEntryError when a `scopes` entry does not fit the
  * `[operation:]scope` grammar (an unknown operation prefix such as `delete:`).
  * @throws ZodError when the scope part of an entry is not a valid scope.
  */
 export function createDirectDataController(
   config: DirectDataControllerConfig,
-): DirectDataController {
+): ConnectCapableDirectDataController {
   // `appPrivateKey` is the documented field; `builderPrivateKey` is a
   // deprecated alias kept for backwards compatibility.
   const privateKey = config.appPrivateKey ?? config.builderPrivateKey;
@@ -360,8 +489,16 @@ export function createDirectDataController(
       "appPrivateKey must be a 0x-prefixed 32-byte hex string",
     );
   }
-  if (!config.scopes || config.scopes.length === 0) {
-    throw new DirectConfigError("At least one scope is required");
+  // The scopes every request starts from: legacy entries verbatim, then the
+  // keys derived from PDPP grants.
+  const scopes = grantRequestScopes({
+    grants: config.grants,
+    scopes: config.scopes,
+  });
+  if (scopes.length === 0) {
+    throw new DirectConfigError(
+      "At least one scope or PDPP grant stream is required",
+    );
   }
   // Validate scopes eagerly so misconfiguration fails at construction. Each
   // element is a grant scope entry (`[operation:]scope`), so the operation
@@ -370,8 +507,20 @@ export function createDirectDataController(
   // an unknown operation (`delete:x`) throws rather than being taken as read.
   // The entries themselves are passed through to the access request verbatim,
   // prefix included.
-  for (const entry of config.scopes) {
-    parseScope(parseScopeEntry(entry).scope);
+  for (const entry of scopes) {
+    const scope = parseScopeEntry(entry).scope;
+    parseScope(scope);
+    // `pdpp.` is reserved for keys derived from PDPP grants; a hand-written
+    // `pdpp.chatgpt` would read as one without being one.
+    if (
+      scope.startsWith(`${PDPP_SCOPE_NAMESPACE}.`) &&
+      !isPdppScopeKey(scope)
+    ) {
+      throw new DirectConfigError(
+        `"${entry}" is in the reserved "${PDPP_SCOPE_NAMESPACE}." namespace but is not a PDPP scope key. Request PDPP data with grants: [{ source_id, streams }].`,
+        { entry },
+      );
+    }
   }
 
   const env: DirectEnv = config.env ?? "production";
@@ -382,6 +531,8 @@ export function createDirectDataController(
     ...defaultEndpoints,
     ...config.endpoints,
     chainId,
+    accountOrigin:
+      config.endpoints?.accountOrigin ?? defaultEndpoints.accountOrigin,
   };
 
   const account = privateKeyToAccount(privateKey as Hex);
@@ -438,8 +589,8 @@ export function createDirectDataController(
     // verbatim (duplicates and order included), so bodies and their
     // signatures match SDKs that predate the grant union.
     const requestedOnly = {
-      ...unionGrantScopes([], config.scopes, options.removeScopes),
-      scopes: [...config.scopes],
+      ...unionGrantScopes([], scopes, options.removeScopes),
+      scopes: [...scopes],
     };
     if (!options.merge) {
       return { status: "disabled", ...requestedOnly };
@@ -453,7 +604,7 @@ export function createDirectDataController(
         gateway,
         owner,
         appAddress: account.address,
-        scopes: config.scopes,
+        scopes,
         removeScopes: options.removeScopes,
       });
     } catch (error) {
@@ -486,7 +637,7 @@ export function createDirectDataController(
       // rejected by the access-request service anyway, after a signed round
       // trip.
       if (input.questions !== undefined) {
-        validateAccessRequestQuestions(input.questions, config.scopes);
+        validateAccessRequestQuestions(input.questions, scopes);
       }
       const removeScopes = input.removeScopes ?? [];
       for (const entry of removeScopes) {
@@ -567,6 +718,42 @@ export function createDirectDataController(
       }
 
       return { results, errors };
+    },
+
+    authorizeRequestRead(requestId: string): Promise<RequestAuthorization> {
+      return signRequestReadAuthorization({
+        requestId,
+        appAddress: account.address,
+        signMessage,
+      });
+    },
+
+    getEndpoints(): DirectServiceEndpoints {
+      return { ...endpoints };
+    },
+
+    getEnv(): DirectEnv {
+      return env;
+    },
+
+    async deriveSecret(purpose: string): Promise<ArrayBuffer> {
+      const ikm = await globalThis.crypto.subtle.importKey(
+        "raw",
+        new Uint8Array(hexToBytes(privateKey as Hex)),
+        "HKDF",
+        false,
+        ["deriveBits"],
+      );
+      return globalThis.crypto.subtle.deriveBits(
+        {
+          name: "HKDF",
+          hash: "SHA-256",
+          salt: new TextEncoder().encode("vana-sdk/derived-secret/v1"),
+          info: new TextEncoder().encode(purpose),
+        },
+        ikm,
+        256,
+      );
     },
   };
 

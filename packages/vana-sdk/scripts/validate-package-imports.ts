@@ -14,6 +14,8 @@ const imports = [
   "@opendatalabs/vana-sdk/direct/personal-server-read",
   "@opendatalabs/vana-sdk/browser",
   "@opendatalabs/vana-sdk/session-relay",
+  "@opendatalabs/vana-sdk/connect",
+  "@opendatalabs/vana-sdk/connect/protocol",
 ];
 
 const browserBlockedImports = [

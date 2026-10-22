@@ -71,6 +71,17 @@ export function useDirectVanaConnect<T = unknown>(
           createRequest: () => optionsRef.current.createRequest(),
           getStatus: (id) => optionsRef.current.getStatus(id),
           readResult: (id) => optionsRef.current.readResult(id),
+          authorizeRequest: (id) => {
+            const authorize = optionsRef.current.authorizeRequest;
+            if (!authorize) {
+              return Promise.reject(
+                new Error(
+                  'presentation: "sheet" needs the authorizeRequest transport',
+                ),
+              );
+            }
+            return authorize(id);
+          },
         },
         {
           get pollIntervalMs() {
@@ -84,6 +95,12 @@ export function useDirectVanaConnect<T = unknown>(
           },
           get browserPlatformPolicy() {
             return optionsRef.current.browserPlatformPolicy;
+          },
+          get presentation() {
+            return optionsRef.current.presentation;
+          },
+          get sheet() {
+            return optionsRef.current.sheet;
           },
         },
       ),

@@ -119,6 +119,12 @@ export interface DirectServiceEndpoints {
   approvalAppBaseUrl: string;
   /** Base URL of the DP RPC escrow gateway used to settle `402 Payment Required`. */
   escrowGatewayUrl: string;
+  /**
+   * Origin of Vana Account, which serves the embedded connect sheet
+   * (`presentation: "sheet"`). Optional so endpoint objects written before the
+   * sheet keep compiling; the SDK falls back to the environment's default.
+   */
+  accountOrigin?: string;
 }
 
 /** Result of {@link DirectDataController.createAccessRequest}. */

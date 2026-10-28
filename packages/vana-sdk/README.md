@@ -460,7 +460,7 @@ pass the same explicit `idempotencyKey` on the retry to avoid a duplicate DCR.
 ### Test with large sample data
 
 When testing with realistic exports, use the public fixture catalog in
-[`vana-com/data-connectors`](https://github.com/vana-com/data-connectors). Keep
+[`PDP-Connect/data-connectors`](https://github.com/PDP-Connect/data-connectors). Keep
 the payload in a file or raw URL and point your app or agent at that location.
 Do not paste large JSON into the terminal.
 
@@ -471,7 +471,7 @@ still calls `readApprovedData`.
 
 See [`examples/vana-app`](../../examples/vana-app) for a runnable Next.js Vana
 app. It includes the route handlers, return page, and React connect button from
-this flow, defaults to sample-data mode using `vana-com/data-connectors`, and
+this flow, defaults to sample-data mode using `PDP-Connect/data-connectors`, and
 can be switched to live protocol mode with environment variables.
 
 ## Write into a Personal Server

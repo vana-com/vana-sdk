@@ -36,17 +36,17 @@ payload.
 
 The default sample data comes from the Spotify `spotify.savedTracks.large`
 fixture in
-[`vana-com/data-connectors`](https://github.com/vana-com/data-connectors). The
+[`PDP-Connect/data-connectors`](https://github.com/PDP-Connect/data-connectors). The
 fixture stays in data-connectors; this SDK repo only demonstrates how an app can
 consume sample data through the same read path it uses in production.
 
-To pin the sample data locally, download it from the data-connectors index and
+To pin the sample data locally, download it and
 point the app at the file:
 
 ```bash
 mkdir -p fixtures
 curl -fsSL \
-  https://raw.githubusercontent.com/vana-com/data-connectors/main/connectors/spotify/fixtures/spotify.savedTracks.large.json \
+  https://raw.githubusercontent.com/PDP-Connect/data-connectors/main/connectors/spotify/fixtures/spotify.savedTracks.large.json \
   -o fixtures/spotify.savedTracks.large.json
 VANA_SAMPLE_DATA_PATH=fixtures/spotify.savedTracks.large.json \
   npm run dev --workspace @opendatalabs/vana-app-example

@@ -27,7 +27,11 @@ import {
   paymentResponseMetadataFromHeader,
   type EscrowPaymentHeaderConfig,
 } from "./escrow-payment";
-import { PaymentRequiredError, PersonalServerReadError } from "./errors";
+import {
+  EscrowBalanceTooLowError,
+  PaymentRequiredError,
+  PersonalServerReadError,
+} from "./errors";
 import { DataPointDeletedError } from "../errors";
 import {
   isDataPointTombstone,
@@ -696,6 +700,21 @@ export async function readPersonalServerData(params: {
     );
 
     if (res.status === 402) {
+      // The Personal Server relays the gateway's refusal verbatim. An
+      // insufficient-balance refusal means no payment was recorded.
+      const refusal = await readJsonQuietly(res);
+      if (isInsufficientBalanceRefusal(refusal)) {
+        throw new EscrowBalanceTooLowError(
+          "The app's escrow balance is too low for this read",
+          {
+            scope: params.scope,
+            grantId: required.grantId,
+            asset: required.asset,
+            amount: required.amount,
+            available: refusal.available,
+          },
+        );
+      }
       throw new PaymentRequiredError(
         "Personal Server still requires payment after escrow settlement",
         {
@@ -743,4 +762,26 @@ export async function readPersonalServerData(params: {
     );
   }
   return { data, payment };
+}
+
+async function readJsonQuietly(res: FetchResponseLike): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return undefined;
+  }
+}
+
+/** The data-gateway POST /v1/escrow/pay 402 body, as relayed by the Personal Server. */
+function isInsufficientBalanceRefusal(
+  body: unknown,
+): body is { error: string; available?: string } {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    typeof (body as { error?: unknown }).error === "string" &&
+    (body as { error: string }).error.startsWith(
+      "Insufficient finalized balance",
+    )
+  );
 }

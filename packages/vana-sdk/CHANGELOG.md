@@ -19,6 +19,11 @@ on `latest`.
 - The launcher asks `GET <account>/api/embed/connect/client` (no credentials,
   no cache) alongside framing and closes with `origin_not_registered` on a
   definite no. Any `vana:error` clears the ready timer.
+- `connect.open({ display })`: `sheet` (the default) or `fullscreen`, for a
+  window that holds nothing else. `CONNECT_DISPLAYS`, `ConnectDisplay`,
+  `DEFAULT_CONNECT_DISPLAY` and `readConnectDisplay` come from
+  `/connect/protocol`. Ported from `@vana-unity/connect-embed` at `13e4582fa`,
+  along with keeping the bottom sheet above a keyboard that pans the page.
 - `resolveVanaAccountOrigin` and `parseOriginAllowlist` (`/connect`,
   `/server`): a vetted Account-origin resolver with exact-match allowlists
   only, overrides off by default.

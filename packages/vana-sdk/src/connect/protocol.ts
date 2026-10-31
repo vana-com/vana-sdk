@@ -13,7 +13,8 @@
  *   GET clientCheckUrl(...)             ───────▶   Vana's server: { registered }
  *                                                  (alongside framing; false ends it
  *                                                  with origin_not_registered)
- *   iframe src = sheetUrl(...)          ───────▶   renders, bound to partner origin
+ *   iframe src = sheetUrl(...)          ───────▶   renders, bound to partner origin,
+ *                                                  laid out for its `display`
  *                                       ◀───────   vana:ready
  *                                       ◀───────   vana:resize { height }
  *                                       ◀───────   vana:signed-in
@@ -74,9 +75,36 @@ export const CLIENT_CHECK_PATH = "/api/embed/connect/client";
 /** Query parameters the sheet reads. The origin is re-checked server side. */
 export const SHEET_QUERY = {
   clientId: "client_id",
+  display: "display",
   origin: "origin",
   version: "v",
 } as const;
+
+/**
+ * How the sheet is presented in the partner's window:
+ * `sheet`  a bottom sheet over the page, sized to its content;
+ * `fullscreen`  fills the whole window, for a window that holds nothing else,
+ *               such as a small popup the partner opened.
+ * It is presentation only: it authorizes nothing and the sheet's steps,
+ * messages and events are the same in both.
+ */
+export const CONNECT_DISPLAYS = ["sheet", "fullscreen"] as const;
+
+/** One of {@link CONNECT_DISPLAYS}. */
+export type ConnectDisplay = (typeof CONNECT_DISPLAYS)[number];
+
+/** The display `connect.open` uses when none is asked for. */
+export const DEFAULT_CONNECT_DISPLAY: ConnectDisplay = "sheet";
+
+/**
+ * Read a display from untrusted input.
+ *
+ * @param value - Anything.
+ * @returns A known display, or `null` for anything else.
+ */
+export function readConnectDisplay(value: unknown): ConnectDisplay | null {
+  return CONNECT_DISPLAYS.find((known) => known === value) ?? null;
+}
 
 /** Vana Account origin per deployment environment. */
 export const VANA_ACCOUNT_ORIGINS = {
@@ -469,12 +497,14 @@ export function parseClientCheck(
 /**
  * Build the sheet's iframe URL.
  *
- * @param input - The registered client id, the partner page origin, and the
- * Vana Account origin.
- * @returns `<vanaOrigin>/embed/connect?client_id&origin&v`.
+ * @param input - The registered client id, the partner page origin, the Vana
+ * Account origin, and optionally the display.
+ * @returns `<vanaOrigin>/embed/connect?client_id&origin&v`, plus `display` when
+ * it is not the default.
  */
 export function sheetUrl(input: {
   clientId: string;
+  display?: ConnectDisplay;
   partnerOrigin: string;
   vanaOrigin: string;
 }): string {
@@ -482,6 +512,10 @@ export function sheetUrl(input: {
   url.searchParams.set(SHEET_QUERY.clientId, input.clientId);
   url.searchParams.set(SHEET_QUERY.origin, input.partnerOrigin);
   url.searchParams.set(SHEET_QUERY.version, String(PROTOCOL_VERSION));
+  // The default is left out: a bottom sheet's URL is what it has always been.
+  if (input.display && input.display !== DEFAULT_CONNECT_DISPLAY) {
+    url.searchParams.set(SHEET_QUERY.display, input.display);
+  }
   return url.toString();
 }
 

@@ -6,7 +6,9 @@ import {
   parseClientCheck,
   parsePartnerMessage,
   parseSheetMessage,
+  readConnectDisplay,
   readIncompatibleVersion,
+  SHEET_QUERY,
   sheetUrl,
   vanaConnectCsp,
 } from "./protocol";
@@ -266,4 +268,32 @@ describe("connect/protocol entry point", () => {
     expect(source).not.toMatch(/^\s*import\s/m);
     expect(source).not.toMatch(/\brequire\(|\bimport\(/);
   });
+});
+
+describe("display", () => {
+  const input = {
+    clientId: "example-app",
+    partnerOrigin: "https://partner.example",
+    vanaOrigin: "https://account.example",
+  };
+
+  it("leaves the default out of the sheet's URL, so it stays what it was", () => {
+    const bare = sheetUrl(input);
+    expect(sheetUrl({ ...input, display: "sheet" })).toBe(bare);
+    expect(new URL(bare).searchParams.has(SHEET_QUERY.display)).toBe(false);
+  });
+
+  it("round-trips a non-default display through the URL", () => {
+    const url = new URL(sheetUrl({ ...input, display: "fullscreen" }));
+    expect(readConnectDisplay(url.searchParams.get(SHEET_QUERY.display))).toBe(
+      "fullscreen",
+    );
+  });
+
+  it.each([null, undefined, "", "popup", "SHEET", 1, {}])(
+    "reads %j as no display",
+    (value) => {
+      expect(readConnectDisplay(value)).toBeNull();
+    },
+  );
 });

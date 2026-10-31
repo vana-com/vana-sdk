@@ -2,7 +2,7 @@
  * Partner-side launcher for the Vana connect sheet.
  *
  * @remarks
- * `connect.open({ clientId, appName, env, getRequest, onEvent })` returns
+ * `connect.open({ clientId, appName, env, getRequest, onEvent, display? })` returns
  * `{ close, setRequestStatus }`. Only launcher, chrome and message
  * protocol live here. Identity, consent and signing live in the Vana-hosted
  * iframe and Vana's servers; no token ever crosses into the partner page.
@@ -30,15 +30,18 @@ import {
 } from "./chrome";
 import {
   type ConnectCompletion,
+  type ConnectDisplay,
   type ConnectProgressPhase,
   type ConnectRequest,
   clientCheckUrl,
+  DEFAULT_CONNECT_DISPLAY,
   MIN_SHEET_HEIGHT_PX,
   normalizeOrigin,
   type PartnerMessage,
   PROTOCOL_VERSION,
   parseClientCheck,
   parseSheetMessage,
+  readConnectDisplay,
   readIncompatibleVersion,
   type RequestStatus,
   type SheetErrorCode,
@@ -103,6 +106,12 @@ export interface ConnectOpenBaseOptions {
   /** Defaults to `document.body`. */
   container?: HTMLElement;
   /**
+   * `sheet` (the default) is a bottom sheet over your page. `fullscreen` fills
+   * this window, for a window that holds nothing else, such as a small popup
+   * you opened yourself: close that window on the `close` event.
+   */
+  display?: ConnectDisplay;
+  /**
    * Called when the sheet asks for the request (after sign-in). The partner's
    * backend creates the request or re-signs its short-lived read capability.
    */
@@ -145,10 +154,17 @@ let closeCurrent: ((reason: ConnectCloseReason) => void) | null = null;
  * event sink.
  * @returns A handle to close the sheet and report status.
  * @throws TypeError when neither (or both) of `env` and `vanaOrigin` is
- * given, or `vanaOrigin` is not an http(s) origin.
+ * given, `vanaOrigin` is not an http(s) origin, or `display` is not a known
+ * display.
  */
 export function open(options: ConnectOpenOptions): ConnectHandle {
   const vanaOrigin = resolveTarget(options);
+  const display = readConnectDisplay(
+    options.display ?? DEFAULT_CONNECT_DISPLAY,
+  );
+  if (!display) {
+    throw new TypeError('display must be "sheet" or "fullscreen"');
+  }
   closeCurrent?.("replaced");
 
   const emit = (event: ConnectEvent) => options.onEvent?.(event);
@@ -317,9 +333,11 @@ export function open(options: ConnectOpenOptions): ConnectHandle {
   chrome = createSheetChrome({
     ariaLabel: `${options.appName} uses Vana`,
     container: options.container ?? document.body,
+    display,
     onClose: close,
     src: sheetUrl({
       clientId: options.clientId,
+      display,
       partnerOrigin: window.location.origin,
       vanaOrigin,
     }),

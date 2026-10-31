@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ConnectEvent, type ConnectHandle, open } from "./launcher";
 import {
+  type ConnectDisplay,
   type ConnectRequest,
   PROTOCOL_VERSION,
   VANA_ACCOUNT_ORIGINS,
@@ -27,12 +28,16 @@ interface Harness {
 }
 
 function mount(
-  overrides: { getRequest?: () => Promise<ConnectRequest> } = {},
+  overrides: {
+    display?: ConnectDisplay;
+    getRequest?: () => Promise<ConnectRequest>;
+  } = {},
 ): Harness {
   const events: ConnectEvent[] = [];
   const handle = open({
     appName: "Example App",
     clientId: "example-app",
+    display: overrides.display,
     getRequest: overrides.getRequest ?? (() => Promise.resolve(REQUEST)),
     onEvent: (event) => events.push(event),
     vanaOrigin: VANA,
@@ -427,6 +432,122 @@ describe("connect.open", () => {
     expect(first.events).toEqual([{ reason: "replaced", type: "close" }]);
     expect(mountedSheets()).toBe(1);
     second.handle.close();
+  });
+
+  describe("display", () => {
+    function shadow(): ShadowRoot {
+      const root = document.querySelector("[data-vana-connect]")?.shadowRoot;
+      if (!root) {
+        throw new Error("sheet chrome not mounted");
+      }
+      return root;
+    }
+
+    function stubVisualViewport(viewport: {
+      height: number;
+      offsetTop: number;
+    }) {
+      const listeners: Record<string, Set<() => void>> = {
+        resize: new Set(),
+        scroll: new Set(),
+      };
+      vi.stubGlobal(
+        "visualViewport",
+        Object.assign(viewport, {
+          addEventListener: (type: string, listener: () => void) =>
+            listeners[type]?.add(listener),
+          removeEventListener: (type: string, listener: () => void) =>
+            listeners[type]?.delete(listener),
+        }),
+      );
+      return (type: "resize" | "scroll") => {
+        for (const listener of listeners[type] ?? []) {
+          listener();
+        }
+      };
+    }
+
+    it("keeps the bottom sheet, and its URL, when no display is asked for", () => {
+      const { handle, iframe } = mount();
+      expect(new URL(iframe.src).searchParams.has("display")).toBe(false);
+      expect(shadow().querySelector("[data-slot='scrim']")).not.toBeNull();
+      expect(shadow().querySelector("[data-slot='handle']")).not.toBeNull();
+      handle.close();
+    });
+
+    it("tells the frame it is full screen and offers no scrim or handle", () => {
+      const { handle, iframe } = mount({ display: "fullscreen" });
+      expect(new URL(iframe.src).searchParams.get("display")).toBe(
+        "fullscreen",
+      );
+      expect(shadow().querySelector("[data-slot='scrim']")).toBeNull();
+      expect(shadow().querySelector("[data-slot='handle']")).toBeNull();
+      handle.close();
+    });
+
+    it("rejects a display it does not know", () => {
+      expect(() =>
+        mount({ display: "popup" as unknown as ConnectDisplay }),
+      ).toThrow(TypeError);
+      expect(mountedSheets()).toBe(0);
+    });
+
+    it("follows the visible viewport full screen when a keyboard opens", () => {
+      const viewport = { height: 600, offsetTop: 0 };
+      const fire = stubVisualViewport(viewport);
+      const { handle } = mount({ display: "fullscreen" });
+      const sheet = shadow().querySelector<HTMLElement>(".sheet");
+      expect(sheet?.style.height).toBe("600px");
+
+      viewport.height = 320;
+      fire("resize");
+      expect(sheet?.style.height).toBe("320px");
+
+      viewport.offsetTop = 40;
+      fire("scroll");
+      expect(sheet?.style.top).toBe("40px");
+      handle.close();
+    });
+
+    it("ignores the frame's height reports full screen", () => {
+      stubVisualViewport({ height: 600, offsetTop: 0 });
+      const { handle, send } = mount({ display: "fullscreen" });
+      send({ height: 200, type: "vana:resize", v: PROTOCOL_VERSION });
+      const sheet = shadow().querySelector<HTMLElement>(".sheet");
+      expect(sheet?.style.height).toBe("600px");
+      expect(sheet?.style.top).toBe("0px");
+      handle.close();
+    });
+
+    it("closes full screen on Escape and on the sheet's own close", () => {
+      const first = mount({ display: "fullscreen" });
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      expect(first.events).toContainEqual({ reason: "escape", type: "close" });
+
+      const second = mount({ display: "fullscreen" });
+      second.send({ type: "vana:close", v: PROTOCOL_VERSION });
+      expect(second.events).toContainEqual({ reason: "sheet", type: "close" });
+      expect(mountedSheets()).toBe(0);
+    });
+
+    it("keeps the bottom sheet above a keyboard that pans the page", () => {
+      const viewport = { height: 800, offsetTop: 0 };
+      const fire = stubVisualViewport(viewport);
+      vi.stubGlobal("requestAnimationFrame", (run: FrameRequestCallback) => {
+        run(0);
+        return 0;
+      });
+      const { handle, send } = mount();
+      const sheet = shadow().querySelector<HTMLElement>(".sheet");
+      send({ height: 300, type: "vana:resize", v: PROTOCOL_VERSION });
+      const before = Number.parseInt(sheet?.style.top ?? "", 10);
+
+      viewport.offsetTop = 60;
+      fire("scroll");
+
+      expect(Number.parseInt(sheet?.style.top ?? "", 10)).toBe(before + 60);
+      handle.close();
+    });
   });
 });
 

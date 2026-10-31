@@ -1,6 +1,6 @@
 /**
- * Sheet chrome for the Vana connect sheet: scrim, bottom sheet and drag
- * handle, in a Shadow DOM root.
+ * Sheet chrome for the Vana connect sheet, in a Shadow DOM root: a bottom
+ * sheet with scrim and drag handle, or a window-filling frame.
  *
  * @remarks
  * Ported unchanged from `@vana-unity/connect-embed`. See the layout notes
@@ -10,22 +10,28 @@
  * @module connect/chrome
  */
 
-// Sheet chrome: scrim, bottom sheet, drag handle. Lives in a Shadow DOM root
-// so partner CSS cannot restyle it, and the partner cannot reach the iframe's
-// document (cross-origin) through it.
+// Sheet chrome. Lives in a Shadow DOM root so partner CSS cannot restyle it, and
+// the partner cannot reach the iframe's document (cross-origin) through it.
+// One placement per display:
 //
 //   host (partner DOM)
 //   └─ #shadow-root
-//      ├─ .scrim                 click closes
-//      └─ .sheet                 top = viewport − (handle + content)
-//         ├─ .handle             drag down to close (above the frame, never over it)
-//         └─ iframe              fixed height = cap; the unused part sits below
-//                                the viewport
+//      ├─ bottom sheet
+//      │  ├─ .scrim              click closes
+//      │  └─ .sheet              top = viewport − (handle + content)
+//      │     ├─ .handle          drag down to close (above the frame, never over it)
+//      │     └─ iframe           fixed height = cap; the unused part sits below
+//      │                         the viewport
+//      └─ fullscreen
+//         └─ .sheet.fullscreen   the visible viewport, inside its safe areas
+//            └─ iframe           fills it; the frame scrolls its own content
 //
 // Nothing overlaps or clips the iframe. IntersectionObserver v2 inside the
 // sheet reports it "not visible" when anything covers or clips it, and the
 // consent step waits for real visibility. The part of the frame below the
 // viewport is simply off screen, which does not count as occlusion.
+
+import type { ConnectDisplay } from "./protocol";
 
 const SHEET_RADIUS_PX = 28;
 const SHEET_MAX_WIDTH_PX = 480;
@@ -70,6 +76,15 @@ iframe {
   background: ${SHEET_BACKGROUND};
 }
 .open .scrim { opacity: 1; }
+.sheet.fullscreen {
+  top: 0; height: 100vh; max-width: none;
+  display: flex; flex-direction: column; box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: ${SHEET_BACKGROUND};
+  transition: none;
+}
+.sheet.fullscreen iframe { flex: 1; min-height: 0; }
 @media (prefers-reduced-motion: reduce) {
   .scrim, .sheet { transition: none; }
 }
@@ -89,13 +104,21 @@ function viewportPx(): number {
   return window.visualViewport?.height ?? window.innerHeight;
 }
 
+/**
+ * How far the visible viewport has panned inside the layout viewport `fixed`
+ * measures from. It is non-zero when an on-screen keyboard pans the page.
+ */
+function viewportTopPx(): number {
+  return window.visualViewport?.offsetTop ?? 0;
+}
+
 function capPx(): number {
   return Math.round(viewportPx() * MAX_SHEET_RATIO);
 }
 
 /** Places the sheet so exactly `content` px of the frame show above the fold. */
 function placeSheet(sheet: HTMLElement, content: number): void {
-  sheet.style.top = `${sheetTopPx(viewportPx(), content)}px`;
+  sheet.style.top = `${Math.round(viewportTopPx() + sheetTopPx(viewportPx(), content))}px`;
 }
 
 /**
@@ -149,11 +172,13 @@ function installReturnGuard(
   fitIframe();
   window.addEventListener("resize", fitIframe);
   window.visualViewport?.addEventListener("resize", fitIframe);
+  window.visualViewport?.addEventListener("scroll", fitIframe);
   document.addEventListener("visibilitychange", onReturn);
   window.addEventListener("focus", onReturn);
   return () => {
     window.removeEventListener("resize", fitIframe);
     window.visualViewport?.removeEventListener("resize", fitIframe);
+    window.visualViewport?.removeEventListener("scroll", fitIframe);
     document.removeEventListener("visibilitychange", onReturn);
     window.removeEventListener("focus", onReturn);
     sheet.style.transform = "";
@@ -194,17 +219,119 @@ function installDragToClose(
   handle.addEventListener("pointercancel", end);
 }
 
-export function createSheetChrome(input: {
-  ariaLabel: string;
-  container: HTMLElement;
+/** What differs between displays; the frame, focus and messages do not. */
+interface Placement {
+  remove(): void;
+  setContentHeight(px: number): void;
+  show(): void;
+}
+
+interface PlacementParts {
+  frame: HTMLElement;
+  iframe: HTMLIFrameElement;
   onClose: (reason: CloseReason) => void;
-  src: string;
-}): SheetChrome {
+  sheet: HTMLElement;
+}
+
+function placeBottomSheet({
+  frame,
+  iframe,
+  onClose,
+  sheet,
+}: PlacementParts): Placement {
   const returnState = {
     lastHeight: null as number | null,
     returnedAt: 0,
     shown: false,
   };
+  const scrim = document.createElement("div");
+  scrim.className = "scrim";
+  scrim.setAttribute("data-slot", "scrim");
+  scrim.addEventListener("click", () => {
+    if (performance.now() - returnState.returnedAt < RETURN_TAP_GUARD_MS) {
+      return;
+    }
+    onClose("scrim");
+  });
+
+  const handle = document.createElement("div");
+  handle.className = "handle";
+  handle.setAttribute("aria-hidden", "true");
+  handle.setAttribute("data-slot", "handle");
+
+  sheet.prepend(handle);
+  frame.prepend(scrim);
+
+  const removeReturnGuard = installReturnGuard(sheet, iframe, returnState);
+  installDragToClose(sheet, handle, onClose);
+
+  return {
+    remove: removeReturnGuard,
+    setContentHeight(px) {
+      // A hidden page can report a throttled frame's height; keep the last good one.
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      returnState.lastHeight = px;
+      if (returnState.shown) {
+        placeSheet(sheet, px);
+      }
+    },
+    show() {
+      // Next frame, so the closed state paints first and the sheet slides in.
+      requestAnimationFrame(() => {
+        returnState.shown = true;
+        frame.classList.add("open");
+        placeSheet(sheet, returnState.lastHeight ?? INITIAL_CONTENT_PX);
+      });
+    },
+  };
+}
+
+/**
+ * Fills the visible viewport, so an on-screen keyboard shortens the frame and
+ * its content scrolls above it. The window holds nothing else, so
+ * there is no scrim to tap and no handle to drag: the frame's own close
+ * control and Escape close it. Content height does not size anything.
+ */
+function placeFullscreen({ frame, sheet }: PlacementParts): Placement {
+  sheet.classList.add("fullscreen");
+  const fitToViewport = () => {
+    sheet.style.top = `${Math.round(viewportTopPx())}px`;
+    sheet.style.height = `${Math.round(viewportPx())}px`;
+  };
+  fitToViewport();
+  window.addEventListener("resize", fitToViewport);
+  window.visualViewport?.addEventListener("resize", fitToViewport);
+  window.visualViewport?.addEventListener("scroll", fitToViewport);
+  return {
+    remove() {
+      window.removeEventListener("resize", fitToViewport);
+      window.visualViewport?.removeEventListener("resize", fitToViewport);
+      window.visualViewport?.removeEventListener("scroll", fitToViewport);
+    },
+    setContentHeight() {
+      return;
+    },
+    show() {
+      frame.classList.add("open");
+    },
+  };
+}
+
+const PLACEMENTS: Record<ConnectDisplay, (parts: PlacementParts) => Placement> =
+  {
+    fullscreen: placeFullscreen,
+    sheet: placeBottomSheet,
+  };
+
+export function createSheetChrome(input: {
+  ariaLabel: string;
+  container: HTMLElement;
+  display: ConnectDisplay;
+  onClose: (reason: CloseReason) => void;
+  src: string;
+}): SheetChrome {
   const host = document.createElement("div");
   host.setAttribute("data-vana-connect", "");
   const root = host.attachShadow({ mode: "open" });
@@ -213,15 +340,6 @@ export function createSheetChrome(input: {
   style.textContent = STYLES;
 
   const frame = document.createElement("div");
-  const scrim = document.createElement("div");
-  scrim.className = "scrim";
-  scrim.setAttribute("data-slot", "scrim");
-  scrim.addEventListener("click", () => {
-    if (performance.now() - returnState.returnedAt < RETURN_TAP_GUARD_MS) {
-      return;
-    }
-    input.onClose("scrim");
-  });
 
   const sheet = document.createElement("div");
   sheet.className = "sheet";
@@ -242,42 +360,26 @@ export function createSheetChrome(input: {
   iframe.referrerPolicy = "strict-origin-when-cross-origin";
   iframe.src = input.src;
 
-  const handle = document.createElement("div");
-  handle.className = "handle";
-  handle.setAttribute("aria-hidden", "true");
-
-  sheet.append(handle, iframe);
-  frame.append(scrim, sheet);
+  sheet.append(iframe);
+  frame.append(sheet);
   root.append(style, frame);
   input.container.append(host);
 
-  const removeReturnGuard = installReturnGuard(sheet, iframe, returnState);
-  installDragToClose(sheet, handle, input.onClose);
+  const placement = PLACEMENTS[input.display]({
+    frame,
+    iframe,
+    onClose: input.onClose,
+    sheet,
+  });
 
   return {
     host,
     iframe,
     remove() {
-      removeReturnGuard();
+      placement.remove();
       host.remove();
     },
-    setContentHeight(px) {
-      // A hidden page can report a throttled frame's height; keep the last good one.
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-      returnState.lastHeight = px;
-      if (returnState.shown) {
-        placeSheet(sheet, px);
-      }
-    },
-    show() {
-      // Next frame, so the closed state paints first and the sheet slides in.
-      requestAnimationFrame(() => {
-        returnState.shown = true;
-        frame.classList.add("open");
-        placeSheet(sheet, returnState.lastHeight ?? INITIAL_CONTENT_PX);
-      });
-    },
+    setContentHeight: placement.setContentHeight,
+    show: placement.show,
   };
 }

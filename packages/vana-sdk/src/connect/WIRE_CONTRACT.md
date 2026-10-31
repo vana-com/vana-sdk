@@ -183,6 +183,10 @@ enforces:
   Account, use `resolveVanaAccountOrigin` with an exact allowlist.
 - The partner reads; it cannot write through the sheet. There is no
   partner-to-sheet write message.
+- `connect.open({ display })` picks the presentation: `sheet` (the default), or
+  `fullscreen` for a window that holds nothing else, such as a small popup the
+  partner opened. The sheet URL carries `display` only when it is not the
+  default. It authorizes nothing; the steps, messages and events are the same.
 
 ## Protocol versioning
 

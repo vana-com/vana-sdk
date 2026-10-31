@@ -14,8 +14,15 @@
  *   env: process.env.VANA_ENV === "dev" ? "dev" : "production",
  *   appPrivateKey: process.env.VANA_APP_PRIVATE_KEY!,
  *   app: { id: "notes-lens", name: "Notes Lens", homepageUrl: process.env.VANA_APP_URL! },
- *   source: "icloud_notes",
- *   scopes: ["icloud_notes.notes"],
+ *   source: "chatgpt",
+ *   // PDPP grants; each stream is requested as `pdpp.<source>.<stream>`.
+ *   grants: [
+ *     {
+ *       source_id: "https://registry.pdpp.dev/sources/chatgpt",
+ *       streams: ["conversations", "messages"],
+ *     },
+ *   ],
+ *   // Legacy `scopes` entries are still accepted, alone or with `grants`.
  * });
  * ```
  *
@@ -25,16 +32,64 @@
 
 export {
   createDirectDataController,
+  isConnectCapableController,
+  missingConnectCapabilities,
+  DIRECT_CONNECT_CAPABILITIES,
+  type ConnectCapableDirectDataController,
+  type DirectConnectCapabilities,
   type DirectDataController,
   type DirectDataControllerConfig,
   type DirectEscrowConfig,
 } from "./direct/controller";
+
+// Embedded connect sheet: one handler for config/request/status/data, and
+// the read capability the sheet asks for.
+export {
+  createVanaConnectHandler,
+  toNodeHandler,
+  connectBindingCookieName,
+  CONNECT_BINDING_KEY_PURPOSE,
+  createMemoryRateLimit,
+  defaultClientIp,
+  type MemoryRateLimitOptions,
+  type VanaConnectRateLimit,
+  type VanaConnectRateLimitDecision,
+  type VanaConnectHandler,
+  type VanaConnectHandlerOptions,
+  type VanaConnectCreateOptions,
+  type VanaConnectErrorCode,
+  type VanaConnectConfig,
+  type NodeRequestLike,
+  type NodeResponseLike,
+  type ToNodeHandlerOptions,
+} from "./direct/connect-handler";
+export {
+  signRequestReadAuthorization,
+  buildRequestReadAuthorizationMessage,
+  requestReadPath,
+  type SignRequestReadAuthorizationInput,
+} from "./direct/request-authorization";
+export {
+  vanaConnectCsp,
+  VANA_ACCOUNT_ORIGINS,
+  isRequestId,
+  readConnectRequest,
+  type ConnectRequest,
+  type RequestAuthorization,
+  type VanaConnectEnv,
+} from "./connect/protocol";
+export {
+  parseOriginAllowlist,
+  resolveVanaAccountOrigin,
+  type ResolveVanaAccountOriginInput,
+} from "./connect/account-origin";
 
 // Lower-level building blocks (advanced use / custom transports).
 export {
   createDefaultAccessRequestClient,
   buildApprovalUrl,
   validateAccessRequestQuestions,
+  buildDirectAccessRequestAuthMessage,
   type DefaultAccessRequestClientOptions,
   type FetchLike,
 } from "./direct/access-request-client";
@@ -84,8 +139,9 @@ export {
   DEV_ENDPOINTS,
 } from "./direct/endpoints";
 // Grant scope entries: the `[operation:]scope` vocabulary the controller's
-// `scopes` are written in, so a backend can build and read them without
-// reaching for a platform entry point.
+// `scopes` are written in, and the PDPP grant -> scope key mapping its
+// `grants` use, so a backend can build and read them without reaching for a
+// platform entry point.
 export {
   ScopeSchema,
   parseScope,
@@ -107,6 +163,18 @@ export {
   type ParsedScopeEntry,
   type GrantPermission,
 } from "./protocol/scope-actions";
+export {
+  PDPP_SCOPE_NAMESPACE,
+  PDPP_SOURCE_ID_PREFIX,
+  InvalidPdppGrantError,
+  pdppScopeKey,
+  parsePdppScopeKey,
+  isPdppScopeKey,
+  pdppGrantsToScopes,
+  grantRequestScopes,
+  type PdppGrant,
+  type PdppScopeKeyParts,
+} from "./protocol/pdpp-scopes";
 
 // Errors
 export {

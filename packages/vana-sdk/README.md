@@ -261,6 +261,49 @@ accepts write entries in `scopes`, but its scope part must be a concrete
 scope: this flow reads approved scopes back one at a time, so wildcards are
 rejected there for read and write alike.
 
+### PDPP grants
+
+Ask for PDPP data as **grants**: a registry `source_id` and the streams you
+want from it. The controller turns each stream into one scope key,
+`pdpp.<source>.<stream>`, and that key is what the request, the signed grant
+and your reads carry.
+
+```typescript
+export const vana = createDirectDataController({
+  // ...
+  source: "chatgpt",
+  grants: [
+    {
+      source_id: "https://registry.pdpp.dev/sources/chatgpt",
+      streams: ["conversations", "messages"],
+    },
+  ],
+});
+// Requests ["pdpp.chatgpt.conversations", "pdpp.chatgpt.messages"].
+
+await vana.readApprovedData({ requestId, scope: "pdpp.chatgpt.messages" });
+```
+
+- `grants` and `scopes` can be combined. The request is the union: your
+  `scopes` verbatim, then the derived keys that are not already in it.
+  Existing apps that pass only `scopes` are unchanged.
+- The `pdpp.` namespace is separate from legacy scopes. PDPP's ChatGPT
+  `conversations` stream is `pdpp.chatgpt.conversations`, not the legacy
+  `chatgpt.conversations`, and `pdpp.chatgpt.*` covers only PDPP streams.
+  A legacy `scopes` entry under `pdpp.` that is not a valid key is rejected.
+- The mapping is strict and never slugifies. `source_id` must be
+  `https://registry.pdpp.dev/sources/<source>`, and `<source>` and each stream
+  must be lowercase letters, digits and underscores, not starting with an
+  underscore. Anything else throws `InvalidPdppGrantError` when the controller
+  is created.
+- `pdppScopeKey(source_id, stream)`, `parsePdppScopeKey(key)` (`{ source_id,
+stream }` or `null`), `isPdppScopeKey(key)`, `pdppGrantsToScopes(grants)`
+  and `grantRequestScopes({ grants, scopes })` are exported from `/server`,
+  the root entry points and `@opendatalabs/vana-sdk/protocol/scopes`. Use them
+  rather than building keys by hand. Other implementations can check
+  themselves against the vectors in
+  [`src/protocol/fixtures/pdpp-scope-keys.json`](src/protocol/fixtures/pdpp-scope-keys.json).
+
 ### Backend controller
 
 ```typescript
@@ -456,6 +499,139 @@ pass the same explicit `idempotencyKey` on the retry to avoid a duplicate DCR.
 
 `react` is an optional peer dependency. The underlying
 `createDirectConnectFlow` store is also exported for non-React frontends.
+
+### Connect in Vana's in-page sheet
+
+Instead of a Vana tab, the person can approve in a sheet Vana draws over your
+page (it signs them in, shows the request, and finishes inside the sheet). The
+sheet is `presentation: "sheet"` of the same flow: the request, the status poll
+and the read are unchanged. The integration is two files.
+
+Backend: one catch-all route serves `config`, `request`, `status` and `data`,
+binding each request to the browser that created it. The controller decides
+what is requested (its `grants` and `scopes`, see [PDPP grants](#pdpp-grants));
+the browser never chooses.
+
+```ts
+// app/api/vana/[action]/route.ts
+import { createVanaConnectHandler } from "@opendatalabs/vana-sdk/server";
+import { vana } from "@/lib/vana"; // your createDirectDataController({ grants, ... })
+
+const handler = createVanaConnectHandler({
+  controller: vana,
+  returnUrl: `${process.env.APP_URL}/connect/return`,
+  clientId: "my-app", // the embed client id Vana Account registered for your origin
+  // Recommended in production: only your signed-in users create requests.
+  session: async (request) => (await getSession(request))?.userId ?? null,
+});
+export { handler as GET, handler as POST };
+```
+
+The handler reports the Vana Account origin from the controller's `env`
+(`account.vana.org` for `production`, `account-dev.vana.org` for `dev`), so a
+dev app never frames production.
+
+Frontend:
+
+```tsx
+"use client";
+import { useVanaConnect } from "@opendatalabs/vana-sdk/react";
+
+export function ConnectButton() {
+  const { state, start } = useVanaConnect<MyData>({ endpoint: "/api/vana" });
+  if (state.type === "done") return <Result data={state.result.data} />;
+  return (
+    <>
+      <button
+        disabled={
+          state.type === "creating" || state.type === "awaiting_approval"
+        }
+        onClick={start}
+      >
+        Connect with Vana
+      </button>
+      {state.type === "awaiting_approval" && state.popupBlocked && (
+        // The sheet could not run here (state.sheetUnavailable says why).
+        <a href={state.request.approvalUrl} target="_blank" rel="noreferrer">
+          Open Vana
+        </a>
+      )}
+    </>
+  );
+}
+```
+
+- While the sheet is up, `state.sheet` reports `completion` (`in_browser` or
+  `remote_collect`) once the person approves, coarse `progress`
+  (`collecting`, `writing`), and any `error` it is showing.
+- **Approval is not delivery.** The sheet's `connected` event (and
+  `state.sheet.completion`) means the person approved; the data may still be
+  collecting. The flow reaches `done` only when your backend's status poll
+  says the request is readable and the read succeeds, and `error` when the
+  poll reports `denied`, `expired` or `completed` or the read fails. The sheet
+  sends no terminal event of its own; its events only make the flow poll
+  sooner.
+- Closing the sheet before approving returns to `idle`. Closing it after
+  approving keeps polling, since the data may still be readable.
+- If the frame cannot run (`frame_blocked`, `origin_not_registered`,
+  `incompatible_version`), the flow falls back to the tab presentation with
+  `popupBlocked: true`, so the "Open approval" link above still finishes it.
+  `origin_not_registered` arrives at once: the launcher asks Vana
+  (`GET <account>/api/embed/connect/client`, no credentials) alongside
+  framing. `vana_unavailable` means Vana's own side is down or misconfigured;
+  the sheet stays open and says so.
+- The partner reads; it cannot write through the sheet. Pass
+  `sheet: { closeAfterDoneMs: null }` to leave the sheet open after the read.
+- If your page sets a CSP, allow the frame and the client check:
+  `vanaConnectCsp(env)` from `/server` (or `/connect/protocol`) returns
+  `{ "frame-src": [accountOrigin], "connect-src": [accountOrigin] }`. It has
+  no default environment.
+- `createVanaConnectHandler` takes `session` to bind requests to your own
+  signed-in user (recommended: without it anyone who loads your page can
+  create requests as your app), `createOptions` for per-request create input
+  (questions, owner), and `read` to replace the default `readApprovedData`.
+  Use `toNodeHandler(handler)` for Express or plain `http`.
+- Creating a request is rate limited. The default, `createMemoryRateLimit()`,
+  allows 10 creates a minute per client IP and per session, in memory. It is
+  not production-grade (each instance counts alone, and the IP comes from
+  proxy headers): pass `rateLimit` backed by a shared store, or `false` when
+  a limiter already sits in front of the route. A refusal is
+  `429 rate_limited` with `Retry-After`.
+
+Choosing the Vana Account origin yourself (a custom flow, or preview deploys
+of Vana Account) goes through `resolveVanaAccountOrigin`; never match origins
+with your own pattern. It returns the environment's origin unless overrides
+are switched on for this build and the override is exactly an `https` origin
+on your allowlist:
+
+```ts
+import {
+  parseOriginAllowlist,
+  resolveVanaAccountOrigin,
+} from "@opendatalabs/vana-sdk/connect";
+
+const accountOrigin = resolveVanaAccountOrigin({
+  env: "dev",
+  override: new URLSearchParams(location.search).get("vana_account"),
+  previewOrigins: parseOriginAllowlist(
+    process.env.NEXT_PUBLIC_VANA_ACCOUNT_PREVIEW_ORIGINS,
+  ),
+  // From build-time config, never the request. Off in production.
+  allowOverride: process.env.NEXT_PUBLIC_DEPLOY_ENV === "preview",
+});
+```
+
+`createDirectConnectFlow` and the launcher take that origin (or an `env`)
+explicitly; neither falls back to production.
+
+Lower-level pieces: `createDirectConnectFlow(transports, { presentation:
+"sheet", sheet: { clientId, appName, accountOrigin } })` with an
+`authorizeRequest` transport backed by
+`controller.authorizeRequestRead(requestId)`; the launcher itself
+(`@opendatalabs/vana-sdk/connect`); and the zero-dependency message protocol
+(`@opendatalabs/vana-sdk/connect/protocol`). A backend in another language
+implements the [connect wire contract](./src/connect/WIRE_CONTRACT.md), which has test
+vectors.
 
 ### Test with large sample data
 

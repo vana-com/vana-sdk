@@ -52,9 +52,34 @@ export {
   type UseDirectVanaConnectResult,
 } from "./direct/use-direct-vana-connect";
 
+// Zero-transport hook for a `createVanaConnectHandler` backend; presents
+// approval in Vana's in-page sheet by default.
+export {
+  useVanaConnect,
+  type UseVanaConnectOptions,
+  type UseVanaConnectResult,
+} from "./direct/use-vana-connect";
+export {
+  createVanaConnectTransports,
+  VanaConnectHttpError,
+  type VanaConnectConfig,
+  type VanaConnectTransportOptions,
+  type VanaConnectTransports,
+} from "./connect/http-transports";
+export type {
+  ConnectCompletion,
+  ConnectEvent,
+  ConnectProgressPhase,
+  RequestAuthorization,
+  SheetErrorCode,
+} from "./connect";
+
 // Framework-agnostic store (usable without React).
 export {
   createDirectConnectFlow,
+  type DirectConnectPresentation,
+  type DirectConnectSheetOptions,
+  type DirectConnectSheetState,
   type ConnectWindow,
   type DirectBrowserPlatform,
   type DirectBrowserPlatformPolicy,

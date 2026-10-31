@@ -53,8 +53,13 @@ import {
 import {
   AccessNotApprovedError,
   DirectConfigError,
+  EscrowBalanceTooLowError,
   ScopeNotApprovedError,
 } from "./errors";
+import {
+  requestTestCredit as requestTestCreditFromAccount,
+  type TestCreditResult,
+} from "./test-credit";
 import {
   type EscrowPaymentConfig,
   type SignTypedDataFn,
@@ -186,6 +191,24 @@ export interface DirectDataControllerConfig {
    * re-sign a payment.
    */
   personalServerTransportRetry?: PersonalServerTransportRetryOptions;
+  /**
+   * Moksha test credit (testnet only).
+   *
+   * @remarks
+   * With `autoTopUp: true` on `network: "moksha"`, a read refused because the
+   * app's escrow is too low ({@link EscrowBalanceTooLowError}) asks Vana Account
+   * for test credit, waits for it, and retries that read once. The refused
+   * read charged nothing, so the retry cannot pay twice. Ignored on mainnet.
+   */
+  testCredit?: {
+    autoTopUp?: boolean;
+    /** Vana Account origin. Defaults to `https://account.vana.org`. */
+    baseUrl?: string;
+    pollIntervalMs?: number;
+    timeoutMs?: number;
+    /** `fetch` for the Vana Account calls. Defaults to `globalThis.fetch`. */
+    fetchFn?: typeof fetch;
+  };
 }
 
 /**
@@ -347,6 +370,14 @@ export interface DirectDataController extends Partial<DirectConnectCapabilities>
   readAllApprovedData<T = unknown>(input: {
     requestId: string;
   }): Promise<MultiScopeDataResult<T>>;
+  /**
+   * Ask Vana Account for Moksha test credit for this app's escrow and wait
+   * until it is usable. Moksha only.
+   *
+   * @throws {@link DirectConfigError} on mainnet.
+   * @throws TestCreditError if the request fails or does not finalize in time.
+   */
+  requestTestCredit(): Promise<TestCreditResult>;
 
   // Connect-sheet methods (authorizeRequestRead, getEndpoints, deriveSecret,
   // getEnv) come from DirectConnectCapabilities and are optional here, so a
@@ -689,6 +720,8 @@ export function createDirectDataController(
       return result;
     },
 
+    requestTestCredit,
+
     async readAllApprovedData<T = unknown>(input: {
       requestId: string;
     }): Promise<MultiScopeDataResult<T>> {
@@ -809,7 +842,40 @@ export function createDirectDataController(
     return requested;
   }
 
+  async function requestTestCredit(): Promise<TestCreditResult> {
+    if (network !== "moksha") {
+      throw new DirectConfigError("Test credit is only available on Moksha");
+    }
+    return requestTestCreditFromAccount({
+      signMessage,
+      baseUrl: config.testCredit?.baseUrl,
+      pollIntervalMs: config.testCredit?.pollIntervalMs,
+      timeoutMs: config.testCredit?.timeoutMs,
+      fetchFn: config.testCredit?.fetchFn,
+    });
+  }
+
   async function readScope<T>(
+    status: AccessRequestStatus,
+    scope: string,
+  ): Promise<ApprovedDataResult<T>> {
+    try {
+      return await readScopeOnce<T>(status, scope);
+    } catch (error) {
+      const autoTopUp =
+        network === "moksha" && config.testCredit?.autoTopUp === true;
+      if (!(autoTopUp && error instanceof EscrowBalanceTooLowError)) {
+        throw error;
+      }
+      const credit = await requestTestCredit();
+      if (credit.status === "refused") {
+        throw error;
+      }
+      return readScopeOnce<T>(status, scope);
+    }
+  }
+
+  async function readScopeOnce<T>(
     status: AccessRequestStatus,
     scope: string,
   ): Promise<ApprovedDataResult<T>> {

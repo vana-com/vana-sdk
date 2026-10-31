@@ -183,7 +183,16 @@ export {
   ScopeNotApprovedError,
   PersonalServerReadError,
   PaymentRequiredError,
+  EscrowBalanceTooLowError,
 } from "./direct/errors";
+export {
+  requestTestCredit,
+  TestCreditError,
+  DEFAULT_TEST_CREDIT_BASE_URL,
+  type TestCreditResult,
+  type TestCreditOperation,
+  type RequestTestCreditOptions,
+} from "./direct/test-credit";
 
 // Shared types
 export type {

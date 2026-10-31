@@ -81,3 +81,11 @@ export class PaymentRequiredError extends VanaError {
     super(message, "DIRECT_PAYMENT_REQUIRED");
   }
 }
+
+/**
+ * The app's escrow balance can't cover the read: the gateway refused the
+ * payment (402 "Insufficient finalized balance"), so nothing was charged and
+ * the read can be retried after a top-up. A {@link PaymentRequiredError}, so
+ * existing `instanceof PaymentRequiredError` checks still match.
+ */
+export class EscrowBalanceTooLowError extends PaymentRequiredError {}

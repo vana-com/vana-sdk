@@ -8,6 +8,11 @@ from the "Build a Vana App" guide:
 - `app/api/vana/data/route.ts` reads approved data through the SDK.
 - `app/components/ConnectSpotifyButton.tsx` drives the browser approval flow
   with `useDirectVanaConnect`.
+- `app/api/vana/connect/[action]/route.ts` and
+  `app/components/ConnectSheetButton.tsx` are the same flow in Vana's in-page
+  sheet: `createVanaConnectHandler` serves every route and `useVanaConnect`
+  needs no transports. Set `VANA_CONNECT_CLIENT_ID` to the embed client id
+  Vana Account registered for your origin; without it the button uses a tab.
 
 The example defaults to sample-data mode so it runs locally without a registered
 app, live approval, escrow funding, or a Personal Server. Sample-data mode

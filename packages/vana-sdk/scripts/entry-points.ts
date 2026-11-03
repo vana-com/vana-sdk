@@ -26,6 +26,10 @@ export const BROWSER_ENTRY_POINTS = [
   "src/platform.browser.ts",
   // Direct Vana connect React hook (browser-safe).
   "src/react.ts",
+  // Vana connect sheet launcher + chrome (browser-safe, framework-free).
+  "src/connect.ts",
+  // Connect sheet message protocol (zero-dependency, browser-safe).
+  "src/connect/protocol.ts",
   // Session Relay service integration (browser-safe with injected signer).
   "src/session-relay.ts",
 ];

@@ -73,3 +73,18 @@ export function scopeCoveredByGrant(
     scopeMatchesPattern(requestedScope, pattern),
   );
 }
+
+// PDPP grants map to scope keys in this same grammar; re-exported so the
+// scope contract has one import path (`@opendatalabs/vana-sdk/protocol/scopes`).
+export {
+  PDPP_SCOPE_NAMESPACE,
+  PDPP_SOURCE_ID_PREFIX,
+  InvalidPdppGrantError,
+  pdppScopeKey,
+  parsePdppScopeKey,
+  isPdppScopeKey,
+  pdppGrantsToScopes,
+  grantRequestScopes,
+  type PdppGrant,
+  type PdppScopeKeyParts,
+} from "./pdpp-scopes";

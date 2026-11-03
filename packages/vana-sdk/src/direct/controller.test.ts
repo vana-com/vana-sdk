@@ -19,6 +19,7 @@ import {
 } from "../protocol/escrow";
 import { CONTRACTS } from "../generated/addresses";
 import { InvalidScopeEntryError } from "../protocol/scope-actions";
+import { InvalidPdppGrantError } from "../protocol/pdpp-scopes";
 
 // Escrow contract address from the registry (resolved by chainId)
 const ESCROW_CONTRACT_MOKSHA = CONTRACTS.DataPortabilityEscrow.addresses[14800];
@@ -1144,5 +1145,130 @@ describe("createDirectDataController - questions", () => {
       }),
     ).rejects.toThrow(DirectConfigError);
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("createDirectDataController - PDPP grants", () => {
+  const CHATGPT = "https://registry.pdpp.dev/sources/chatgpt";
+
+  function grantsFixture(
+    config: Pick<
+      Parameters<typeof createDirectDataController>[0],
+      "grants" | "scopes"
+    >,
+  ) {
+    const spy = vi.fn(async () => ({
+      requestId: "dcr_pdpp",
+      approvalUrl: "https://app.vana.org/data-connection-requests/dcr_pdpp",
+      appAddress: APP_ADDRESS,
+    }));
+    const accessRequestClient: AccessRequestClient = {
+      createAccessRequest: spy,
+      getAccessRequestStatus: vi.fn(),
+    };
+    const vana = createDirectDataController({
+      appPrivateKey: APP_KEY,
+      app: APP,
+      source: "chatgpt",
+      ...config,
+      accessRequestClient,
+    });
+    return { vana, spy };
+  }
+
+  it("requests the derived pdpp.<source>.<stream> keys", async () => {
+    const { vana, spy } = grantsFixture({
+      grants: [{ source_id: CHATGPT, streams: ["conversations", "messages"] }],
+    });
+    const result = await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/return",
+    });
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: ["pdpp.chatgpt.conversations", "pdpp.chatgpt.messages"],
+      }),
+    );
+    expect(result.scopes).toEqual([
+      "pdpp.chatgpt.conversations",
+      "pdpp.chatgpt.messages",
+    ]);
+  });
+
+  it("requests the union of legacy scopes and derived keys", async () => {
+    const { vana, spy } = grantsFixture({
+      scopes: ["chatgpt.conversations", "write:coach.weekly"],
+      grants: [{ source_id: CHATGPT, streams: ["conversations"] }],
+    });
+    await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/return",
+    });
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: [
+          "chatgpt.conversations",
+          "write:coach.weekly",
+          "pdpp.chatgpt.conversations",
+        ],
+      }),
+    );
+  });
+
+  it("rejects a config with neither scopes nor grant streams", () => {
+    expect(() => grantsFixture({})).toThrow(DirectConfigError);
+    expect(() => grantsFixture({ scopes: [], grants: [] })).toThrow(
+      DirectConfigError,
+    );
+  });
+
+  it("rejects a legacy scope in the pdpp namespace that is not a PDPP key", () => {
+    for (const entry of [
+      "pdpp.chatgpt",
+      "write:pdpp.chatgpt",
+      "pdpp.ChatGPT.conversations",
+    ]) {
+      expect(() => grantsFixture({ scopes: [entry] }), entry).toThrow(
+        DirectConfigError,
+      );
+    }
+    // A key written by hand is the same scope, so it is accepted.
+    expect(() =>
+      grantsFixture({ scopes: ["write:pdpp.chatgpt.messages"] }),
+    ).not.toThrow();
+  });
+
+  it("rejects an invalid grant at construction instead of slugifying it", () => {
+    expect(() =>
+      grantsFixture({
+        grants: [
+          {
+            source_id: "https://registry.pdpp.dev/sources/spotify-browser",
+            streams: ["top_tracks"],
+          },
+        ],
+      }),
+    ).toThrow(InvalidPdppGrantError);
+    expect(() =>
+      grantsFixture({ grants: [{ source_id: CHATGPT, streams: [] }] }),
+    ).toThrow(InvalidPdppGrantError);
+  });
+
+  it("accepts a question whose derived scope is a configured legacy scope and whose source is a PDPP key", async () => {
+    const { vana, spy } = grantsFixture({
+      scopes: ["coach.weekly"],
+      grants: [{ source_id: CHATGPT, streams: ["conversations"] }],
+    });
+    const question = {
+      derivedScope: "coach.weekly",
+      sourceScopes: ["pdpp.chatgpt.conversations"],
+      question: "What did I ask about this week?",
+      recompute: "snapshot" as const,
+    };
+    await vana.createAccessRequest({
+      returnUrl: "https://notes-lens.example/return",
+      questions: [question],
+    });
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ questions: [question] }),
+    );
   });
 });

@@ -4,6 +4,16 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    // DOM tests opt in per file with `// @vitest-environment happy-dom`.
+    // Framed pages (the connect sheet) must never load during tests.
+    environmentOptions: {
+      happyDOM: {
+        settings: {
+          disableIframePageLoading: true,
+          navigation: { disableChildFrameNavigation: true },
+        },
+      },
+    },
     include: ["src/**/*.test.ts"],
     exclude: ["examples/**", "node_modules/**"],
     setupFiles: ["src/tests/setup.ts"],

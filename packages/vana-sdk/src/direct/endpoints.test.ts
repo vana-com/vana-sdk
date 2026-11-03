@@ -14,6 +14,7 @@ describe("getDirectEndpoints", () => {
       chainId: 1480,
       accessRequestBaseUrl: "https://app.vana.org",
       approvalAppBaseUrl: "https://app.vana.org",
+      accountOrigin: "https://account.vana.org",
     });
   });
 
@@ -23,6 +24,7 @@ describe("getDirectEndpoints", () => {
       chainId: 14800,
       accessRequestBaseUrl: "https://app-dev.vana.org",
       approvalAppBaseUrl: "https://app-dev.vana.org",
+      accountOrigin: "https://account-dev.vana.org",
     });
   });
 

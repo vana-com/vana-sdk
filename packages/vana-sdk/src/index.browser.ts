@@ -117,6 +117,22 @@ export {
   MASTER_KEY_MESSAGE,
 } from "./crypto/keys/derive";
 
+// Stream-sync key derivation (one implementation for every app)
+export {
+  streamMasterKeyFromSignature,
+  deriveNamespaceKey,
+  deriveNs,
+  deriveKeyCheck,
+  controlHashes,
+  NAMESPACE_KEY_LABEL,
+  KEY_CHECK_MESSAGE,
+  ACTIVE_DATA_PREFIX,
+  ACTIVE_METADATA_LABEL,
+  TOMBSTONE_DATA_LABEL,
+  TOMBSTONE_METADATA_LABEL,
+  type ControlHashes,
+} from "./crypto/keys/stream-sync";
+
 // OpenPGP file encryption (DPv1 envelope)
 export {
   encryptWithPassword,

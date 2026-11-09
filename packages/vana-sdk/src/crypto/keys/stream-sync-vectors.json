@@ -1,0 +1,160 @@
+{
+  "$comment": "Generated from personal-server-ts packages/stream-sync (feat/stream-sync) with ephemeral keys. Public signatures only; no private key is recorded.",
+  "message": "vana-master-key-v1",
+  "namespaceKeyLabel": "pdpp-stream-sync/namespace/v1",
+  "keys": [
+    {
+      "id": "key-1",
+      "streamMasterKey": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c724d8380bf1b2f1ffca141d63c0941230dbf876357cf61ab806a9c93083e96771c",
+      "kNs": "61062e3fd74cff4d5b6d91aea82adb96e06b8833ba2f6cb732aec977fd383aba",
+      "keyCheck": "6b3e8a7016fa0a54",
+      "namespaces": [
+        {
+          "connector": "example-connector",
+          "accountId": "acct-1",
+          "ns": "161ee5ed87ec04e2"
+        },
+        {
+          "connector": "example-connector",
+          "accountId": "acct \"quoted\" ✓ 名",
+          "ns": "304c87d75e3c8924"
+        },
+        {
+          "connector": "other-connector",
+          "accountId": "acct-1",
+          "ns": "823df432b3ae8a94"
+        }
+      ],
+      "controlHashes": {
+        "activeData": "0x7d2cd661d8e2a3ef4a357434f37a30f049925c575999a25b92d660f2e365e993",
+        "activeMetadata": "0xafa8b31cfb00809840b3b21d2f492fa5c4de03e6eb33e5a2abb62fa617731ea2",
+        "tombstoneData": "0x30c45ee72fe56d1927701316925ab7ceacd3b6f9267061735d59396f075c6222",
+        "tombstoneMetadata": "0xc5255a141acd6a2ae55971b62c0a85977c2511989dc114ad2abc2b7644f57d90"
+      },
+      "encodings": [
+        {
+          "name": "normal-v27-28-low-s",
+          "signature": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c724d8380bf1b2f1ffca141d63c0941230dbf876357cf61ab806a9c93083e96771c",
+          "streamMasterKey": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c724d8380bf1b2f1ffca141d63c0941230dbf876357cf61ab806a9c93083e96771c"
+        },
+        {
+          "name": "raw-v-0-1-low-s",
+          "signature": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c724d8380bf1b2f1ffca141d63c0941230dbf876357cf61ab806a9c93083e967701",
+          "streamMasterKey": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c724d8380bf1b2f1ffca141d63c0941230dbf876357cf61ab806a9c93083e96771c"
+        },
+        {
+          "name": "high-s-v27-28",
+          "signature": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c8db27c7f40e4d0e0035ebe29c3f6bedbacef558357793e903f67c1f9c7f7aaca1b",
+          "streamMasterKey": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c724d8380bf1b2f1ffca141d63c0941230dbf876357cf61ab806a9c93083e96771c"
+        },
+        {
+          "name": "high-s-raw-v-0-1",
+          "signature": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c8db27c7f40e4d0e0035ebe29c3f6bedbacef558357793e903f67c1f9c7f7aaca00",
+          "streamMasterKey": "0x53e0c16e774113c14f01f7a29cc27d2d3fcd581c59c0ce0ed4d706f1596c808c724d8380bf1b2f1ffca141d63c0941230dbf876357cf61ab806a9c93083e96771c"
+        }
+      ]
+    },
+    {
+      "id": "key-2",
+      "streamMasterKey": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b66dbbc51f960b0298eb462939376f849605f45e75fb87d0691099ad971dea31551c",
+      "kNs": "92babad7a4bdccb0980dcb07b45247d909d5abc94659aec210b846c14e86a29c",
+      "keyCheck": "26381177494244ab",
+      "namespaces": [
+        {
+          "connector": "example-connector",
+          "accountId": "acct-1",
+          "ns": "f702e02673f5f61b"
+        },
+        {
+          "connector": "example-connector",
+          "accountId": "acct \"quoted\" ✓ 名",
+          "ns": "969dbde230376ffb"
+        },
+        {
+          "connector": "other-connector",
+          "accountId": "acct-1",
+          "ns": "79dba8e4febc39cd"
+        }
+      ],
+      "controlHashes": {
+        "activeData": "0x2160c68422dcd8e8424e5f5cb902cce2b1ebc13399a72e3b86ab54a825f1d762",
+        "activeMetadata": "0xafa8b31cfb00809840b3b21d2f492fa5c4de03e6eb33e5a2abb62fa617731ea2",
+        "tombstoneData": "0x30c45ee72fe56d1927701316925ab7ceacd3b6f9267061735d59396f075c6222",
+        "tombstoneMetadata": "0xc5255a141acd6a2ae55971b62c0a85977c2511989dc114ad2abc2b7644f57d90"
+      },
+      "encodings": [
+        {
+          "name": "normal-v27-28-low-s",
+          "signature": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b66dbbc51f960b0298eb462939376f849605f45e75fb87d0691099ad971dea31551c",
+          "streamMasterKey": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b66dbbc51f960b0298eb462939376f849605f45e75fb87d0691099ad971dea31551c"
+        },
+        {
+          "name": "raw-v-0-1-low-s",
+          "signature": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b66dbbc51f960b0298eb462939376f849605f45e75fb87d0691099ad971dea315501",
+          "streamMasterKey": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b66dbbc51f960b0298eb462939376f849605f45e75fb87d0691099ad971dea31551c"
+        },
+        {
+          "name": "high-s-v27-28",
+          "signature": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b692443ae069f4fd6714b9d6c6c8907b68b4ba7e70b3c0cfd2af38b0f5b24c0fec1b",
+          "streamMasterKey": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b66dbbc51f960b0298eb462939376f849605f45e75fb87d0691099ad971dea31551c"
+        },
+        {
+          "name": "high-s-raw-v-0-1",
+          "signature": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b692443ae069f4fd6714b9d6c6c8907b68b4ba7e70b3c0cfd2af38b0f5b24c0fec00",
+          "streamMasterKey": "0x0047f89eaa26511b75ecfebf53870beb08f42b7e9d083db95ea4e2ab4a7d39b66dbbc51f960b0298eb462939376f849605f45e75fb87d0691099ad971dea31551c"
+        }
+      ]
+    },
+    {
+      "id": "key-3",
+      "streamMasterKey": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e488626eecb017cc1e5975d4bcc86782f4a72dfc95e419f65d5add9c13b6a72c332801b",
+      "kNs": "6ca8fffe0e8eb498d4cf4f1d57eadb4e4930182dd0507a132864bb174ab96912",
+      "keyCheck": "66d70b6bb66a2799",
+      "namespaces": [
+        {
+          "connector": "example-connector",
+          "accountId": "acct-1",
+          "ns": "2412b8636cffde16"
+        },
+        {
+          "connector": "example-connector",
+          "accountId": "acct \"quoted\" ✓ 名",
+          "ns": "51e22c61e9bb8e9e"
+        },
+        {
+          "connector": "other-connector",
+          "accountId": "acct-1",
+          "ns": "f751b54aa02aa456"
+        }
+      ],
+      "controlHashes": {
+        "activeData": "0xfc35c3264d7565544026cc2410e917685c1b787824b1794b4113f7c3a115f595",
+        "activeMetadata": "0xafa8b31cfb00809840b3b21d2f492fa5c4de03e6eb33e5a2abb62fa617731ea2",
+        "tombstoneData": "0x30c45ee72fe56d1927701316925ab7ceacd3b6f9267061735d59396f075c6222",
+        "tombstoneMetadata": "0xc5255a141acd6a2ae55971b62c0a85977c2511989dc114ad2abc2b7644f57d90"
+      },
+      "encodings": [
+        {
+          "name": "normal-v27-28-low-s",
+          "signature": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e488626eecb017cc1e5975d4bcc86782f4a72dfc95e419f65d5add9c13b6a72c332801b",
+          "streamMasterKey": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e488626eecb017cc1e5975d4bcc86782f4a72dfc95e419f65d5add9c13b6a72c332801b"
+        },
+        {
+          "name": "raw-v-0-1-low-s",
+          "signature": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e488626eecb017cc1e5975d4bcc86782f4a72dfc95e419f65d5add9c13b6a72c3328000",
+          "streamMasterKey": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e488626eecb017cc1e5975d4bcc86782f4a72dfc95e419f65d5add9c13b6a72c332801b"
+        },
+        {
+          "name": "high-s-v27-28",
+          "signature": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e4886d91134fe833e1a68a2b4337987d0b58bdae57ea50fe2ca8de61123225d730ec11c",
+          "streamMasterKey": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e488626eecb017cc1e5975d4bcc86782f4a72dfc95e419f65d5add9c13b6a72c332801b"
+        },
+        {
+          "name": "high-s-raw-v-0-1",
+          "signature": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e4886d91134fe833e1a68a2b4337987d0b58bdae57ea50fe2ca8de61123225d730ec101",
+          "streamMasterKey": "0x2a4c1870ea25b775817428f4e61d8a85b5304e82448bf0a99f24fb989e8e488626eecb017cc1e5975d4bcc86782f4a72dfc95e419f65d5add9c13b6a72c332801b"
+        }
+      ]
+    }
+  ]
+}

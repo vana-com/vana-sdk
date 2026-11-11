@@ -300,6 +300,26 @@ export function validateAccessRequestQuestions(
 }
 
 /**
+ * Validate the `collection` mode on a create input.
+ *
+ * @param collection - The `collection` value from the create input.
+ * @throws {DirectConfigError} - When the value is not `"reuse"` or `"fresh"`.
+ */
+function validateAccessRequestCollection(collection: unknown): void {
+  if (collection !== "reuse" && collection !== "fresh") {
+    throw new DirectConfigError(
+      `collection must be "reuse" or "fresh" when present, got "${String(collection)}". Omit the field to reuse data the Personal Server already holds.`,
+      { collection },
+    );
+  }
+}
+
+/** Expose `collection` only when the service sent exactly a known value. */
+function normalizeCollection(value: unknown): "reuse" | "fresh" | undefined {
+  return value === "reuse" || value === "fresh" ? value : undefined;
+}
+
+/**
  * Create the default {@link AccessRequestClient} for the Vana Account
  * access-request API.
  *
@@ -321,6 +341,9 @@ export function createDefaultAccessRequestClient(
     async createAccessRequest(input): Promise<AccessRequest> {
       if (input.questions !== undefined) {
         validateAccessRequestQuestions(input.questions, input.scopes);
+      }
+      if (input.collection !== undefined) {
+        validateAccessRequestCollection(input.collection);
       }
       const path = "/api/data-connection-requests";
       // Every call is an independent logical create, so it gets its own key.
@@ -344,6 +367,9 @@ export function createDefaultAccessRequestClient(
           : {}),
         ...(input.questions !== undefined
           ? { questions: input.questions }
+          : {}),
+        ...(input.collection !== undefined
+          ? { collection: input.collection }
           : {}),
         // Only when non-empty, so bodies (and their signatures) for requests
         // that remove nothing stay byte-identical to older SDKs.
@@ -422,6 +448,7 @@ export function createDefaultAccessRequestClient(
         scope?: string;
         mobileContinuationUrl?: unknown;
         scopes?: string[];
+        collection?: unknown;
       };
       // `scopes` is the full approved set; `scope` is the first of them, kept
       // for callers (and deployments) that predate the array.
@@ -438,6 +465,7 @@ export function createDefaultAccessRequestClient(
         grantId: body.grantId,
         scope: body.scope ?? scopes?.[0],
         scopes,
+        collection: normalizeCollection(body.collection),
         mobileContinuationUrl: normalizeMobileContinuationUrl(
           body.mobileContinuationUrl,
           options.env,

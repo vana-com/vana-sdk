@@ -917,3 +917,149 @@ describe("createDefaultAccessRequestClient - questions", () => {
     },
   );
 });
+
+describe("createDefaultAccessRequestClient - collection", () => {
+  const CREATE_INPUT = {
+    appAddress: "0xabc",
+    app: { id: "a", name: "A", homepageUrl: "https://a.example" },
+    source: "oura",
+    scopes: ["oura.sleep"],
+    returnUrl: "https://a.example/return",
+    network: "moksha" as const,
+  };
+
+  it.each(["fresh", "reuse"] as const)(
+    "sends collection %s in the create body and the signed message",
+    async (collection) => {
+      const bodies: string[] = [];
+      const signedMessages: string[] = [];
+      const client = createDefaultAccessRequestClient({
+        baseUrl: "https://app.vana.org",
+        approvalBaseUrl: "https://app.vana.org",
+        appAddress: "0xabc",
+        now: () => 123,
+        signMessage: async (message) => {
+          signedMessages.push(message);
+          return "0xsig" as `0x${string}`;
+        },
+        createIdempotencyKey: () => "idem-collection",
+        fetchFn: fakeFetch((_url, init) => {
+          bodies.push(init?.body ?? "");
+          return { status: 200, body: { requestId: "dcr_c" } };
+        }),
+      });
+
+      await client.createAccessRequest({ ...CREATE_INPUT, collection });
+
+      const createBody = bodies[0] ?? "";
+      expect(JSON.parse(createBody).collection).toBe(collection);
+      expect(signedMessages[0]).toBe(
+        buildDirectAccessRequestAuthMessage({
+          body: createBody,
+          method: "POST",
+          path: "/api/data-connection-requests",
+          timestamp: "123",
+        }),
+      );
+    },
+  );
+
+  it("omits the collection key when it is not passed", async () => {
+    const bodies: string[] = [];
+    const signedMessages: string[] = [];
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      appAddress: "0xabc",
+      now: () => 123,
+      signMessage: async (message) => {
+        signedMessages.push(message);
+        return "0xsig" as `0x${string}`;
+      },
+      createIdempotencyKey: () => "idem-fixed",
+      fetchFn: fakeFetch((_url, init) => {
+        bodies.push(init?.body ?? "");
+        return { status: 200, body: { requestId: "dcr_c" } };
+      }),
+    });
+
+    await client.createAccessRequest(CREATE_INPUT);
+
+    const createBody = bodies[0] ?? "";
+    expect(Object.keys(JSON.parse(createBody))).not.toContain("collection");
+    expect(createBody).not.toContain("collection");
+    expect(signedMessages[0]).toBe(
+      buildDirectAccessRequestAuthMessage({
+        body: createBody,
+        method: "POST",
+        path: "/api/data-connection-requests",
+        timestamp: "123",
+      }),
+    );
+  });
+
+  it.each([
+    { name: "an unknown string", value: "stale" },
+    { name: "an empty string", value: "" },
+    { name: "null", value: null },
+    { name: "a wrong-case value", value: "Fresh" },
+  ])("rejects $name before any request is sent", async ({ value }) => {
+    let fetchCalls = 0;
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => {
+        fetchCalls++;
+        return { status: 200, body: { requestId: "dcr_c" } };
+      }),
+    });
+
+    const create = client.createAccessRequest({
+      ...CREATE_INPUT,
+      collection: value as "fresh",
+    });
+    await expect(create).rejects.toThrow(DirectConfigError);
+    await expect(create).rejects.toThrow(
+      /collection must be "reuse" or "fresh"/,
+    );
+    expect(fetchCalls).toBe(0);
+  });
+
+  it.each(["reuse", "fresh"] as const)(
+    "returns collection %s from the status read when Web sends it",
+    async (collection) => {
+      const client = createDefaultAccessRequestClient({
+        baseUrl: "https://app.vana.org",
+        approvalBaseUrl: "https://app.vana.org",
+        fetchFn: fakeFetch(() => ({
+          status: 200,
+          body: { status: "pending", collection },
+        })),
+      });
+
+      const status = await client.getAccessRequestStatus("dcr_c");
+      expect(status.collection).toBe(collection);
+    },
+  );
+
+  it.each([
+    { name: "omits it", body: { status: "pending" } },
+    {
+      name: "sends an unknown value",
+      body: { status: "pending", collection: "stale" },
+    },
+    {
+      name: "sends a non-string value",
+      body: { status: "pending", collection: true },
+    },
+  ])("leaves collection undefined when Web $name", async ({ body }) => {
+    const client = createDefaultAccessRequestClient({
+      baseUrl: "https://app.vana.org",
+      approvalBaseUrl: "https://app.vana.org",
+      fetchFn: fakeFetch(() => ({ status: 200, body })),
+    });
+
+    const status = await client.getAccessRequestStatus("dcr_c");
+    expect(status.collection).toBeUndefined();
+  });
+});

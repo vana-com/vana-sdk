@@ -301,6 +301,12 @@ export interface AccessRequestStatus {
    * only returns `scope`, this falls back to `[scope]`.
    */
   scopes?: string[];
+  /**
+   * The collection mode the request carries (`"reuse"` or `"fresh"`). Absent
+   * against Vana Web deployments that predate the field, which behave as
+   * `"reuse"`.
+   */
+  collection?: "reuse" | "fresh";
 }
 
 /** Result of {@link DirectDataController.readApprovedData}. */
@@ -365,6 +371,13 @@ export interface AccessRequestClient {
      * create body verbatim. See {@link AccessRequestQuestion}.
      */
     questions?: AccessRequestQuestion[];
+    /**
+     * Whether to reuse data the owner's Personal Server already holds
+     * (`"reuse"`) or force a new data collection (`"fresh"`). Absent means
+     * `"reuse"`. Validated client-side and serialized into the signed create
+     * body only when provided.
+     */
+    collection?: "reuse" | "fresh";
     /**
      * Scope entries the app gives up from the owner's live grant. The
      * approval page signs the union of the live grant and `scopes` by

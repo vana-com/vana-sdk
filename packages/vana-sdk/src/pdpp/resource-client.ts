@@ -19,6 +19,13 @@
  *   are ignored.
  * - Item 32: pins `PDPP-Version: 0.1` on every RS operation, including retries and
  *   pages, and verifies the selected version before using a successful response.
+ * - Item 33: expects each StreamGrant's `required_fields` in every returned
+ *   record's `data`; a missing one is reported (it may have no stored value),
+ *   or refused with `requireRequiredFields`.
+ * - With a {@link PdppHeldDataManager}: every acquisition is recorded (it
+ *   starts the reconciliation interval), a failure that shows the grant may
+ *   have ended makes a lifecycle query due before further use (item 9), and no
+ *   request is made under a grant with an erasure instruction.
  *
  * @category PDPP
  */
@@ -29,8 +36,9 @@ import {
   pdppHttpErrorFrom,
 } from "./errors";
 import type { PdppIssuedGrant } from "./authorization";
-import type { PdppRecord, PdppRecordPage } from "./types";
+import type { PdppRecord, PdppRecordPage, PdppStreamGrant } from "./types";
 import type { PdppSyncCopy } from "./sync-copy";
+import { grantRefOf, type PdppHeldDataManager } from "./held-data";
 
 type Fetch = typeof globalThis.fetch;
 
@@ -44,18 +52,85 @@ export interface PdppResourceClientOptions {
   /** The grant this token covers, as interpreted from the token response. */
   issuedGrant: PdppIssuedGrant;
   fetch?: Fetch;
+  /** Records acquisitions and grant signals (Client items 9, 21). */
+  heldData?: PdppHeldDataManager;
+  /** Refuse a record whose `data` lacks a `required_fields` entry (Client item 33). Default: report only. */
+  requireRequiredFields?: boolean;
 }
 
 /** Thrown once the client has stopped (Client item 9). */
 export class PdppClientStoppedError extends Error {
-  constructor(readonly reason: "token_inactive" | "grant_revoked") {
+  constructor(readonly reason: "token_inactive" | "grant_revoked" | "grant_erased") {
     super(
       reason === "token_inactive"
         ? "the access token is inactive; obtain a new one before further requests"
-        : "the grant was revoked; no further requests are made against it",
+        : reason === "grant_revoked"
+          ? "the grant was revoked; no further requests are made against it"
+          : "an erasure instruction applies to the grant; no further requests are made against it",
     );
     this.name = "PdppClientStoppedError";
   }
+}
+
+/** A returned record that lacks fields of its StreamGrant's `required_fields`. */
+export interface PdppRequiredFieldGap {
+  stream: string;
+  instanceId: string;
+  id: string;
+  missing: string[];
+}
+
+/**
+ * Client item 33: the `required_fields` absent from a returned record's
+ * `data`. Absence may mean the stored version has no value, so this is an
+ * observation, not proof of a bad RS. Tombstones carry no `data` and have none.
+ */
+export function missingRequiredFields(record: PdppRecord, streamGrant: PdppStreamGrant): string[] {
+  if (record.deleted === true) return [];
+  const data = record.data ?? {};
+  return streamGrant.required_fields.filter((f) => !Object.prototype.hasOwnProperty.call(data, f));
+}
+
+/** Protected resource metadata members this client reads (spec-core #protected-resource-metadata). */
+export interface PdppProtectedResourceMetadata {
+  resource: string;
+  authorization_servers?: string[];
+  pdpp_core_query_base: string;
+  pdpp_provider_connect_version?: string;
+  [member: string]: unknown;
+}
+
+/** RFC 9728 §3: the well-known string inserted between host and path of the resource identifier. */
+export function protectedResourceMetadataUrl(resource: string): string {
+  const url = new URL(resource);
+  const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
+  return `${url.origin}/.well-known/oauth-protected-resource${path}${url.search}`;
+}
+
+/**
+ * Fetch protected resource metadata without `PDPP-Version` negotiation, check
+ * its `resource`, and resolve `pdpp_core_query_base` against it. The version
+ * is still pinned on every record request; nothing is inferred from the path.
+ */
+export async function discoverPdppResourceServer(
+  resource: string,
+  options: { fetch?: Fetch; metadataUrl?: string } = {},
+): Promise<PdppProtectedResourceMetadata & { coreQueryBaseUrl: string }> {
+  const doFetch = options.fetch ?? globalThis.fetch;
+  const response = await doFetch(options.metadataUrl ?? protectedResourceMetadataUrl(resource), {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw await pdppHttpErrorFrom(response);
+  const metadata = (await response.json()) as PdppProtectedResourceMetadata;
+  if (metadata.resource !== resource) {
+    throw new PdppProtocolError(
+      `protected resource metadata names resource ${String(metadata.resource)}, not ${resource}`,
+    );
+  }
+  if (typeof metadata.pdpp_core_query_base !== "string") {
+    throw new PdppProtocolError("protected resource metadata has no pdpp_core_query_base");
+  }
+  return { ...metadata, coreQueryBaseUrl: new URL(metadata.pdpp_core_query_base, resource).toString() };
 }
 
 export class PdppResourceClient {
@@ -87,27 +162,63 @@ export class PdppResourceClient {
   }
 
   /** One page of a list read. `fields` must be within the grant (else 403 `field_not_granted`). */
-  listRecords(
+  async listRecords(
     stream: string,
     query: { limit?: number; cursor?: string; order?: "asc" | "desc"; fields?: string[] } = {},
   ): Promise<PdppRecordPage> {
-    return this.get(`/streams/${encodeURIComponent(stream)}/records`, {
+    const page = (await this.get(`/streams/${encodeURIComponent(stream)}/records`, {
       ...(query.limit !== undefined && { limit: String(query.limit) }),
       ...(query.cursor !== undefined && { cursor: query.cursor }),
       ...(query.order !== undefined && { order: query.order }),
       ...(query.fields !== undefined && { fields: query.fields.join(",") }),
-    }) as Promise<PdppRecordPage>;
+    })) as PdppRecordPage;
+    // Client item 10: records read outside sync are held data the client reconciles itself.
+    for (const record of page.data ?? []) this.observe(stream, record);
+    return page;
+  }
+
+  /** Required-field gaps seen so far (Client item 33). */
+  get requiredFieldGaps(): readonly PdppRequiredFieldGap[] {
+    return this.gaps;
+  }
+
+  private readonly gaps: PdppRequiredFieldGap[] = [];
+
+  /** Record an acquisition and check required fields for one returned record. */
+  private observe(stream: string, record: PdppRecord): void {
+    // A delivery that arrives after an erasure instruction is covered data:
+    // it is never applied or returned, and the session is not committed.
+    if (this.options.heldData?.erasureRecord(grantRefOf(this.options.issuedGrant))) {
+      this.stopped = new PdppClientStoppedError("grant_erased");
+      throw this.stopped;
+    }
+    if (record.deleted === true) return;
+    const streamGrant = this.options.issuedGrant.grant.streams.find((s) => s.name === stream);
+    if (streamGrant) {
+      const missing = missingRequiredFields(record, streamGrant);
+      if (missing.length > 0) {
+        if (this.options.requireRequiredFields) {
+          throw new PdppProtocolError(
+            `record ${record.instance_id}/${record.id} lacks required fields ${missing.join(", ")}`,
+          );
+        }
+        this.gaps.push({ stream, instanceId: record.instance_id, id: record.id, missing });
+      }
+    }
+    this.options.heldData?.recordAcquisition(grantRefOf(this.options.issuedGrant), this.options.issuedGrant.grant);
   }
 
   /**
    * A single record. A 404 raises {@link PdppHttpError}; it is not evidence
    * that the record does not exist at the source (Client item 11).
    */
-  getRecord(stream: string, id: string, instanceId?: string): Promise<PdppRecord> {
-    return this.get(
+  async getRecord(stream: string, id: string, instanceId?: string): Promise<PdppRecord> {
+    const record = (await this.get(
       `/streams/${encodeURIComponent(stream)}/records/${encodeURIComponent(id)}`,
       instanceId ? { instance_id: instanceId } : {},
-    ) as Promise<PdppRecord>;
+    )) as PdppRecord;
+    this.observe(stream, record);
+    return record;
   }
 
   /**
@@ -168,6 +279,7 @@ export class PdppResourceClient {
         ...(query.limit !== undefined && { limit: String(query.limit) }),
       })) as PdppRecordPage;
       for (const record of page.data ?? []) {
+        this.observe(stream, record);
         session.apply(record);
         applied += 1;
       }
@@ -189,6 +301,10 @@ export class PdppResourceClient {
 
   private async get(path: string, params: Record<string, string>): Promise<unknown> {
     if (this.stopped) throw this.stopped;
+    if (this.options.heldData?.erasureRecord(grantRefOf(this.options.issuedGrant))) {
+      this.stopped = new PdppClientStoppedError("grant_erased");
+      throw this.stopped;
+    }
     const url = new URL(this.base + path);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
     const response = await this.doFetch(url.toString(), {
@@ -200,6 +316,8 @@ export class PdppResourceClient {
     });
     if (!response.ok) {
       const error = await pdppHttpErrorFrom(response);
+      // Client item 9: a sign the grant may have ended obliges a lifecycle query before further use.
+      this.options.heldData?.recordGrantSignal(grantRefOf(this.options.issuedGrant), error);
       if (error.tokenInactive) {
         this.stopped = new PdppClientStoppedError(
           error.grantRevoked ? "grant_revoked" : "token_inactive",

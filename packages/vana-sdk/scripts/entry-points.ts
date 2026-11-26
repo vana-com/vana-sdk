@@ -17,6 +17,8 @@ export const NODE_ENTRY_POINTS = [
   "src/protocol/jobs-client.ts",
   // Session Relay service integration (builder and app handoff clients).
   "src/session-relay.ts",
+  // PDPP Core v0.1.0 client role (fetch only, isomorphic).
+  "src/pdpp.ts",
 ];
 
 export const BROWSER_ENTRY_POINTS = [
@@ -32,6 +34,8 @@ export const BROWSER_ENTRY_POINTS = [
   "src/connect/protocol.ts",
   // Session Relay service integration (browser-safe with injected signer).
   "src/session-relay.ts",
+  // PDPP Core v0.1.0 client role (fetch only, isomorphic).
+  "src/pdpp.ts",
 ];
 
 // Environment-agnostic entry points (resolve conditionally based on platform)

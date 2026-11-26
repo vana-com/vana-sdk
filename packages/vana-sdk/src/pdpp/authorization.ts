@@ -10,7 +10,9 @@
  *   authorization is never inferred from the original request.
  * - Item 27: a purpose code outside Appendix A carries a non-empty `purpose_description`.
  * - Item 28: the authenticated AS issuer is retained with every grant.
- * - Item 33: `required_fields` is read from the result, never from a declaration.
+ * - Item 18: requests no processing permission (this client supports none).
+ * - Item 33: `required_fields` is read from the result, never from a declaration,
+ *   and must be a subset of the stream's `fields`.
  *
  * @category PDPP
  */
@@ -18,6 +20,7 @@
 import { PdppProtocolError, pdppHttpErrorFrom } from "./errors";
 import {
   PDPP_APPENDIX_A_PURPOSES,
+  PDPP_CLIENT_SUPPORTED_PROCESSING_PERMISSIONS,
   PDPP_DATA_ACCESS_TYPE,
   type PdppDataAccessDetail,
   type PdppGrant,
@@ -31,6 +34,12 @@ export interface PdppAuthorizationServerMetadata {
   authorization_endpoint?: string;
   token_endpoint: string;
   authorization_details_types_supported?: string[];
+  /** RFC 7009 client revocation (spec-core #revocation). Optional. */
+  revocation_endpoint?: string;
+  /** The grant lifecycle operation; every AS MUST provide it (spec-core #grant-lifecycle). */
+  pdpp_grant_lifecycle_endpoint?: string;
+  /** Absent or empty means the AS supports none (spec-core #processing-permissions). */
+  pdpp_processing_permissions_supported?: string[];
   [member: string]: unknown;
 }
 
@@ -120,6 +129,15 @@ export function buildDataAccessDetail(
       );
     }
   }
+  // Client item 18 / O7: a permission is requested only when supported end to
+  // end. This client implements no defining profile, so it requests none.
+  for (const permission of detail.processing_permissions ?? []) {
+    if (!PDPP_CLIENT_SUPPORTED_PROCESSING_PERMISSIONS.includes(permission)) {
+      throw new TypeError(
+        `processing permission ${permission} is not supported by this client; no v0.1 permission is registered`,
+      );
+    }
+  }
   if (
     !PDPP_APPENDIX_A_PURPOSES.includes(detail.purpose_code) &&
     !(typeof detail.purpose_description === "string" && detail.purpose_description.trim() !== "")
@@ -129,6 +147,49 @@ export function buildDataAccessDetail(
     );
   }
   return { type: PDPP_DATA_ACCESS_TYPE, ...detail };
+}
+
+/**
+ * An RFC 9396 authorization request (Client item 1).
+ *
+ * `query` is the front-channel form: `authorization_details` is a JSON string
+ * parameter. `json` is the same request as a JSON body, the form a consent
+ * broker posts to an AS that takes JSON (for example the Vana Personal Server).
+ */
+export function buildAuthorizationRequest(input: {
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  details: PdppDataAccessDetail[];
+  state?: string;
+}): { query: URLSearchParams; json: Record<string, unknown> } {
+  if (input.details.length === 0) {
+    throw new TypeError("an authorization request carries at least one detail");
+  }
+  for (const detail of input.details) {
+    if (detail.type !== PDPP_DATA_ACCESS_TYPE) {
+      throw new TypeError("every detail must have type https://pdpp.dev/data-access");
+    }
+  }
+  const json = {
+    response_type: "code",
+    client_id: input.clientId,
+    redirect_uri: input.redirectUri,
+    code_challenge: input.codeChallenge,
+    code_challenge_method: "S256",
+    authorization_details: input.details,
+    ...(input.state !== undefined && { state: input.state }),
+  };
+  const query = new URLSearchParams({
+    response_type: "code",
+    client_id: input.clientId,
+    redirect_uri: input.redirectUri,
+    code_challenge: input.codeChallenge,
+    code_challenge_method: "S256",
+    authorization_details: JSON.stringify(input.details),
+    ...(input.state !== undefined && { state: input.state }),
+  });
+  return { query, json };
 }
 
 /** RFC 7636 S256 PKCE pair. */
@@ -224,6 +285,11 @@ function checkGrant(grant: unknown, index: number): PdppGrant {
       !strings(stream.required_fields)
     ) {
       fail(`stream ${String(stream?.name)} lacks name, instance_ids, fields or required_fields`);
+    }
+    const fields = stream.fields as string[];
+    const required = stream.required_fields as string[];
+    if (new Set(required).size !== required.length || !required.every((f) => fields.includes(f))) {
+      fail(`stream ${String(stream.name)} has required_fields that are repeated or not in fields`);
     }
   }
   return grant as PdppGrant;

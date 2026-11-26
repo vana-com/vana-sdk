@@ -8,7 +8,13 @@
  * - A tombstone for a record that is not held is a no-op (Client item 10).
  * - A completed `beginning` session replaces the stream's copy (Client item 5).
  * - Retention counts from each record's first acquisition and never restarts;
- *   `on_expiry` applies at the ceiling with no grace period (Client item 6).
+ *   `on_expiry` applies at the ceiling with no grace period (Client item 6). A
+ *   `max_duration` not of the form `PnD` (n ≥ 1) fails closed: the ceiling
+ *   counts as already reached (spec-core #grant-retention).
+ * - It is a {@link PdppHeldDataStore}: an erasure instruction deletes every
+ *   record and sync token of the grant in every query context (Client item 22).
+ * - Its clock never runs backwards: a rollback cannot move a ceiling later
+ *   (case C5a).
  *
  * This in-memory store is the reference behaviour. An application that keeps
  * the copy elsewhere implements {@link PdppSyncCopy} with the same rules, and
@@ -18,6 +24,7 @@
  */
 
 import type { PdppRecord } from "./types";
+import type { PdppGrantRef, PdppHeldDataStore } from "./held-data";
 
 /** The query context a sync token is bound to. */
 export interface PdppSyncContext {
@@ -51,18 +58,63 @@ const recordKey = (instanceId: string, id: string) => `${instanceId}\u0000${id}`
 
 /** Parse an ISO 8601 `PnD` duration (the only form spec-core allows for `max_duration`). */
 export function parseRetentionDays(maxDuration: string): number {
-  const match = /^P(\d+)D$/.exec(maxDuration);
+  const match = /^P([1-9]\d*)D$/.exec(maxDuration);
   if (!match) throw new TypeError(`retention.max_duration ${maxDuration} is not PnD`);
   return Number(match[1]);
 }
 
-export class InMemoryPdppSyncCopy implements PdppSyncCopy {
+export interface InMemoryPdppSyncCopyOptions {
+  /**
+   * Called with the keys of records disposed at their retention ceiling, so
+   * the app applies the same ceiling to their derivatives (Client item 6).
+   */
+  onExpired?: (
+    context: PdppSyncContext,
+    records: Array<{ instanceId: string; id: string }>,
+  ) => void;
+}
+
+export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
   private readonly tokens = new Map<string, string>();
   private readonly streams = new Map<string, Map<string, PdppHeldRecord>>();
+  private readonly contexts = new Map<string, PdppSyncContext>();
   /** First-acquisition times survive copy replacement and deletion-then-reacquisition. */
   private readonly firstSeen = new Map<string, number>();
+  private floor = Number.NEGATIVE_INFINITY;
+  private readonly clock: () => number;
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(
+    now: () => number = Date.now,
+    private readonly options: InMemoryPdppSyncCopyOptions = {},
+  ) {
+    this.clock = now;
+  }
+
+  private now(): number {
+    this.floor = Math.max(this.floor, this.clock());
+    return this.floor;
+  }
+
+  /** Whether any record of the grant is held, in any query context. */
+  holdsData(ref: Pick<PdppGrantRef, "grantId">): boolean {
+    for (const [key, held] of this.streams) {
+      if (this.contexts.get(key)?.grantId === ref.grantId && held.size > 0) return true;
+    }
+    return false;
+  }
+
+  /** Delete every record, sync token and acquisition time of the grant (erasure). */
+  erase(ref: Pick<PdppGrantRef, "grantId">): void {
+    for (const [key, context] of this.contexts) {
+      if (context.grantId !== ref.grantId) continue;
+      this.streams.delete(key);
+      this.tokens.delete(key);
+      for (const fk of [...this.firstSeen.keys()]) {
+        if (fk.startsWith(`${key}\u0001`)) this.firstSeen.delete(fk);
+      }
+      this.contexts.delete(key);
+    }
+  }
 
   syncToken(context: PdppSyncContext): string | undefined {
     return this.tokens.get(contextKey(context));
@@ -74,6 +126,7 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy {
 
   beginSession(context: PdppSyncContext, options: { replace: boolean }): PdppSyncSession {
     const key = contextKey(context);
+    this.contexts.set(key, { ...context });
     const current = this.streams.get(key) ?? new Map<string, PdppHeldRecord>();
     // A `beginning` session builds its result in isolation and replaces the copy on commit.
     const target = options.replace ? new Map<string, PdppHeldRecord>() : new Map(current);
@@ -111,24 +164,41 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy {
    * applies the same ceiling to its derivatives.
    */
   applyRetention(
-    context: PdppSyncContext,
+    target: PdppSyncContext | Pick<PdppGrantRef, "grantId">,
     retention: { max_duration: string; on_expiry: "delete" | "anonymize" },
     anonymize?: (data: Record<string, unknown>) => Record<string, unknown>,
   ): { expired: number } {
-    const ceilingMs = parseRetentionDays(retention.max_duration) * 86_400_000;
+    const now = this.now();
+    if (!("stream" in target)) {
+      // Every query context of the grant (the held-data store form, called before use).
+      let expired = 0;
+      for (const context of [...this.contexts.values()]) {
+        if (context.grantId === target.grantId) {
+          expired += this.applyRetention(context, retention, anonymize).expired;
+        }
+      }
+      return { expired };
+    }
+    const context = target;
+    let ceilingMs: number;
+    try {
+      ceilingMs = parseRetentionDays(retention.max_duration) * 86_400_000;
+    } catch {
+      ceilingMs = 0; // fail closed: every ceiling is already reached
+    }
     const held = this.streams.get(contextKey(context));
     if (!held) return { expired: 0 };
-    let expired = 0;
-    const now = this.now();
+    const expiredKeys: Array<{ instanceId: string; id: string }> = [];
     for (const [rk, record] of held) {
       if (now - record.firstAcquiredAt < ceilingMs) continue;
-      expired += 1;
+      expiredKeys.push({ instanceId: record.instanceId, id: record.id });
       if (retention.on_expiry === "anonymize" && anonymize) {
         held.set(rk, { ...record, data: anonymize(record.data) });
       } else {
         held.delete(rk);
       }
     }
-    return { expired };
+    if (expiredKeys.length > 0) this.options.onExpired?.(context, expiredKeys);
+    return { expired: expiredKeys.length };
   }
 }

@@ -13,6 +13,22 @@
 /** The Core data-access detail type (spec-core §6). */
 export const PDPP_DATA_ACCESS_TYPE = "https://pdpp.dev/data-access";
 
+/** The lifecycle recovery detail type (spec-core #lifecycle-recovery). */
+export const PDPP_GRANT_LIFECYCLE_TYPE = "https://pdpp.dev/grant-lifecycle";
+
+/** The one processing permission Core defines; reserved and unsupported in v0.1 (spec-core #ai-training). */
+export const PDPP_AI_TRAINING_PERMISSION = "https://pdpp.dev/processing/ai_training";
+
+/** The legacy purpose code; it confers no AI training authority (Client item 17). */
+export const PDPP_LEGACY_AI_TRAINING_PURPOSE = "https://pdpp.dev/purpose/ai_training";
+
+/**
+ * Processing permissions this client can exercise. Empty: v0.1 registers no
+ * supported permission, so no client holds training or independent-disclosure
+ * authority (spec-core #processing-permissions).
+ */
+export const PDPP_CLIENT_SUPPORTED_PROCESSING_PERMISSIONS: readonly string[] = [];
+
 /** Purpose codes registered in spec-core Appendix A. */
 export const PDPP_APPENDIX_A_PURPOSES: readonly string[] = [
   "https://pdpp.dev/purpose/agent_context",
@@ -45,6 +61,8 @@ export interface PdppDataAccessDetail {
   streams?: PdppStreamRequest[];
   selection_preset?: string;
   retention?: { max_duration: string; on_expiry: "delete" | "anonymize" };
+  /** Client item 18: only permissions the AS advertises; this client supports none. */
+  processing_permissions?: string[];
 }
 
 /** StreamGrant (spec-core §7 "StreamGrant fields"). */

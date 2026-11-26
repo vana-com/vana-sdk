@@ -65,6 +65,32 @@ export class PdppHttpError extends Error {
   get grantRevoked(): boolean {
     return this.code === "grant_revoked";
   }
+
+  /**
+   * The failure shows the grant may have ended (spec-core #reconciliation):
+   * 401 `invalid_token`, `grant_revoked`, `grant_expired`,
+   * `package_child_inactive`, or `invalid_grant` from the token endpoint.
+   * It is never proof of revocation (Client item 9); it only obliges a
+   * lifecycle query before further use of held data.
+   */
+  get grantMayHaveEnded(): boolean {
+    return (
+      this.tokenInactive ||
+      this.code === "grant_revoked" ||
+      this.code === "grant_expired" ||
+      this.code === "package_child_inactive" ||
+      this.code === "invalid_grant"
+    );
+  }
+
+  /** `Retry-After` in milliseconds (delta-seconds or HTTP-date), if usable. */
+  retryAfterMs(now: number = Date.now()): number | undefined {
+    if (this.retryAfter === undefined) return undefined;
+    const trimmed = this.retryAfter.trim();
+    if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1000;
+    const at = Date.parse(trimmed);
+    return Number.isNaN(at) ? undefined : Math.max(0, at - now);
+  }
 }
 
 /** Raised when a response breaks the protocol (e.g. a wrong PDPP-Version); its data must not be used. */

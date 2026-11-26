@@ -6,9 +6,14 @@ import {
   PdppResourceClient,
   PdppClientStoppedError,
   InMemoryPdppSyncCopy,
+  PdppHeldDataManager,
   assertSupportsDataAccess,
   authorizationServerMetadataUrl,
+  buildAuthorizationRequest,
   buildDataAccessDetail,
+  discoverPdppResourceServer,
+  missingRequiredFields,
+  protectedResourceMetadataUrl,
   createPkcePair,
   discoverPdppAuthorizationServer,
   exchangeAuthorizationCode,
@@ -294,5 +299,117 @@ describe("sync (Client items 3, 4, 5, 6, 10)", () => {
     now += 11 * 86_400_000;
     expect(copy.applyRetention(ctx, { max_duration: "P30D", on_expiry: "delete" })).toEqual({ expired: 1 });
     expect(copy.records(ctx)).toHaveLength(0);
+  });
+});
+
+describe("slice 2 re-check of slice 1 items (Client items 1, 6, 9, 10, 13, 32, 33)", () => {
+  const issuedGrant = { issuer: ISSUER, grant: grant() };
+  const rec = (id: string, data: Record<string, unknown>) => ({ object: "record" as const, id, instance_id: "inst_A", stream: "top_artists", data });
+
+  it("Client 1: builds the RFC 9396 authorization request in query and JSON form", async () => {
+    const detail = buildDataAccessDetail({
+      source: { id: "https://registry.pdpp.dev/sources/spotify" },
+      purpose_code: "https://pdpp.dev/purpose/personalization",
+      access_mode: "continuous",
+      streams: [{ name: "top_artists", fields: ["*"] }],
+    });
+    const { codeChallenge } = await createPkcePair();
+    const request = buildAuthorizationRequest({ clientId: "c", redirectUri: "https://app.example/cb", codeChallenge, details: [detail] });
+    expect(JSON.parse(request.query.get("authorization_details")!)).toEqual([detail]);
+    expect(request.query.get("code_challenge_method")).toBe("S256");
+    expect(request.json.authorization_details).toEqual([detail]);
+    expect(() => buildAuthorizationRequest({ clientId: "c", redirectUri: "r", codeChallenge, details: [] })).toThrow();
+  });
+
+  it("Client 32: every page and the 410 restart pin PDPP-Version; a wrong version on a later page is not used and nothing falls back", async () => {
+    const copy = new InMemoryPdppSyncCopy();
+    const { fetch, calls } = scripted([
+      json(page({ has_more: true, next_cursor: "pc_2", data: [rec("r1", { id: "r1" })] }), { headers: v }),
+      json({ error: { code: "cursor_expired", type: "gone_error", message: "x" } }, { status: 410, headers: v }),
+      json(page({ has_more: true, next_cursor: "pc_3", data: [rec("r1", { id: "r1" })] }), { headers: v }),
+      json(page({ next_changes_since: "cs_1", data: [rec("r2", { id: "r2" })] }), { headers: { "PDPP-Version": "0.2" } }),
+    ]);
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+    await expect(client.sync("top_artists", copy)).rejects.toThrow(PdppProtocolError);
+    expect(calls.map((c) => c.headers.get("PDPP-Version"))).toEqual(["0.1", "0.1", "0.1", "0.1"]);
+    expect(calls).toHaveLength(4); // no retry without the pin, no fallback request
+    expect(copy.syncToken({ grantId: "grt_1", stream: "top_artists" })).toBeUndefined();
+  });
+
+  it("Client 33: required_fields must be unique and within fields", () => {
+    const g = grant();
+    g.streams[0]!.required_fields = ["id", "genre"];
+    expect(() =>
+      interpretTokenResponse({ access_token: "t", authorization_details: [{ type: PDPP_DATA_ACCESS_TYPE, grant: g }] }, ISSUER),
+    ).toThrow(/required_fields/);
+  });
+
+  it("Client 33: a record without a required field is reported, or refused in strict mode", async () => {
+    const lax = scripted([json(page({ data: [rec("r1", { name: "x" }), rec("r2", { id: "r2" })] }), { headers: v })]);
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch: lax.fetch });
+    await client.listRecords("top_artists");
+    expect(client.requiredFieldGaps).toEqual([{ stream: "top_artists", instanceId: "inst_A", id: "r1", missing: ["id"] }]);
+    expect(missingRequiredFields({ object: "record", id: "x", instance_id: "i", stream: "s", deleted: true }, grant().streams[0]!)).toEqual([]);
+    const strict = scripted([json(page({ data: [rec("r1", { name: "x" })] }), { headers: v })]);
+    const strictClient = new PdppResourceClient({
+      coreQueryBase: "https://ps.example/v1",
+      accessToken: "at",
+      issuedGrant,
+      fetch: strict.fetch,
+      requireRequiredFields: true,
+    });
+    await expect(strictClient.listRecords("top_artists")).rejects.toThrow(/required fields id/);
+  });
+
+  it.each(["P0D", "P1M", "P30DT1H", "30"])("Client 6: an invalid max_duration %s fails closed as already reached", (maxDuration) => {
+    const now = Date.parse("2026-01-01T00:00:00Z");
+    const expiredSeen: unknown[] = [];
+    const copy = new InMemoryPdppSyncCopy(() => now, { onExpired: (_c, records) => expiredSeen.push(...records) });
+    const ctx = { grantId: "grt_1", stream: "top_artists" };
+    const session = copy.beginSession(ctx, { replace: true });
+    session.apply(rec("r1", { id: "r1" }));
+    session.commit("cs");
+    expect(copy.applyRetention(ctx, { max_duration: maxDuration, on_expiry: "delete" })).toEqual({ expired: 1 });
+    expect(expiredSeen).toEqual([{ instanceId: "inst_A", id: "r1" }]);
+  });
+
+  it("Client 6: a clock moving backwards never moves a retention ceiling later", () => {
+    let now = Date.parse("2026-01-01T00:00:00Z");
+    const copy = new InMemoryPdppSyncCopy(() => now);
+    const ctx = { grantId: "grt_1", stream: "top_artists" };
+    const s1 = copy.beginSession(ctx, { replace: true });
+    s1.apply(rec("r1", { id: "r1" }));
+    s1.commit("cs");
+    now += 31 * 86_400_000;
+    copy.applyRetention({ grantId: "grt_other" }, { max_duration: "P30D", on_expiry: "delete" }); // observes the time
+    now -= 10 * 86_400_000;
+    expect(copy.applyRetention(ctx, { max_duration: "P30D", on_expiry: "delete" })).toEqual({ expired: 1 });
+  });
+
+  it("Client 10: records read outside sync are recorded as held data for reconciliation", async () => {
+    const manager = new PdppHeldDataManager({ now: () => Date.parse("2026-01-01T00:00:00Z") });
+    const { fetch } = scripted([json(page({ data: [rec("r1", { id: "r1" })] }), { headers: v })]);
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch, heldData: manager });
+    await client.listRecords("top_artists");
+    expect(manager.nextAttemptAt({ issuer: ISSUER, grantId: "grt_1" })).toBe(Date.parse("2026-01-02T00:00:00Z"));
+  });
+
+  it("Client 9: no request is made under a grant with an erasure instruction", async () => {
+    const manager = new PdppHeldDataManager();
+    await manager.ownerChoseDelete({ issuer: ISSUER, grantId: "grt_1" });
+    const { fetch, calls } = scripted([]);
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch, heldData: manager });
+    await expect(client.listRecords("top_artists")).rejects.toMatchObject({ reason: "grant_erased" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("RS discovery: derives the RFC 9728 URL, sends no PDPP-Version, checks resource, resolves a relative core base", async () => {
+    expect(protectedResourceMetadataUrl("https://ps.example")).toBe("https://ps.example/.well-known/oauth-protected-resource");
+    const { fetch, calls } = scripted([json({ resource: "https://ps.example", pdpp_core_query_base: "/v1", pdpp_token_kinds_supported: ["client"] })]);
+    const metadata = await discoverPdppResourceServer("https://ps.example", { fetch });
+    expect(metadata.coreQueryBaseUrl).toBe("https://ps.example/v1");
+    expect(calls[0]!.headers.has("PDPP-Version")).toBe(false);
+    const wrong = scripted([json({ resource: "https://evil.example", pdpp_core_query_base: "/v1" })]);
+    await expect(discoverPdppResourceServer("https://ps.example", { fetch: wrong.fetch })).rejects.toThrow(/resource/);
   });
 });

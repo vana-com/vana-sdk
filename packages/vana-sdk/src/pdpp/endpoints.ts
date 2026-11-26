@@ -35,9 +35,30 @@ export const PDPP_FETCH_REDIRECT: RequestRedirect = "error";
 /** Default timeout for AS requests (token, lifecycle, revocation, metadata). */
 export const PDPP_REQUEST_TIMEOUT_MS = 30_000;
 
+/** Parse an IPv6 literal (already normalized by the URL parser) into eight 16-bit groups. */
+function ipv6Groups(h: string): number[] | undefined {
+  let text = h;
+  const v4 = /(\d+\.\d+\.\d+\.\d+)$/.exec(text);
+  if (v4) {
+    const parts = v4[1]!.split(".").map(Number);
+    text = `${text.slice(0, -v4[1]!.length)}${((parts[0]! << 8) | parts[1]!).toString(16)}:${((parts[2]! << 8) | parts[3]!).toString(16)}`;
+  }
+  const [head, tail] = text.split("::");
+  const a = head ? head.split(":") : [];
+  const b = tail !== undefined ? (tail ? tail.split(":") : []) : [];
+  const fill = tail !== undefined ? 8 - a.length - b.length : 0;
+  const groups = [...a, ...Array<string>(Math.max(0, fill)).fill("0"), ...b].map((g) => parseInt(g, 16));
+  return groups.length === 8 && groups.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff) ? groups : undefined;
+}
+
+/** Hostname suffixes reserved for local or private use. */
+const LOCAL_SUFFIXES = [".localhost", ".local", ".internal", ".home.arpa", ".lan"];
+
 function isLocalHost(hostname: string): { local: boolean; loopback: boolean } {
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  // A trailing dot names the same host (review R2-2).
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.+$/, "");
   if (h === "localhost" || h.endsWith(".localhost")) return { local: true, loopback: true };
+  if (LOCAL_SUFFIXES.some((suffix) => h.endsWith(suffix)) || h === "internal") return { local: true, loopback: false };
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
   if (v4) {
     const [a, b] = [Number(v4[1]), Number(v4[2])];
@@ -53,11 +74,22 @@ function isLocalHost(hostname: string): { local: boolean; loopback: boolean } {
     return { local, loopback };
   }
   if (h.includes(":")) {
-    const loopback = h === "::1";
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(h);
-    if (mapped) return isLocalHost(mapped[1]!);
-    const local = loopback || h === "::" || /^f[cd]/.test(h) || /^fe[89ab]/.test(h);
-    return { local, loopback };
+    const g = ipv6Groups(h);
+    if (!g) return { local: true, loopback: false }; // unparseable: fail closed
+    const zeros = (from: number, to: number) => g.slice(from, to).every((x) => x === 0);
+    const v4 = `${g[6]! >> 8}.${g[6]! & 255}.${g[7]! >> 8}.${g[7]! & 255}`;
+    // IPv4-mapped (::ffff:a.b.c.d), IPv4-compatible (::a.b.c.d), NAT64 (64:ff9b::/96 and 64:ff9b:1::/48).
+    if (zeros(0, 5) && (g[5] === 0xffff || g[5] === 0)) {
+      if (zeros(0, 7) && (g[7] === 0 || g[7] === 1)) return { local: true, loopback: g[7] === 1 };
+      return isLocalHost(v4);
+    }
+    if (g[0] === 0x64 && g[1] === 0xff9b) return isLocalHost(v4);
+    const local =
+      (g[0]! & 0xfe00) === 0xfc00 || // unique local
+      (g[0]! & 0xffc0) === 0xfe80 || // link-local
+      (g[0]! & 0xffc0) === 0xfec0 || // site-local (deprecated)
+      (g[0]! & 0xff00) === 0xff00; // multicast
+    return { local, loopback: false };
   }
   return { local: false, loopback: false };
 }

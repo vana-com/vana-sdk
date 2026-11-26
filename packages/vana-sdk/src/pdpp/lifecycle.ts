@@ -24,6 +24,10 @@
 
 import { PdppHttpError, PdppProtocolError, pdppHttpErrorFrom } from "./errors";
 import {
+  exchangeAuthorizationCode as exchangeCode,
+  refreshPdppToken as refreshToken,
+} from "./authorization";
+import {
   PDPP_FETCH_REDIRECT,
   PDPP_REQUEST_TIMEOUT_MS,
   assertPdppEndpoint,
@@ -32,6 +36,7 @@ import {
 } from "./endpoints";
 import type { PdppAuthorizationServerMetadata, PdppTokenResult } from "./authorization";
 import {
+  PdppStatePersistError,
   type PdppHeldDataManager,
   type PdppGrantRef,
   type PdppLifecycleAnswer,
@@ -535,6 +540,8 @@ export class PdppLifecycleAgent {
     this.timer = setInterval(() => {
       void this.runDue();
     }, intervalMs);
+    // Never keeps a Node process alive on its own.
+    (this.timer as { unref?: () => void }).unref?.();
   }
 
   stop(): void {
@@ -555,6 +562,32 @@ export class PdppLifecycleAgent {
       this.options.credentials.recordTokenResponse(result);
     }
     for (const issued of result.grants) this.manager.recordTokenResponse(issued);
+  }
+
+  /**
+   * Exchange an authorization code and record the result in the manager and,
+   * for the in-memory credential store, the credentials, so later lifecycle
+   * queries have a token.
+   */
+  async exchangeAuthorizationCode(
+    input: Omit<Parameters<typeof exchangeCode>[0], "heldData">,
+  ): Promise<PdppTokenResult> {
+    const result = await exchangeCode({ ...input, heldData: this.manager });
+    this.recordCredentials(result);
+    return result;
+  }
+
+  /** Refresh a family's tokens; success and failure reach the manager (see `refreshPdppToken`). */
+  async refresh(input: Omit<Parameters<typeof refreshToken>[0], "heldData">): Promise<PdppTokenResult> {
+    const result = await refreshToken({ ...input, heldData: this.manager });
+    this.recordCredentials(result);
+    return result;
+  }
+
+  private recordCredentials(result: PdppTokenResult): void {
+    if (this.options.credentials instanceof InMemoryPdppLifecycleCredentials) {
+      this.options.credentials.recordTokenResponse(result);
+    }
   }
 
   /** One lifecycle query attempt. Resolves when it is answered or fails; never throws. */
@@ -582,6 +615,11 @@ export class PdppLifecycleAgent {
       await this.sendReports(ref);
       return "answered";
     } catch (error) {
+      if (error instanceof PdppStatePersistError) {
+        // Review R2-4: the answer was applied and use stopped; only the save failed.
+        // The manager has reported it and retries the save on every runDue.
+        return "answered";
+      }
       if (error instanceof PdppHttpError) {
         const retryAfterMs = error.retryAfterMs(this.manager.now());
         this.manager.recordFailure(ref, attempt, {
@@ -610,6 +648,7 @@ export class PdppLifecycleAgent {
    * the next one.
    */
   async runDue(): Promise<Array<"answered" | "failed">> {
+    await this.manager.retryPersist();
     for (const ref of this.manager.knownGrants()) {
       try {
         await this.manager.disposeDue(ref);

@@ -583,6 +583,7 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     hold();
     let failing = true;
     await manager.addStore({
+      id: "disk",
       holdsData: () => failing,
       erase: () => {
         if (failing) throw new Error("disk offline");
@@ -591,7 +592,7 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     as.erase("grt_1", clock.now());
     await agent.query(ref);
     expect(manager.erasureRecord(ref)!.completedAt).toBeUndefined();
-    expect(manager.erasureRecord(ref)!.pending).toEqual(["store:1"]);
+    expect(manager.erasureRecord(ref)!.pending).toEqual(["store:disk"]);
     clock.advance(PDPP_DELETION_BOUND_MS + H); // powered off past the deadline
     failing = false;
     expect(await agent.ensureMayUse(ref)).toEqual({ allowed: false, reason: "erased" });

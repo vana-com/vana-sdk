@@ -16,7 +16,10 @@
  *   start even while it is unanswered, `Retry-After` and transport-failure
  *   widening capped at the reconciliation interval, a query before further use
  *   after a sign that the grant may have ended or after an attempt fell due).
- *   A failed query never stops permitted use.
+ *   A failed query never stops permitted use, with one exception: when no
+ *   credential can query at all (`recovery_required`), use stops until a
+ *   query succeeds, because no erasure could ever be learned (review R2-5).
+ *   The app shows `grantsNeedingRecovery()` to the owner.
  * - Item 22: erasure. Use stops at once on receipt (which meets both "as soon
  *   as practicable" and the late-receipt rule), covered data is deleted from
  *   every registered store, derivative and downstream holder, the first
@@ -70,8 +73,14 @@ export const grantRefOf = (issued: PdppIssuedGrant): PdppGrantRef => ({
 
 const keyOf = (ref: PdppGrantRef) => JSON.stringify([ref.issuer, ref.grantId]);
 
-/** A place the client keeps held data, e.g. {@link InMemoryPdppSyncCopy}. */
+/**
+ * A place the client keeps held data, e.g. {@link InMemoryPdppSyncCopy}.
+ * `id` is stable across restarts: the manager saves the ids of registered
+ * stores, and until a saved store is registered again its deletion stays
+ * pending (review R2-1).
+ */
 export interface PdppHeldDataStore {
+  readonly id: string;
   holdsData(ref: PdppGrantRef): boolean;
   /** Delete every copy of the grant's held data in this store. */
   erase(ref: PdppGrantRef): void | Promise<void>;
@@ -165,6 +174,7 @@ export type PdppUseRefusal =
   | "no_positive_assessment"
   | "query_required"
   | "no_surviving_use"
+  | "recovery_required"
   | "purpose_not_approved";
 
 export type PdppUseDecision =
@@ -247,33 +257,53 @@ export interface PdppPersistedGrantState {
 
 /** Everything the manager must find again after a restart (review F4). */
 export interface PdppHeldDataSnapshot {
-  format: "pdpp-held-data/1";
+  format: "pdpp-held-data/2";
   /** The latest time the manager has seen; a wall clock below it on load makes the clock uncertain. */
   clockHighWater: number;
   grants: PdppPersistedGrantState[];
   derivatives: Array<{ id: string; inputs: PdppGrantRef[]; acquiredAt?: number }>;
-  /** Disclosure-gate decisions and required-by-law disclosure records (written by {@link PdppDisclosureGate}). */
-  disclosures: unknown[];
-  legalDisclosures: unknown[];
+  /** Ids of every store registered and not retired (review R2-1). */
+  storeIds: string[];
 }
 
 /**
- * Durable storage the app implements (review F4). The manager saves before it
- * acts on an erasure instruction, an owner's `delete`, a legal hold or a
- * disclosure, and saves after every other change. `save` must be durable
- * when its promise resolves. The store must never return a snapshot older
- * than the last one saved (restoring an old snapshot cannot be detected).
+ * One append-only log entry: a disclosure-gate decision, or a version of a
+ * required-by-law disclosure record (the last version per `id` is current).
+ */
+export type PdppStateLogEntry =
+  | { kind: "disclosure"; entry: unknown }
+  | { kind: "legal_disclosure"; id: string; record: unknown };
+
+/**
+ * Durable storage the app implements (review F4, R2-3).
+ *
+ * Contract:
+ * - `save` replaces the snapshot. The snapshot holds per-grant state and store,
+ *   holder and derivative identities only, so its size grows with the number
+ *   of grants, not with use. It is written after every change and before
+ *   the manager acts on an erasure instruction, an owner's `delete` or a legal
+ *   hold. It must be durable when its promise resolves.
+ * - `appendLog` adds one entry to an append-only log, durable when it
+ *   resolves; it is written before any data leaves. Each call writes one
+ *   entry, never the whole log. `readLog` returns the entries in order; the
+ *   manager reads it only on request, not at load.
+ * - The store must never return a snapshot older than the last one saved,
+ *   or drop log entries (restoring an old copy cannot be detected).
  */
 export interface PdppHeldDataStateStore {
   load(): PdppHeldDataSnapshot | undefined | Promise<PdppHeldDataSnapshot | undefined>;
   save(snapshot: PdppHeldDataSnapshot): void | Promise<void>;
+  appendLog(entry: PdppStateLogEntry): void | Promise<void>;
+  readLog(): PdppStateLogEntry[] | Promise<PdppStateLogEntry[]>;
 }
 
 /** Reference state store. Not durable: for tests and processes that never restart. */
 export class InMemoryPdppHeldDataStateStore implements PdppHeldDataStateStore {
   private snapshot: string | undefined;
-  /** Number of completed saves. */
+  private readonly log: string[] = [];
+  /** Number of completed saves, and bytes written in total (snapshots and log entries). */
   saves = 0;
+  bytesWritten = 0;
 
   load(): PdppHeldDataSnapshot | undefined {
     return this.snapshot === undefined ? undefined : (JSON.parse(this.snapshot) as PdppHeldDataSnapshot);
@@ -282,6 +312,17 @@ export class InMemoryPdppHeldDataStateStore implements PdppHeldDataStateStore {
   save(snapshot: PdppHeldDataSnapshot): void {
     this.snapshot = JSON.stringify(snapshot);
     this.saves += 1;
+    this.bytesWritten += this.snapshot.length;
+  }
+
+  appendLog(entry: PdppStateLogEntry): void {
+    const line = JSON.stringify(entry);
+    this.log.push(line);
+    this.bytesWritten += line.length;
+  }
+
+  readLog(): PdppStateLogEntry[] {
+    return this.log.map((line) => JSON.parse(line) as PdppStateLogEntry);
   }
 }
 
@@ -316,13 +357,25 @@ export interface PdppHeldDataManagerOptions {
   now?: () => number;
   /** Jitter source in [0, 1). Defaults to `Math.random`. */
   random?: () => number;
+  /**
+   * Called whenever a save fails (review R2-4). Use already stopped stays
+   * stopped; the manager retries the save on the next change and on every
+   * `runDue`. Without this callback a failure is still kept in `lastPersistError`.
+   */
+  onPersistError?: (error: unknown) => void;
+  /** How many recent disclosure decisions to keep in memory (the full log is in the store). Default 1000. */
+  recentLogLimit?: number;
 }
 
 const waiting = (state: ReportState) => state === "pending" || state === "needs_current_authentication";
 
 export class PdppHeldDataManager {
   private readonly grants = new Map<string, GrantState>();
-  private readonly stores: PdppHeldDataStore[] = [];
+  private readonly stores = new Map<string, PdppHeldDataStore>();
+  /** Every store id registered and not retired, including ones not registered again since a restart. */
+  private readonly knownStoreIds = new Set<string>();
+  private readonly onPersistError: ((error: unknown) => void) | undefined;
+  private readonly recentLogLimit: number;
   private readonly derivatives = new Map<string, DerivativeEntry>();
   private readonly clock: () => number;
   private readonly random: () => number;
@@ -330,8 +383,8 @@ export class PdppHeldDataManager {
   private floor = Number.NEGATIVE_INFINITY;
   private clockUncertain = false;
   private saving: Promise<void> = Promise.resolve();
-  private disclosures: unknown[] = [];
-  private legalDisclosures: unknown[] = [];
+  private readonly disclosures: unknown[] = [];
+  private readonly legalDisclosures = new Map<string, unknown>();
   /** Clock discontinuities seen (case C5a). */
   clockDiscontinuities = 0;
   /** The last background save failure, if any. */
@@ -343,6 +396,8 @@ export class PdppHeldDataManager {
    */
   constructor(options: PdppHeldDataManagerOptions) {
     this.state = options.state;
+    this.onPersistError = options.onPersistError;
+    this.recentLogLimit = options.recentLogLimit ?? 1000;
     this.clock = options.now ?? Date.now;
     this.random = options.random ?? Math.random;
   }
@@ -362,7 +417,7 @@ export class PdppHeldDataManager {
   async load(): Promise<void> {
     const snapshot = await this.state.load();
     if (!snapshot) return;
-    if (snapshot.format !== "pdpp-held-data/1") throw new Error("unknown PDPP held-data state format");
+    if (snapshot.format !== "pdpp-held-data/2") throw new Error("unknown PDPP held-data state format");
     if (this.clock() < snapshot.clockHighWater) this.clockUncertain = true;
     this.floor = Math.max(this.floor, snapshot.clockHighWater);
     for (const persisted of snapshot.grants) {
@@ -377,14 +432,13 @@ export class PdppHeldDataManager {
       this.grants.set(keyOf(s.ref), s);
     }
     for (const d of snapshot.derivatives) this.derivatives.set(d.id, { ...d });
-    this.disclosures = [...snapshot.disclosures];
-    this.legalDisclosures = [...snapshot.legalDisclosures];
+    for (const id of snapshot.storeIds) this.knownStoreIds.add(id);
   }
 
   /** The state as saved. */
   snapshot(): PdppHeldDataSnapshot {
     return {
-      format: "pdpp-held-data/1",
+      format: "pdpp-held-data/2",
       clockHighWater: this.floor === Number.NEGATIVE_INFINITY ? this.clock() : this.floor,
       grants: [...this.grants.values()].map((s) => ({
         ref: s.ref,
@@ -410,8 +464,7 @@ export class PdppHeldDataManager {
         inputs: d.inputs,
         ...(d.acquiredAt !== undefined && { acquiredAt: d.acquiredAt }),
       })),
-      disclosures: this.disclosures,
-      legalDisclosures: this.legalDisclosures,
+      storeIds: [...this.knownStoreIds],
     };
   }
 
@@ -430,8 +483,31 @@ export class PdppHeldDataManager {
 
   private persistInBackground(): void {
     this.persist().catch((error: unknown) => {
-      this.lastPersistError = error;
+      this.reportPersistError(error);
     });
+  }
+
+  /** Record and surface a failed save (review R2-4). */
+  reportPersistError(error: unknown): void {
+    this.lastPersistError = error;
+    try {
+      this.onPersistError?.(error);
+    } catch {
+      // the app's callback never breaks the duty path
+    }
+  }
+
+  /** Retry a failed save; called by `runDue`. Resolves true when the state is saved. */
+  async retryPersist(): Promise<boolean> {
+    if (this.lastPersistError === undefined) return true;
+    try {
+      await this.persist();
+      this.lastPersistError = undefined;
+      return true;
+    } catch (error) {
+      this.reportPersistError(error);
+      return false;
+    }
   }
 
   /** Conservative current time: never earlier than any time already seen. */
@@ -450,7 +526,12 @@ export class PdppHeldDataManager {
     this.clockUncertain = true;
   }
 
-  /** Elapsed time is established again; `notBefore` raises the floor (never lowers it). */
+  /**
+   * Elapsed time is established again. Pass a trusted current time as
+   * `notBefore` (for example from a time service); it raises the floor and
+   * never lowers it. Without it the saved high-water mark is taken as now,
+   * which is conservative for deadlines but may understate elapsed time.
+   */
   establishClock(notBefore?: number): void {
     if (notBefore !== undefined && notBefore > this.floor) this.floor = notBefore;
     this.clockUncertain = false;
@@ -463,8 +544,36 @@ export class PdppHeldDataManager {
    * it (spec-core #erasure "Backups": a restore replays deletion state).
    */
   async addStore(store: PdppHeldDataStore): Promise<void> {
-    this.stores.push(store);
+    if (typeof store.id !== "string" || store.id === "") throw new TypeError("a held-data store needs a stable id");
+    if (this.stores.has(store.id)) throw new Error(`a store with id ${store.id} is already registered`);
+    this.stores.set(store.id, store);
+    const isNew = !this.knownStoreIds.has(store.id);
+    this.knownStoreIds.add(store.id);
+    if (isNew) await this.persist();
     await this.replayDeletionState(store);
+    // Erasures that waited for this store can complete now.
+    for (const s of this.grants.values()) {
+      if (s.erasure && s.erasure.completedAt === undefined) await this.dispose(s);
+    }
+  }
+
+  /**
+   * The app destroyed a store and every copy in it (for example it deleted a
+   * database file). Its id is forgotten, so erasures no longer wait for it.
+   * Never call this for a store that is only closed or not yet opened.
+   */
+  async retireStore(id: string): Promise<void> {
+    this.stores.delete(id);
+    this.knownStoreIds.delete(id);
+    await this.persist();
+    for (const s of this.grants.values()) {
+      if (s.erasure && s.erasure.completedAt === undefined) await this.dispose(s);
+    }
+  }
+
+  /** Saved store ids not registered in this process yet. */
+  missingStores(): string[] {
+    return [...this.knownStoreIds].filter((id) => !this.stores.has(id));
   }
 
   /** Erase every grant that has an erasure instruction from `store`, e.g. after restoring a backup into it. */
@@ -543,7 +652,9 @@ export class PdppHeldDataManager {
   /** Whether this client or a party acting for it holds data of the grant. */
   holdsData(ref: PdppGrantRef): boolean {
     const s = this.state_(ref);
-    if (this.stores.some((store) => store.holdsData(ref))) return true;
+    if ([...this.stores.values()].some((store) => store.holdsData(ref))) return true;
+    // A saved store not registered again since a restart may hold anything.
+    if (this.missingStores().length > 0 && s !== undefined) return true;
     for (const d of this.derivatives.values()) {
       if (d.inputs.some((i) => keyOf(i) === keyOf(ref))) return true;
     }
@@ -616,6 +727,7 @@ export class PdppHeldDataManager {
     }
     const now = this.now();
     if (isNew) s.lastAssessedAt = answer.assessed_at;
+    s.needsRecovery = false; // a query succeeded
     s.assessments.push({ at: iso(now), source: "lifecycle", held_data: answer.held_data });
     if (answer.read_state !== "unknown") s.readState = answer.read_state;
     if (answer.ended_at !== undefined) s.endedAt = answer.ended_at;
@@ -716,6 +828,8 @@ export class PdppHeldDataManager {
     if (s.queryRequired || (s.nextAttemptAt !== undefined && s.nextAttemptAt <= now)) {
       return { allowed: false, reason: "query_required" };
     }
+    // Review R2-5: no credential can query, so no erasure could ever be learned. Fail closed.
+    if (s.needsRecovery) return { allowed: false, reason: "recovery_required" };
     if (this.ended(s, now) && (s.grant?.processing_permissions?.length ?? 0) > 0) {
       return { allowed: false, reason: "no_surviving_use" };
     }
@@ -846,26 +960,40 @@ export class PdppHeldDataManager {
     }
   }
 
-  /** Append a disclosure-gate decision and save it before the release proceeds. */
+  /** Append one disclosure-gate decision to the state log; durable before the release proceeds. */
   async appendDisclosure(entry: unknown): Promise<void> {
+    await this.state.appendLog({ kind: "disclosure", entry });
     this.disclosures.push(entry);
-    await this.persist();
+    if (this.disclosures.length > this.recentLogLimit) this.disclosures.shift();
   }
 
-  /** Append or update a required-by-law disclosure record and save it. */
-  async putLegalDisclosure(index: number | undefined, record: unknown): Promise<number> {
-    const i = index ?? this.legalDisclosures.length;
-    this.legalDisclosures[i] = record;
-    await this.persist();
-    return i;
+  /** Append a version of a required-by-law disclosure record; the last version per id is current. */
+  async putLegalDisclosure(id: string | undefined, record: unknown): Promise<string> {
+    const key = id ?? `legal:${this.now()}:${Math.round(this.random() * 1e9)}`;
+    await this.state.appendLog({ kind: "legal_disclosure", id: key, record });
+    this.legalDisclosures.set(key, record);
+    return key;
   }
 
+  /** Recent disclosure decisions made in this process (at most `recentLogLimit`). */
   disclosureLog(): readonly unknown[] {
     return this.disclosures;
   }
 
+  /** Required-by-law records written in this process, current version of each. */
   legalDisclosureLog(): readonly unknown[] {
-    return this.legalDisclosures;
+    return [...this.legalDisclosures.values()];
+  }
+
+  /** The full saved log, folded: every disclosure decision, and the current version of each legal record. */
+  async readSavedLog(): Promise<{ disclosures: unknown[]; legalDisclosures: unknown[] }> {
+    const disclosures: unknown[] = [];
+    const legal = new Map<string, unknown>();
+    for (const e of await this.state.readLog()) {
+      if (e.kind === "disclosure") disclosures.push(e.entry);
+      else legal.set(e.id, e.record);
+    }
+    return { disclosures, legalDisclosures: [...legal.values()] };
   }
 
   /**
@@ -882,7 +1010,7 @@ export class PdppHeldDataManager {
     }
     const retention = s.grant?.retention;
     if (retention) {
-      for (const store of this.stores) await store.applyRetention?.(ref, retention);
+      for (const store of this.stores.values()) await store.applyRetention?.(ref, retention);
       const ceilingMs = retentionCeilingMs(retention.max_duration);
       const now = this.now();
       let changed = false;
@@ -1008,6 +1136,7 @@ export class PdppHeldDataManager {
       await this.persist(); // the record is durable before any deletion
     } catch (error) {
       persistError = error;
+      this.reportPersistError(error);
     }
     await this.dispose(s);
     if (persistError !== undefined) throw new PdppStatePersistError(persistError);
@@ -1017,11 +1146,16 @@ export class PdppHeldDataManager {
   private async dispose(s: GrantState): Promise<void> {
     const e = s.erasure!;
     const pending: string[] = [];
-    for (const [index, store] of this.stores.entries()) {
+    for (const id of this.knownStoreIds) {
+      const store = this.stores.get(id);
+      if (!store) {
+        pending.push(`store:${id}`); // saved before a restart and not registered again yet (review R2-1)
+        continue;
+      }
       try {
         await store.erase(s.ref);
       } catch {
-        pending.push(`store:${index}`);
+        pending.push(`store:${id}`);
       }
     }
     for (const d of [...this.derivatives.values()]) {
@@ -1075,7 +1209,7 @@ export class PdppHeldDataManager {
       e.reports.completed = "pending";
     }
     await this.persist().catch((error: unknown) => {
-      this.lastPersistError = error;
+      this.reportPersistError(error);
     });
   }
 }

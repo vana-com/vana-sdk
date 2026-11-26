@@ -33,6 +33,9 @@ import {
   type PdppGrantRef,
   type PdppHeldDataStore,
   type PdppLifecycleAnswer,
+  type PdppHeldDataSnapshot,
+  type PdppStateLogEntry,
+  assertPdppEndpoint,
 } from "./index";
 
 const ISSUER = "https://ps.example";
@@ -252,6 +255,7 @@ describe("F4: durable state across restarts (Client items 22, 23, 26; case C5a)"
     const state = new InMemoryPdppHeldDataStateStore();
     let failing = true;
     const disk: PdppHeldDataStore = {
+      id: "disk",
       holdsData: () => failing,
       erase: () => {
         if (failing) throw new Error("disk offline");
@@ -261,7 +265,7 @@ describe("F4: durable state across restarts (Client items 22, 23, 26; case C5a)"
     await m1.addStore(disk);
     await m1.recordAnswer(ref, m1.beginAttempt(ref), eraseAnswer(clock.now()));
     const first = { ...m1.erasureRecord(ref)! };
-    expect(first.pending).toEqual(["store:0"]);
+    expect(first.pending).toEqual(["store:disk"]);
 
     clock.advance(31 * D); // the process was off past the deadline
     const m2 = await PdppHeldDataManager.open({ state, now: clock.now });
@@ -344,7 +348,7 @@ describe("F4: durable state across restarts (Client items 22, 23, 26; case C5a)"
     const m2 = await PdppHeldDataManager.open({ state, now: clock.now });
     expect(m2.checkUse(ref)).toEqual({ allowed: true });
     expect(m2.nextAttemptAt(ref)).toBe(nextAttempt);
-    expect(new PdppDisclosureGate(m2).decisions()).toHaveLength(1);
+    expect((await new PdppDisclosureGate(m2).history()).decisions).toHaveLength(1);
     // The holder and derivative are known before the app registers them again: still held, relay pending.
     expect(m2.holdsData(ref)).toBe(true);
     await m2.ownerChoseDelete(ref);
@@ -716,5 +720,175 @@ describe("F10–F12: lower-severity fixes", () => {
     expect(() =>
       buildDataAccessDetail({ source: { id: "s" }, purpose_code: PDPP_LEGACY_AI_TRAINING_PURPOSE, access_mode: "single_use", streams: [{ name: "a", fields: ["*"] }] }),
     ).toThrow(/purpose_description/);
+  });
+});
+
+describe("Round 2 (WP8-r2)", () => {
+  function failingStore() {
+    const box = { failing: true, held: true };
+    const store: PdppHeldDataStore = {
+      id: "app-db",
+      holdsData: () => box.held,
+      erase: () => {
+        if (box.failing) throw new Error("disk offline");
+        box.held = false;
+      },
+    };
+    return { box, store };
+  }
+
+  it("R2-1 / N-c: after a restart, runDue and ensureMayUse before addStore never mark or report the erasure complete", async () => {
+    const clock = clockAt();
+    const state = new InMemoryPdppHeldDataStateStore();
+    const { box, store } = failingStore();
+    const m1 = await PdppHeldDataManager.open({ state, now: clock.now });
+    await m1.addStore(store);
+    await m1.recordAnswer(ref, m1.beginAttempt(ref), eraseAnswer(clock.now()));
+    expect(m1.erasureRecord(ref)!.pending).toEqual(["store:app-db"]);
+
+    clock.advance(31 * D);
+    box.failing = false;
+    const forms: URLSearchParams[] = [];
+    const m2 = await PdppHeldDataManager.open({ state, now: clock.now });
+    const credentials = new InMemoryPdppLifecycleCredentials(clock.now);
+    credentials.recordRecoveryToken(ISSUER, { accessToken: "lt", grantIds: ["grt_1"] });
+    const agent = new PdppLifecycleAgent({
+      manager: m2,
+      lifecycleEndpoint: LIFECYCLE,
+      clientId: "c",
+      credentials,
+      fetch: async (_url, init) => {
+        const form = new URLSearchParams(String(init?.body));
+        forms.push(form);
+        return json({ grants: [eraseAnswer(clock.now())] });
+      },
+    });
+    expect(m2.missingStores()).toEqual(["app-db"]);
+    await agent.runDue();
+    expect(await agent.ensureMayUse(ref)).toEqual({ allowed: false, reason: "erased" });
+    let record = m2.erasureRecord(ref)!;
+    expect(record.completedAt).toBeUndefined();
+    expect(record.pending).toEqual(["store:app-db"]);
+    expect(record.reports.completed).toBe("not_needed");
+    expect(forms.some((f) => f.get("report") === "completed")).toBe(false);
+    expect(box.held).toBe(true);
+
+    await m2.addStore(store); // the app opens its database
+    record = m2.erasureRecord(ref)!;
+    expect(box.held).toBe(false);
+    expect(record.completedAt).toBe(iso(clock.now()));
+    expect(record.missedDeadline).toBe(true);
+    expect(record.reports.completed).toBe("pending");
+  });
+
+  it("R2-1: a retired store no longer blocks completion; duplicate or missing ids are refused", async () => {
+    const state = new InMemoryPdppHeldDataStateStore();
+    const { store } = failingStore();
+    const m1 = await PdppHeldDataManager.open({ state, now: () => T0 });
+    await m1.addStore(store);
+    await m1.recordAnswer(ref, m1.beginAttempt(ref), eraseAnswer(T0));
+    const m2 = await PdppHeldDataManager.open({ state, now: () => T0 + H });
+    await m2.retireStore("app-db"); // the app deleted that database file
+    expect(m2.erasureRecord(ref)!.completedAt).toBeDefined();
+    const m3 = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore() });
+    await m3.addStore(new InMemoryPdppSyncCopy());
+    await expect(m3.addStore(new InMemoryPdppSyncCopy())).rejects.toThrow(/already registered/);
+    await expect(m3.addStore({ id: "", holdsData: () => false, erase: () => undefined })).rejects.toThrow(/stable id/);
+  });
+
+  it.each([
+    "https://[::ffff:10.0.0.5]/x",
+    "https://[::ffff:127.0.0.1]/x",
+    "https://[64:ff9b::a00:5]/x",
+    "https://[64:ff9b:1::a9fe:a9fe]/x",
+    "https://[::a00:5]/x",
+    "https://[::]/x",
+    "https://localhost./x",
+    "https://metadata.google.internal/x",
+    "https://printer.local/x",
+  ])("R2-2: refuses the local or private literal %s", (url) => {
+    expect(() => assertPdppEndpoint(url, url, "endpoint")).toThrow(PdppProtocolError);
+  });
+
+  it.each(["https://[::ffff:8.8.8.8]/x", "https://[2001:db8::1]/x", "https://ps.example./x"])(
+    "R2-2: accepts the public host %s",
+    (url) => {
+      expect(assertPdppEndpoint(url, url, "endpoint")).toBe(new URL(url).toString());
+    },
+  );
+
+  it("R2-3: each release appends one bounded log entry; the snapshot does not grow; history survives a restart", async () => {
+    const state = new InMemoryPdppHeldDataStateStore();
+    const manager = await PdppHeldDataManager.open({ state, now: () => T0, recentLogLimit: 100 });
+    manager.recordTokenResponse({ issuer: ISSUER, grant: grant() });
+    await manager.flush();
+    const gate = new PdppDisclosureGate(manager);
+    const owner = { kind: "owner_destination" as const, destination: "mailto:o@example.com", ownerControlled: true, designatedByOwner: true };
+    const before = state.bytesWritten;
+    for (let i = 0; i < 2000; i += 1) {
+      await gate.release({ recipient: owner, inputs: [ref], content: "summary" }, i, () => undefined);
+    }
+    const perRelease = (state.bytesWritten - before) / 2000;
+    expect(perRelease).toBeLessThan(400);
+    expect(JSON.stringify(state.load() as PdppHeldDataSnapshot).length).toBeLessThan(5000);
+    expect(gate.decisions()).toHaveLength(100);
+    const restarted = await PdppHeldDataManager.open({ state, now: () => T0 });
+    expect((await new PdppDisclosureGate(restarted).history()).decisions).toHaveLength(2000);
+  });
+
+  it("R2-4: a failed save of an erase answer is surfaced, not counted as a transport failure, and stop-use holds", async () => {
+    let broken = true;
+    const errors: unknown[] = [];
+    const inner = new InMemoryPdppHeldDataStateStore();
+    const state = {
+      load: () => inner.load(),
+      save: (snapshot: PdppHeldDataSnapshot) => {
+        if (broken) throw new Error("disk full");
+        inner.save(snapshot);
+      },
+      appendLog: (entry: PdppStateLogEntry) => { inner.appendLog(entry); },
+      readLog: () => inner.readLog(),
+    };
+    const clock = clockAt();
+    const manager = new PdppHeldDataManager({ state, now: clock.now, onPersistError: (e) => errors.push(e) });
+    const credentials = new InMemoryPdppLifecycleCredentials(clock.now);
+    const agent = new PdppLifecycleAgent({
+      manager,
+      lifecycleEndpoint: LIFECYCLE,
+      clientId: "c",
+      credentials,
+      fetch: async () => json({ grants: [eraseAnswer(clock.now())] }),
+    });
+    agent.recordTokenResponse(interpretTokenResponse({ access_token: "at", authorization_details: [{ type: PDPP_DATA_ACCESS_TYPE, grant: grant() }] }, ISSUER));
+    const signal = manager.useSignal(ref);
+    expect(await agent.query(ref)).toBe("answered");
+    expect(errors.length).toBeGreaterThan(0);
+    expect(signal.aborted).toBe(true);
+    expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "erased" });
+    expect(manager.nextAttemptAt(ref)).toBe(clock.now() + 24 * H); // a success, not a failure
+    broken = false;
+    await agent.runDue();
+    expect(manager.lastPersistError).toBeUndefined();
+    expect(inner.load()!.grants[0]!.erasure?.instructionId).toBe("ers_1");
+  });
+
+  it("R2-5: with no query credential use stops until a query succeeds", async () => {
+    const clock = clockAt();
+    const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore(), now: clock.now });
+    let token: string | undefined;
+    const agent = new PdppLifecycleAgent({
+      manager,
+      lifecycleEndpoint: LIFECYCLE,
+      clientId: "c",
+      credentials: { queryToken: () => (token ? { token } : undefined), writeToken: () => undefined },
+      fetch: async () => json({ grants: [{ grant_id: "grt_1", assessed_at: iso(clock.now()), read_state: "active", held_data: "permitted" }] }),
+    });
+    manager.recordTokenResponse({ issuer: ISSUER, grant: grant() });
+    expect(await agent.query(ref)).toBe("failed");
+    expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "recovery_required" });
+    token = "lt_recovery"; // the owner approved lifecycle recovery
+    clock.advance(2 * H);
+    expect(await agent.query(ref)).toBe("answered");
+    expect(manager.checkUse(ref)).toEqual({ allowed: true });
   });
 });

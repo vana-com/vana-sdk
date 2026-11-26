@@ -69,6 +69,8 @@ export function parseRetentionDays(maxDuration: string): number {
 }
 
 export interface InMemoryPdppSyncCopyOptions {
+  /** Stable store id for the held-data manager (default `pdpp-sync-copy`). */
+  id?: string;
   /**
    * Called with the keys of records disposed at their retention ceiling, so
    * the app applies the same ceiling to their derivatives (Client item 6).
@@ -90,11 +92,14 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
   /** Bumped by every erase of a grant: a session begun earlier never commits (review F1). */
   private readonly erasures = new Map<string, number>();
 
+  readonly id: string;
+
   constructor(
     now: () => number = Date.now,
     private readonly options: InMemoryPdppSyncCopyOptions = {},
   ) {
     this.clock = now;
+    this.id = options.id ?? "pdpp-sync-copy";
   }
 
   private now(): number {

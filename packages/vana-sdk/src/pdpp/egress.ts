@@ -267,7 +267,7 @@ export class PdppDisclosureGate {
       fields: [...o.fields],
       inputs: input.inputs,
     };
-    // Saved before anything is sent, unless law prohibits the record.
+    // Appended to the state log before anything is sent, unless law prohibits the record.
     const index = o.recordProhibited ? undefined : await this.manager.putLegalDisclosure(undefined, record);
     let result: R;
     try {
@@ -297,7 +297,7 @@ export class PdppDisclosureGate {
     return result;
   }
 
-  /** Every gate decision (adapter-observed release decisions). */
+  /** Gate decisions made in this process, most recent last (bounded; the full log is in the state store). */
   decisions(): ReadonlyArray<PdppDisclosureLogEntry> {
     return this.manager.disclosureLog() as PdppDisclosureLogEntry[];
   }
@@ -318,6 +318,15 @@ export class PdppDisclosureGate {
   /** Required-by-law disclosure records (identifiers and fields, not data). */
   legalDisclosures(): ReadonlyArray<PdppLegalDisclosureRecord> {
     return this.manager.legalDisclosureLog() as PdppLegalDisclosureRecord[];
+  }
+
+  /** The full saved history, across restarts: every decision and the current version of each legal record. */
+  async history(): Promise<{ decisions: PdppDisclosureLogEntry[]; legalDisclosures: PdppLegalDisclosureRecord[] }> {
+    const saved = await this.manager.readSavedLog();
+    return {
+      decisions: saved.disclosures as PdppDisclosureLogEntry[],
+      legalDisclosures: saved.legalDisclosures as PdppLegalDisclosureRecord[],
+    };
   }
 }
 

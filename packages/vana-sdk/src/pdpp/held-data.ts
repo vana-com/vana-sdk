@@ -545,16 +545,31 @@ export class PdppHeldDataManager {
    */
   async addStore(store: PdppHeldDataStore): Promise<void> {
     if (typeof store.id !== "string" || store.id === "") throw new TypeError("a held-data store needs a stable id");
-    if (this.stores.has(store.id)) throw new Error(`a store with id ${store.id} is already registered`);
+    const existing = this.stores.get(store.id);
+    // Registering the same store again is allowed (a retry after a failed save); another store with its id is not.
+    if (existing !== undefined && existing !== store) throw new Error(`a store with id ${store.id} is already registered`);
     this.stores.set(store.id, store);
-    const isNew = !this.knownStoreIds.has(store.id);
     this.knownStoreIds.add(store.id);
-    if (isNew) await this.persist();
-    await this.replayDeletionState(store);
-    // Erasures that waited for this store can complete now.
+    // Review R3-c: deletion state is replayed whether or not the save below succeeds.
+    let replayError: unknown;
+    try {
+      await this.replayDeletionState(store);
+    } catch (error) {
+      replayError = error;
+    }
+    // Erasures that waited for this store can complete now (a store that failed stays pending).
     for (const s of this.grants.values()) {
       if (s.erasure && s.erasure.completedAt === undefined) await this.dispose(s);
     }
+    let saveError: unknown;
+    try {
+      await this.persist();
+    } catch (error) {
+      saveError = error;
+      this.reportPersistError(error);
+    }
+    if (replayError !== undefined) throw replayError;
+    if (saveError !== undefined) throw new PdppStatePersistError(saveError);
   }
 
   /**

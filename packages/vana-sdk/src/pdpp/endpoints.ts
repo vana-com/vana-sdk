@@ -84,6 +84,18 @@ function isLocalHost(hostname: string): { local: boolean; loopback: boolean } {
       return isLocalHost(v4);
     }
     if (g[0] === 0x64 && g[1] === 0xff9b) return isLocalHost(v4);
+    const v4At = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+    // 6to4 (2002::/16) embeds an IPv4 address in groups 1-2 (review R3-f).
+    if (g[0] === 0x2002) {
+      const embedded = isLocalHost(v4At(g[1]!, g[2]!));
+      if (embedded.local) return { local: true, loopback: false };
+    }
+    // Teredo (2001:0::/32): server IPv4 in groups 2-3, client IPv4 obfuscated (XOR 0xffff) in groups 6-7.
+    if (g[0] === 0x2001 && g[1] === 0) {
+      const server = isLocalHost(v4At(g[2]!, g[3]!));
+      const client = isLocalHost(v4At(g[6]! ^ 0xffff, g[7]! ^ 0xffff));
+      if (server.local || client.local) return { local: true, loopback: false };
+    }
     const local =
       (g[0]! & 0xfe00) === 0xfc00 || // unique local
       (g[0]! & 0xffc0) === 0xfe80 || // link-local

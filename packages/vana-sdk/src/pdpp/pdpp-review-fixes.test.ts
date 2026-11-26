@@ -892,3 +892,82 @@ describe("Round 2 (WP8-r2)", () => {
     expect(manager.checkUse(ref)).toEqual({ allowed: true });
   });
 });
+
+describe("Round 3 (WP8-r3)", () => {
+  it("R3-c: addStore replays deletions even when its save fails, and a retry with the same store succeeds", async () => {
+    let broken = true;
+    const errors: unknown[] = [];
+    const inner = new InMemoryPdppHeldDataStateStore();
+    const state = {
+      load: () => inner.load(),
+      save: (snapshot: PdppHeldDataSnapshot) => {
+        if (broken) throw new Error("disk full");
+        inner.save(snapshot);
+      },
+      appendLog: (entry: PdppStateLogEntry) => { inner.appendLog(entry); },
+      readLog: () => inner.readLog(),
+    };
+    const manager = new PdppHeldDataManager({ state, now: () => T0, onPersistError: (e) => errors.push(e) });
+    await manager.ownerChoseDelete(ref).catch(() => undefined); // the record's save fails too; erasure still applies
+    const restored = new InMemoryPdppSyncCopy(() => T0, { id: "restored" });
+    const s = restored.beginSession({ issuer: ISSUER, grantId: "grt_1", stream: "st" }, { replace: false });
+    s.apply(rec("r1") as never);
+    s.commit("cs");
+    await expect(manager.addStore(restored)).rejects.toThrow(/could not be saved/);
+    expect(restored.holdsData(ref)).toBe(false);
+    expect(errors.length).toBeGreaterThan(0);
+    broken = false;
+    await expect(manager.addStore(restored)).resolves.toBeUndefined();
+    expect(inner.load()!.storeIds).toEqual(["restored"]);
+    await expect(manager.addStore(new InMemoryPdppSyncCopy(() => T0, { id: "restored" }))).rejects.toThrow(/already registered/);
+  });
+
+  it("R3-e: for one grant of a shared refresh family the disconnect offer has delete only, and says why", () => {
+    const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore(), now: () => T0 });
+    const agent = new PdppLifecycleAgent({
+      manager,
+      lifecycleEndpoint: LIFECYCLE,
+      revocationEndpoint: REVOKE,
+      clientId: "c",
+      credentials: new InMemoryPdppLifecycleCredentials(() => T0),
+      fetch: async () => json({}),
+    });
+    agent.recordTokenResponse(
+      interpretTokenResponse(
+        {
+          access_token: "at",
+          refresh_token: "rt_shared",
+          authorization_details: [
+            { type: PDPP_DATA_ACCESS_TYPE, grant: grant({ grant_id: "grt_A" }) },
+            { type: PDPP_DATA_ACCESS_TYPE, grant: grant({ grant_id: "grt_B" }) },
+          ],
+        },
+        ISSUER,
+      ),
+    );
+    const A = { issuer: ISSUER, grantId: "grt_A" };
+    const B = { issuer: ISSUER, grantId: "grt_B" };
+    const one = agent.describeDisconnect([A]);
+    expect(one.choices.map((c) => c.value)).toEqual(["delete"]);
+    expect(one.preselected).toBeNull();
+    expect(one.statement).toMatch(/approved together with other sources/);
+    expect(one.statement).toMatch(/Vana account/);
+    expect(agent.describeDisconnect([A, B]).choices.map((c) => c.value)).toEqual(["keep", "delete"]);
+  });
+
+  it.each([
+    "https://[2002:a00:5::1]/x",
+    "https://[2002:7f00:1::]/x",
+    "https://[2001:0:a00:1::1]/x",
+    "https://[2001:0:808:808:0:0:80ff:fffe]/x",
+  ])("R3-f: refuses the 6to4 or Teredo literal %s that embeds a private or local IPv4", (url) => {
+    expect(() => assertPdppEndpoint(url, url, "endpoint")).toThrow(PdppProtocolError);
+  });
+
+  it.each(["https://[2002:808:808::1]/x", "https://[2001:0:808:808:0:0:f7f7:f7f7]/x"])(
+    "R3-f: accepts the 6to4 or Teredo literal %s that embeds only public IPv4",
+    (url) => {
+      expect(assertPdppEndpoint(url, url, "endpoint")).toBe(new URL(url).toString());
+    },
+  );
+});

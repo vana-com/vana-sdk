@@ -710,16 +710,22 @@ export class PdppLifecycleAgent {
 
   /** The disconnect offer. The app shows it and the owner picks; nothing is preselected. */
   describeDisconnect(grants: PdppGrantRef[]): PdppDisconnectOffer {
+    const keepChoice = {
+      value: "keep" as const,
+      label: "Keep",
+      explanation:
+        "The app keeps the data it holds and may use it only for the purpose you approved, within the retention limit you approved. It never passes it to an independent party.",
+    };
+    // Review R3-e: keep would revoke other grants of a shared refresh family, which
+    // `disconnect` refuses; so it is not offered here.
+    const shared = this.familyOutside(grants).length > 0;
     return {
       grants,
-      statement: "Disconnecting ends this app's access. Choose what happens to the data it already holds.",
+      statement: shared
+        ? "This source was approved together with other sources in one consent, so this app cannot end it alone and keep its data. You can delete its data here. To end it and keep the data, end this source in your Vana account."
+        : "Disconnecting ends this app's access. Choose what happens to the data it already holds.",
       choices: [
-        {
-          value: "keep",
-          label: "Keep",
-          explanation:
-            "The app keeps the data it holds and may use it only for the purpose you approved, within the retention limit you approved. It never passes it to an independent party.",
-        },
+        ...(shared ? [] : [keepChoice]),
         {
           value: "delete",
           label: "Delete",
@@ -729,6 +735,17 @@ export class PdppLifecycleAgent {
       ],
       preselected: null,
     };
+  }
+
+  /** Grants outside `grants` that a refresh-family revocation for them would also end. */
+  private familyOutside(grants: PdppGrantRef[]): PdppGrantRef[] {
+    if (this.revocationEndpoint === undefined) return [];
+    const chosen = new Set(grants.map(refKey));
+    return grants.flatMap((ref) =>
+      this.options.credentials.refreshToken?.(ref) !== undefined
+        ? (this.options.credentials.familyGrants?.(ref) ?? []).filter((f) => !chosen.has(refKey(f)))
+        : [],
+    );
   }
 
   /**

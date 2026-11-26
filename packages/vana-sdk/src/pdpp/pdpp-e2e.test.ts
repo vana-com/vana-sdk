@@ -15,7 +15,8 @@
  * tests' `registerTestConnection` does. Optional: PDPP_E2E_SOURCE_ID (default
  * the Spotify connector), PDPP_E2E_STREAM (default `top_artists`),
  * PDPP_E2E_FIELDS (comma-separated, default `*`), PDPP_E2E_ISSUER (default the
- * PS URL), PDPP_E2E_AS_METADATA_URL (default
+ * PS URL), PDPP_E2E_ALLOW_LOCAL (default true: allows http and loopback for a
+ * local PS; set "false" against an https deployment), PDPP_E2E_AS_METADATA_URL (default
  * `<PS>/.well-known/oauth-authorization-server/pdpp/v1`, where the PS serves
  * it), PDPP_E2E_RESOURCE (default the PS URL). The source needs at least one
  * connected instance; with more than one, set PDPP_E2E_INSTANCE_ID.
@@ -28,6 +29,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  InMemoryPdppHeldDataStateStore,
   InMemoryPdppLifecycleCredentials,
   InMemoryPdppSyncCopy,
   PdppHeldDataManager,
@@ -55,13 +57,18 @@ describe.skipIf(!PS)("PDPP client e2e against a Personal Server (PDPP_E2E_PS_URL
     const clientId = env.PDPP_E2E_CLIENT_ID ?? "music_recommendations";
     const redirectUri = env.PDPP_E2E_REDIRECT_URI ?? "https://app.example.com/callback";
 
+    // A local PS is http on loopback: allow it explicitly (review F7).
+    const policy = { allowLocal: env.PDPP_E2E_ALLOW_LOCAL !== "false" };
+
     // 1. Discovery (Client items 12, 21).
     const as = await discoverPdppAuthorizationServer(issuer, {
       metadataUrl: env.PDPP_E2E_AS_METADATA_URL ?? `${PS}/.well-known/oauth-authorization-server/pdpp/v1`,
+      policy,
     });
     const lifecycleEndpoint = grantLifecycleEndpointOf(as);
     const rs = await discoverPdppResourceServer(env.PDPP_E2E_RESOURCE ?? PS!, {
       metadataUrl: `${PS}/.well-known/oauth-protected-resource`,
+      policy,
     });
 
     // 2. Authorization request (Client items 1, 27).
@@ -95,18 +102,26 @@ describe.skipIf(!PS)("PDPP client e2e against a Personal Server (PDPP_E2E_PS_URL
     const code = new URL(approvedRedirect).searchParams.get("code")!;
 
     // 3. Exchange (Client items 13, 28, 33) and the positive assessment it carries (item 20).
-    const tokens = await exchangeAuthorizationCode({ metadata: as, code, codeVerifier: pkce.codeVerifier, clientId, redirectUri });
+    const manager = await PdppHeldDataManager.open({ state: new InMemoryPdppHeldDataStateStore() });
+    const tokens = await exchangeAuthorizationCode({
+      metadata: as,
+      code,
+      codeVerifier: pkce.codeVerifier,
+      clientId,
+      redirectUri,
+      heldData: manager,
+    });
     const issued = tokens.grants[0]!;
     expect(issued.issuer).toBe(issuer);
-    const manager = new PdppHeldDataManager();
     const copy = new InMemoryPdppSyncCopy();
-    manager.addStore(copy);
+    await manager.addStore(copy);
     const agent = new PdppLifecycleAgent({
       manager,
       lifecycleEndpoint,
       ...(as.revocation_endpoint && { revocationEndpoint: as.revocation_endpoint }),
       clientId,
       credentials: new InMemoryPdppLifecycleCredentials(),
+      policy,
     });
     agent.recordTokenResponse(tokens);
     const ref = grantRefOf(issued);
@@ -118,6 +133,7 @@ describe.skipIf(!PS)("PDPP client e2e against a Personal Server (PDPP_E2E_PS_URL
       accessToken: tokens.accessToken,
       issuedGrant: issued,
       heldData: manager,
+      policy,
     });
     const first = await client.listRecords(stream, { limit: 1 });
     if (first.has_more) {
@@ -126,7 +142,7 @@ describe.skipIf(!PS)("PDPP client e2e against a Personal Server (PDPP_E2E_PS_URL
     }
     const synced = await client.sync(stream, copy, { limit: 2 });
     expect(synced.restarted).toBe(false);
-    const context = { grantId: issued.grant.grant_id, stream };
+    const context = { issuer, grantId: issued.grant.grant_id, stream };
     expect(copy.syncToken(context)).toBeTypeOf("string");
     await client.sync(stream, copy, { limit: 2 }); // incremental pass from the stored token
     expect(client.requiredFieldGaps).toEqual([]);

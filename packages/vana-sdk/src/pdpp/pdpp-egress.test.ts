@@ -6,6 +6,7 @@ import {
   PdppDisclosureGate,
   PdppDisclosureRefusedError,
   PdppHeldDataManager,
+  InMemoryPdppHeldDataStateStore,
   PdppIndependentRecipientError,
   assertTrainingPermitted,
   buildDataAccessDetail,
@@ -38,7 +39,7 @@ function grant(overrides: Partial<PdppGrant> = {}): PdppGrant {
 function setup(g: PdppGrant = grant()) {
   let t = T0;
   const clock = { now: () => t, advance: (d: number) => (t += d) };
-  const manager = new PdppHeldDataManager({ now: clock.now });
+  const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore(), now: clock.now });
   const ref: PdppGrantRef = { issuer: ISSUER, grantId: g.grant_id };
   manager.recordTokenResponse({ issuer: ISSUER, grant: g });
   manager.recordAcquisition(ref, g);
@@ -225,6 +226,7 @@ describe("independent-recipient disclosure (Client items 29, 30, 31)", () => {
     expect(gate.legalDisclosures()).toEqual([
       {
         at: new Date(T0).toISOString(),
+        status: "sent",
         recipient: "court.example",
         legalObligation: "court order 2026-123",
         records: [{ instanceId: "inst_A", id: "t1" }],

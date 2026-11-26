@@ -53,11 +53,15 @@ export class PdppHttpError extends Error {
     this.wwwAuthenticate = init.wwwAuthenticate;
   }
 
-  /** The access token is inactive: stop using it (Client item 9). */
+  /**
+   * The access token is inactive: stop using it (Client item 9). Auth-param
+   * names are case-insensitive and the value may be a token or a quoted string
+   * (RFC 9110 §11.2).
+   */
   get tokenInactive(): boolean {
     return (
       this.status === 401 &&
-      /\berror="invalid_token"/.test(this.wwwAuthenticate ?? "")
+      /(?:^|[\s,])error\s*=\s*(?:"invalid_token"|invalid_token(?![\w-]))/i.test(this.wwwAuthenticate ?? "")
     );
   }
 
@@ -101,13 +105,26 @@ export class PdppProtocolError extends Error {
   }
 }
 
+/** Raised when the grant has an erasure instruction: no request is made and no delivery is applied. */
+export class PdppGrantErasedError extends Error {
+  constructor(readonly grantId: string) {
+    super(`an erasure instruction applies to grant ${grantId}; its data is not applied or used`);
+    this.name = "PdppGrantErasedError";
+  }
+}
+
+function bounded(text: string, max: number): string {
+  const clean = text.replace(/[\u0000-\u001f\u007f]/g, " ");
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
 /** Build a {@link PdppHttpError} from a non-success response without trusting its body. */
 export async function pdppHttpErrorFrom(
   response: Response,
 ): Promise<PdppHttpError> {
   let code: string | undefined;
   let type: string | undefined;
-  let message = `HTTP ${response.status}`;
+  let description: string | undefined;
   try {
     const body: unknown = await response.json();
     const error =
@@ -116,19 +133,21 @@ export async function pdppHttpErrorFrom(
         : undefined;
     if (error && typeof error === "object") {
       const e = error as Record<string, unknown>;
-      if (typeof e.code === "string") code = e.code;
-      if (typeof e.type === "string") type = e.type;
-      if (typeof e.message === "string") message = e.message;
+      if (typeof e.code === "string") code = bounded(e.code, 100);
+      if (typeof e.type === "string") type = bounded(e.type, 100);
+      if (typeof e.message === "string") description = bounded(e.message, 200);
     } else if (typeof error === "string") {
       // OAuth error responses (RFC 6749 §5.2) use a string `error`.
-      code = error;
-      const description = (body as { error_description?: unknown })
-        .error_description;
-      if (typeof description === "string") message = description;
+      code = bounded(error, 100);
+      const text = (body as { error_description?: unknown }).error_description;
+      if (typeof text === "string") description = bounded(text, 200);
     }
   } catch {
     // A non-JSON or empty body is still an error with an authoritative status.
   }
+  // F7: server text is bounded and stripped of control characters; it is
+  // never trusted as more than a hint.
+  const message = `HTTP ${response.status}${code ? ` ${code}` : ""}${description ? `: ${description}` : ""}`;
   return new PdppHttpError({
     status: response.status,
     code,

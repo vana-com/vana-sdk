@@ -23,11 +23,13 @@
  * @category PDPP
  */
 
+import { PdppGrantErasedError } from "./errors";
 import type { PdppRecord } from "./types";
 import type { PdppGrantRef, PdppHeldDataStore } from "./held-data";
 
-/** The query context a sync token is bound to. */
+/** The query context a sync token is bound to. The issuer is part of it (Client item 28). */
 export interface PdppSyncContext {
+  issuer: string;
   grantId: string;
   stream: string;
   fields?: string[];
@@ -53,7 +55,10 @@ export interface PdppSyncCopy {
 }
 
 const contextKey = (c: PdppSyncContext) =>
-  JSON.stringify([c.grantId, c.stream, c.fields ? [...c.fields].sort() : null]);
+  JSON.stringify([c.issuer, c.grantId, c.stream, c.fields ? [...c.fields].sort() : null]);
+const grantKey = (r: Pick<PdppGrantRef, "issuer" | "grantId">) => JSON.stringify([r.issuer, r.grantId]);
+const sameGrant = (c: PdppSyncContext, r: Pick<PdppGrantRef, "issuer" | "grantId">) =>
+  c.issuer === r.issuer && c.grantId === r.grantId;
 const recordKey = (instanceId: string, id: string) => `${instanceId}\u0000${id}`;
 
 /** Parse an ISO 8601 `PnD` duration (the only form spec-core allows for `max_duration`). */
@@ -82,6 +87,8 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
   private readonly firstSeen = new Map<string, number>();
   private floor = Number.NEGATIVE_INFINITY;
   private readonly clock: () => number;
+  /** Bumped by every erase of a grant: a session begun earlier never commits (review F1). */
+  private readonly erasures = new Map<string, number>();
 
   constructor(
     now: () => number = Date.now,
@@ -96,17 +103,19 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
   }
 
   /** Whether any record of the grant is held, in any query context. */
-  holdsData(ref: Pick<PdppGrantRef, "grantId">): boolean {
+  holdsData(ref: Pick<PdppGrantRef, "issuer" | "grantId">): boolean {
     for (const [key, held] of this.streams) {
-      if (this.contexts.get(key)?.grantId === ref.grantId && held.size > 0) return true;
+      const context = this.contexts.get(key);
+      if (context && sameGrant(context, ref) && held.size > 0) return true;
     }
     return false;
   }
 
   /** Delete every record, sync token and acquisition time of the grant (erasure). */
-  erase(ref: Pick<PdppGrantRef, "grantId">): void {
+  erase(ref: Pick<PdppGrantRef, "issuer" | "grantId">): void {
+    this.erasures.set(grantKey(ref), (this.erasures.get(grantKey(ref)) ?? 0) + 1);
     for (const [key, context] of this.contexts) {
-      if (context.grantId !== ref.grantId) continue;
+      if (!sameGrant(context, ref)) continue;
       this.streams.delete(key);
       this.tokens.delete(key);
       for (const fk of [...this.firstSeen.keys()]) {
@@ -126,12 +135,14 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
 
   beginSession(context: PdppSyncContext, options: { replace: boolean }): PdppSyncSession {
     const key = contextKey(context);
-    this.contexts.set(key, { ...context });
+    const generation = this.erasures.get(grantKey(context)) ?? 0;
+    const erasedSince = () => (this.erasures.get(grantKey(context)) ?? 0) !== generation;
     const current = this.streams.get(key) ?? new Map<string, PdppHeldRecord>();
     // A `beginning` session builds its result in isolation and replaces the copy on commit.
     const target = options.replace ? new Map<string, PdppHeldRecord>() : new Map(current);
     return {
       apply: (record) => {
+        if (erasedSince()) throw new PdppGrantErasedError(context.grantId);
         const rk = recordKey(record.instance_id, record.id);
         if (record.deleted === true) {
           target.delete(rk); // no-op when not held
@@ -149,6 +160,9 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
         });
       },
       commit: (nextChangesSince) => {
+        // A session begun before an erasure of its grant never writes back.
+        if (erasedSince()) throw new PdppGrantErasedError(context.grantId);
+        this.contexts.set(key, { ...context });
         this.streams.set(key, target);
         this.tokens.set(key, nextChangesSince);
       },
@@ -164,7 +178,7 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
    * applies the same ceiling to its derivatives.
    */
   applyRetention(
-    target: PdppSyncContext | Pick<PdppGrantRef, "grantId">,
+    target: PdppSyncContext | Pick<PdppGrantRef, "issuer" | "grantId">,
     retention: { max_duration: string; on_expiry: "delete" | "anonymize" },
     anonymize?: (data: Record<string, unknown>) => Record<string, unknown>,
   ): { expired: number } {
@@ -173,7 +187,7 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
       // Every query context of the grant (the held-data store form, called before use).
       let expired = 0;
       for (const context of [...this.contexts.values()]) {
-        if (context.grantId === target.grantId) {
+        if (sameGrant(context, target)) {
           expired += this.applyRetention(context, retention, anonymize).expired;
         }
       }

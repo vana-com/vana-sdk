@@ -29,10 +29,13 @@ export const PDPP_LEGACY_AI_TRAINING_PURPOSE = "https://pdpp.dev/purpose/ai_trai
  */
 export const PDPP_CLIENT_SUPPORTED_PROCESSING_PERMISSIONS: readonly string[] = [];
 
-/** Purpose codes registered in spec-core Appendix A. */
+/**
+ * Purpose codes registered in spec-core Appendix A. The earlier
+ * `…/purpose/ai_training` code is withdrawn (L3235), so it is not listed and
+ * needs a `purpose_description` like any other code (Client item 27).
+ */
 export const PDPP_APPENDIX_A_PURPOSES: readonly string[] = [
   "https://pdpp.dev/purpose/agent_context",
-  "https://pdpp.dev/purpose/ai_training",
   "https://pdpp.dev/purpose/analytics",
   "https://pdpp.dev/purpose/export",
   "https://pdpp.dev/purpose/personalization",

@@ -30,9 +30,16 @@
  * - Item 26: the instruction record (receipt, stop-use, completion, exception,
  *   parties informed) holds identifiers, never deleted data.
  *
+ * State: everything above lives in a {@link PdppHeldDataStateStore} the app
+ * implements. The manager saves an erasure record before it deletes anything,
+ * and loads it back at start ({@link PdppHeldDataManager.open}), so a restart
+ * never restarts a deadline and an owner's offline `delete` survives (items
+ * 22, 23, 26, case C5a).
+ *
  * Time: every limit is elapsed time on the injected clock, which must count
  * suspension (wall-clock milliseconds do). A clock that moves backwards never
- * moves a deadline later: the manager keeps the latest time it has seen
+ * moves a deadline later: the manager keeps the latest time it has seen, saves
+ * it as a high-water mark, and treats a clock below it at load as uncertain
  * (spec-core #held-data-limits, case C5a).
  *
  * @category PDPP
@@ -139,7 +146,8 @@ export type PdppReadState = "active" | "window_closed" | "expired" | "revoked";
 export interface PdppLifecycleAnswer {
   grant_id: string;
   assessed_at: string;
-  read_state: PdppReadState;
+  /** `unknown` when the AS sent a value this client does not recognize (an erasure still applies). */
+  read_state: PdppReadState | "unknown";
   ended_at?: string;
   held_data: "permitted" | "erase";
   erasure?: {
@@ -214,7 +222,8 @@ export interface PdppErasureRecord {
   };
 }
 
-interface GrantState {
+/** The serializable state of one grant (review F4). Identifiers and times only; never held data. */
+export interface PdppPersistedGrantState {
   ref: PdppGrantRef;
   grant?: PdppGrant;
   positive?: { source: "token_response" | "lifecycle"; at: number; assessedAt?: string };
@@ -222,41 +231,207 @@ interface GrantState {
   readState?: PdppReadState;
   endedAt?: string;
   firstAcquiredAt?: number;
-  attemptSeq: number;
-  lastAttempt?: { id: number; startedAt: number };
   lastSuccessAt?: number;
   failures: number;
   transportStreakStart?: number;
   nextAttemptAt?: number;
   queryRequired: boolean;
   erasure?: PdppErasureRecord;
-  abort: AbortController;
-  holders: Map<string, PdppDownstreamHolder>;
   legalHold?: { scope: string; basis: string; until: PdppRetainedUntil; recordedAt: string };
   assessments: Array<{ at: string; source: string; held_data?: string }>;
+  /** Parties acting for the client, with the flow-down terms frozen at registration. */
+  holderTerms: Array<{ id: string; terms: PdppFlowDownTerms }>;
+  /** No credential can query or write for this grant: the owner must approve lifecycle recovery. */
+  needsRecovery?: boolean;
+}
+
+/** Everything the manager must find again after a restart (review F4). */
+export interface PdppHeldDataSnapshot {
+  format: "pdpp-held-data/1";
+  /** The latest time the manager has seen; a wall clock below it on load makes the clock uncertain. */
+  clockHighWater: number;
+  grants: PdppPersistedGrantState[];
+  derivatives: Array<{ id: string; inputs: PdppGrantRef[]; acquiredAt?: number }>;
+  /** Disclosure-gate decisions and required-by-law disclosure records (written by {@link PdppDisclosureGate}). */
+  disclosures: unknown[];
+  legalDisclosures: unknown[];
+}
+
+/**
+ * Durable storage the app implements (review F4). The manager saves before it
+ * acts on an erasure instruction, an owner's `delete`, a legal hold or a
+ * disclosure, and saves after every other change. `save` must be durable
+ * when its promise resolves. The store must never return a snapshot older
+ * than the last one saved (restoring an old snapshot cannot be detected).
+ */
+export interface PdppHeldDataStateStore {
+  load(): PdppHeldDataSnapshot | undefined | Promise<PdppHeldDataSnapshot | undefined>;
+  save(snapshot: PdppHeldDataSnapshot): void | Promise<void>;
+}
+
+/** Reference state store. Not durable: for tests and processes that never restart. */
+export class InMemoryPdppHeldDataStateStore implements PdppHeldDataStateStore {
+  private snapshot: string | undefined;
+  /** Number of completed saves. */
+  saves = 0;
+
+  load(): PdppHeldDataSnapshot | undefined {
+    return this.snapshot === undefined ? undefined : (JSON.parse(this.snapshot) as PdppHeldDataSnapshot);
+  }
+
+  save(snapshot: PdppHeldDataSnapshot): void {
+    this.snapshot = JSON.stringify(snapshot);
+    this.saves += 1;
+  }
+}
+
+/** Raised when the state store failed to save before an action that needs a durable record. */
+export class PdppStatePersistError extends Error {
+  constructor(cause: unknown) {
+    super("PDPP held-data state could not be saved; the action ran but its record is not durable", { cause });
+    this.name = "PdppStatePersistError";
+  }
+}
+
+interface GrantState extends PdppPersistedGrantState {
+  abort: AbortController;
+  holders: Map<string, PdppDownstreamHolder>;
+  attempts: Map<number, number>;
+  attemptSeq: number;
+  lastAttemptId?: number;
+}
+
+interface DerivativeEntry {
+  id: string;
+  inputs: PdppGrantRef[];
+  acquiredAt?: number;
+  /** Absent after a restart until the app registers the derivative again. */
+  erase?: PdppDerivative["erase"];
 }
 
 export interface PdppHeldDataManagerOptions {
+  /** Durable state the app implements; see {@link PdppHeldDataStateStore}. */
+  state: PdppHeldDataStateStore;
   /** Wall-clock milliseconds that count suspension. Defaults to `Date.now`. */
   now?: () => number;
   /** Jitter source in [0, 1). Defaults to `Math.random`. */
   random?: () => number;
 }
 
+const waiting = (state: ReportState) => state === "pending" || state === "needs_current_authentication";
+
 export class PdppHeldDataManager {
   private readonly grants = new Map<string, GrantState>();
   private readonly stores: PdppHeldDataStore[] = [];
-  private readonly derivatives = new Map<string, PdppDerivative>();
+  private readonly derivatives = new Map<string, DerivativeEntry>();
   private readonly clock: () => number;
   private readonly random: () => number;
+  private readonly state: PdppHeldDataStateStore;
   private floor = Number.NEGATIVE_INFINITY;
   private clockUncertain = false;
+  private saving: Promise<void> = Promise.resolve();
+  private disclosures: unknown[] = [];
+  private legalDisclosures: unknown[] = [];
   /** Clock discontinuities seen (case C5a). */
   clockDiscontinuities = 0;
+  /** The last background save failure, if any. */
+  lastPersistError: unknown;
 
-  constructor(options: PdppHeldDataManagerOptions = {}) {
+  /**
+   * Prefer {@link PdppHeldDataManager.open}, which loads saved state. A manager
+   * built with `new` starts empty.
+   */
+  constructor(options: PdppHeldDataManagerOptions) {
+    this.state = options.state;
     this.clock = options.now ?? Date.now;
     this.random = options.random ?? Math.random;
+  }
+
+  /** Create a manager and load its saved state (review F4). */
+  static async open(options: PdppHeldDataManagerOptions): Promise<PdppHeldDataManager> {
+    const manager = new PdppHeldDataManager(options);
+    await manager.load();
+    return manager;
+  }
+
+  /**
+   * Load saved state. A wall clock below the saved high-water mark makes the
+   * clock uncertain: use is refused until {@link establishClock} (case C5a).
+   * Deadlines, first receipts and acquisition times come back unchanged.
+   */
+  async load(): Promise<void> {
+    const snapshot = await this.state.load();
+    if (!snapshot) return;
+    if (snapshot.format !== "pdpp-held-data/1") throw new Error("unknown PDPP held-data state format");
+    if (this.clock() < snapshot.clockHighWater) this.clockUncertain = true;
+    this.floor = Math.max(this.floor, snapshot.clockHighWater);
+    for (const persisted of snapshot.grants) {
+      const s: GrantState = {
+        ...persisted,
+        abort: new AbortController(),
+        holders: new Map(),
+        attempts: new Map(),
+        attemptSeq: 0,
+      };
+      if (s.erasure) s.abort.abort(new Error(`erasure instruction for grant ${s.ref.grantId}`));
+      this.grants.set(keyOf(s.ref), s);
+    }
+    for (const d of snapshot.derivatives) this.derivatives.set(d.id, { ...d });
+    this.disclosures = [...snapshot.disclosures];
+    this.legalDisclosures = [...snapshot.legalDisclosures];
+  }
+
+  /** The state as saved. */
+  snapshot(): PdppHeldDataSnapshot {
+    return {
+      format: "pdpp-held-data/1",
+      clockHighWater: this.floor === Number.NEGATIVE_INFINITY ? this.clock() : this.floor,
+      grants: [...this.grants.values()].map((s) => ({
+        ref: s.ref,
+        ...(s.grant && { grant: s.grant }),
+        ...(s.positive && { positive: s.positive }),
+        ...(s.lastAssessedAt !== undefined && { lastAssessedAt: s.lastAssessedAt }),
+        ...(s.readState && { readState: s.readState }),
+        ...(s.endedAt !== undefined && { endedAt: s.endedAt }),
+        ...(s.firstAcquiredAt !== undefined && { firstAcquiredAt: s.firstAcquiredAt }),
+        ...(s.lastSuccessAt !== undefined && { lastSuccessAt: s.lastSuccessAt }),
+        failures: s.failures,
+        ...(s.transportStreakStart !== undefined && { transportStreakStart: s.transportStreakStart }),
+        ...(s.nextAttemptAt !== undefined && { nextAttemptAt: s.nextAttemptAt }),
+        queryRequired: s.queryRequired,
+        ...(s.erasure && { erasure: s.erasure }),
+        ...(s.legalHold && { legalHold: s.legalHold }),
+        assessments: s.assessments,
+        holderTerms: s.holderTerms,
+        ...(s.needsRecovery && { needsRecovery: true }),
+      })),
+      derivatives: [...this.derivatives.values()].map((d) => ({
+        id: d.id,
+        inputs: d.inputs,
+        ...(d.acquiredAt !== undefined && { acquiredAt: d.acquiredAt }),
+      })),
+      disclosures: this.disclosures,
+      legalDisclosures: this.legalDisclosures,
+    };
+  }
+
+  /** Save now; resolves when the store has the current state. */
+  persist(): Promise<void> {
+    const snapshot = this.snapshot();
+    const next = this.saving.catch(() => undefined).then(() => this.state.save(snapshot));
+    this.saving = next;
+    return next;
+  }
+
+  /** Wait for every pending save. */
+  async flush(): Promise<void> {
+    await this.saving;
+  }
+
+  private persistInBackground(): void {
+    this.persist().catch((error: unknown) => {
+      this.lastPersistError = error;
+    });
   }
 
   /** Conservative current time: never earlier than any time already seen. */
@@ -270,7 +445,7 @@ export class PdppHeldDataManager {
     return t;
   }
 
-  /** The client cannot establish elapsed time (e.g. restored state): refuse use until {@link establishClock}. */
+  /** The client cannot establish elapsed time: refuse use until {@link establishClock}. */
   markClockUncertain(): void {
     this.clockUncertain = true;
   }
@@ -279,22 +454,48 @@ export class PdppHeldDataManager {
   establishClock(notBefore?: number): void {
     if (notBefore !== undefined && notBefore > this.floor) this.floor = notBefore;
     this.clockUncertain = false;
+    this.persistInBackground();
   }
 
-  addStore(store: PdppHeldDataStore): void {
+  /**
+   * Register a place held data lives. Deletion state is replayed into it
+   * before it is used: every grant with an erasure instruction is erased from
+   * it (spec-core #erasure "Backups": a restore replays deletion state).
+   */
+  async addStore(store: PdppHeldDataStore): Promise<void> {
     this.stores.push(store);
+    await this.replayDeletionState(store);
   }
 
-  registerDerivative(derivative: PdppDerivative): void {
-    for (const input of derivative.inputs) {
-      if (this.state(input)?.erasure) {
-        throw new Error(
-          `grant ${input.grantId} has an erasure instruction; no derivative of its data may be made`,
-        );
-      }
-      this.ensure(input);
+  /** Erase every grant that has an erasure instruction from `store`, e.g. after restoring a backup into it. */
+  async replayDeletionState(store: PdppHeldDataStore): Promise<void> {
+    for (const s of this.grants.values()) {
+      if (s.erasure) await store.erase(s.ref);
     }
-    this.derivatives.set(derivative.id, derivative);
+  }
+
+  /**
+   * Register a derivative (again, after a restart). A derivative of a grant
+   * that has an erasure instruction is erased at once.
+   */
+  async registerDerivative(derivative: PdppDerivative): Promise<void> {
+    const previous = this.derivatives.get(derivative.id);
+    const inputs = [...(previous?.inputs ?? [])];
+    for (const i of derivative.inputs) if (!inputs.some((x) => keyOf(x) === keyOf(i))) inputs.push(i);
+    const acquiredAt =
+      [previous?.acquiredAt, derivative.acquiredAt].filter((t): t is number => t !== undefined).sort((a, b) => a - b)[0];
+    this.derivatives.set(derivative.id, {
+      id: derivative.id,
+      inputs,
+      ...(acquiredAt !== undefined && { acquiredAt }),
+      erase: derivative.erase,
+    });
+    for (const input of inputs) this.ensure(input);
+    await this.persist();
+    for (const input of inputs) {
+      const s = this.state_(input);
+      if (s?.erasure) await this.dispose(s);
+    }
   }
 
   /**
@@ -307,9 +508,12 @@ export class PdppHeldDataManager {
     s.grant = issued.grant;
     const now = this.now();
     s.assessments.push({ at: iso(now), source: "token_response" });
-    if (s.erasure) return;
-    s.positive = { source: "token_response", at: now };
-    this.succeeded(s, now);
+    s.needsRecovery = false;
+    if (!s.erasure) {
+      s.positive = { source: "token_response", at: now };
+      this.succeeded(s, now);
+    }
+    this.persistInBackground();
   }
 
   /** Data of the grant was acquired (sync, list or single-record read). Never restarts the interval. */
@@ -317,44 +521,61 @@ export class PdppHeldDataManager {
     const s = this.ensure(ref);
     if (grant && !s.grant) s.grant = grant;
     const now = this.now();
+    const changed = s.firstAcquiredAt === undefined || s.nextAttemptAt === undefined;
     s.firstAcquiredAt ??= now;
     s.nextAttemptAt ??= now + PDPP_RECONCILIATION_INTERVAL_MS;
+    if (changed) this.persistInBackground();
   }
 
   /** A read or refresh failed. When it shows the grant may have ended, a query is due before further use. */
   recordGrantSignal(ref: PdppGrantRef, error: PdppHttpError): void {
-    if (error.grantMayHaveEnded) this.ensure(ref).queryRequired = true;
+    if (!error.grantMayHaveEnded) return;
+    this.ensure(ref).queryRequired = true;
+    this.persistInBackground();
+  }
+
+  /** No credential can query or write for the grant: ask the owner for lifecycle recovery. */
+  markNeedsRecovery(ref: PdppGrantRef): void {
+    this.ensure(ref).needsRecovery = true;
+    this.persistInBackground();
   }
 
   /** Whether this client or a party acting for it holds data of the grant. */
   holdsData(ref: PdppGrantRef): boolean {
-    const s = this.state(ref);
+    const s = this.state_(ref);
     if (this.stores.some((store) => store.holdsData(ref))) return true;
     for (const d of this.derivatives.values()) {
       if (d.inputs.some((i) => keyOf(i) === keyOf(ref))) return true;
     }
-    for (const h of s?.holders.values() ?? []) {
-      if (h.holdsData ? h.holdsData(ref) : true) return true;
+    for (const { id } of s?.holderTerms ?? []) {
+      const holder = s!.holders.get(id);
+      if (!holder) return true; // not re-registered since a restart: assume it still holds
+      if (holder.holdsData ? holder.holdsData(ref) : true) return true;
     }
     return false;
   }
 
-  /** Grants whose lifecycle query is due now (Client item 21). */
+  /** Erasure work still owed to the AS: a conveyance, a report, or learning the AS instruction id. */
+  hasPendingLifecycleWork(ref: PdppGrantRef): boolean {
+    const e = this.state_(ref)?.erasure;
+    if (!e) return false;
+    return Object.values(e.reports).some(waiting) || e.asInstructionId === undefined;
+  }
+
+  /** Grants whose lifecycle query, conveyance or report is due now (Client item 21, review F8). */
   dueGrants(): PdppGrantRef[] {
     const now = this.now();
     const due: PdppGrantRef[] = [];
     for (const s of this.grants.values()) {
-      if (!this.holdsData(s.ref)) continue;
-      if (s.queryRequired || (s.nextAttemptAt !== undefined && s.nextAttemptAt <= now)) {
-        due.push(s.ref);
-      }
+      if (!this.holdsData(s.ref) && !this.hasPendingLifecycleWork(s.ref)) continue;
+      if (s.queryRequired || (s.nextAttemptAt !== undefined && s.nextAttemptAt <= now)) due.push(s.ref);
     }
     return due;
   }
 
   /** When the next attempt for the grant is due, if any. */
   nextAttemptAt(ref: PdppGrantRef): number | undefined {
-    return this.state(ref)?.nextAttemptAt;
+    return this.state_(ref)?.nextAttemptAt;
   }
 
   /**
@@ -365,47 +586,55 @@ export class PdppHeldDataManager {
     const s = this.ensure(ref);
     const now = this.now();
     s.attemptSeq += 1;
-    s.lastAttempt = { id: s.attemptSeq, startedAt: now };
+    s.lastAttemptId = s.attemptSeq;
+    s.attempts.set(s.attemptSeq, now);
+    if (s.attempts.size > 16) s.attempts.delete(s.attempts.keys().next().value!);
     s.queryRequired = false;
     s.nextAttemptAt = now + this.retryDelay(s, s.failures + 1, now);
+    this.persistInBackground();
     return s.attemptSeq;
   }
 
   /**
-   * Apply a lifecycle answer. An answer whose `assessed_at` is not later than
-   * one already applied is a replay or cached copy, not a new assessment; it
+   * Apply a lifecycle answer. An `erase` answer is always applied: a terminal
+   * instruction stays true whatever its `assessed_at` (spec-core L1640, L1820;
+   * review F2). A `permitted` answer whose `assessed_at` is not later than one
+   * already applied is a replay or cached copy, not a new assessment; it
    * counts as a failed attempt.
    */
-  recordAnswer(ref: PdppGrantRef, attemptId: number, answer: PdppLifecycleAnswer): Promise<void> {
+  async recordAnswer(ref: PdppGrantRef, attemptId: number, answer: PdppLifecycleAnswer): Promise<void> {
     const s = this.ensure(ref);
     if (answer.grant_id !== ref.grantId) {
       throw new Error(`lifecycle answer names ${answer.grant_id}, not ${ref.grantId}`);
     }
-    if (s.lastAssessedAt !== undefined && !(Date.parse(answer.assessed_at) > Date.parse(s.lastAssessedAt))) {
+    const isNew =
+      s.lastAssessedAt === undefined || Date.parse(answer.assessed_at) > Date.parse(s.lastAssessedAt);
+    const erase = answer.held_data === "erase" && answer.erasure !== undefined;
+    if (!isNew && !erase) {
       this.recordFailure(ref, attemptId, { kind: "http" });
-      return Promise.resolve();
+      return;
     }
     const now = this.now();
-    s.lastAssessedAt = answer.assessed_at;
+    if (isNew) s.lastAssessedAt = answer.assessed_at;
     s.assessments.push({ at: iso(now), source: "lifecycle", held_data: answer.held_data });
-    s.readState = answer.read_state;
+    if (answer.read_state !== "unknown") s.readState = answer.read_state;
     if (answer.ended_at !== undefined) s.endedAt = answer.ended_at;
-    const startedAt = s.lastAttempt?.id === attemptId ? s.lastAttempt.startedAt : now;
-    this.succeeded(s, startedAt);
-    if (answer.held_data === "erase" && answer.erasure) {
-      return this.receiveErasure(s, {
+    this.succeeded(s, s.attempts.get(attemptId) ?? now);
+    if (erase) {
+      await this.receiveErasure(s, {
         origin: "lifecycle",
-        instructionId: answer.erasure.instruction_id,
-        acceptedAt: answer.erasure.accepted_at,
-        effectiveAt: answer.erasure.effective_at,
-        asStopUseBy: answer.erasure.stop_use_by,
+        instructionId: answer.erasure!.instruction_id,
+        acceptedAt: answer.erasure!.accepted_at,
+        effectiveAt: answer.erasure!.effective_at,
+        asStopUseBy: answer.erasure!.stop_use_by,
       });
+      return;
     }
     // Terminal: a later `permitted` never cancels a known instruction.
     if (answer.held_data === "permitted" && !s.erasure) {
       s.positive = { source: "lifecycle", at: now, assessedAt: answer.assessed_at };
     }
-    return Promise.resolve();
+    await this.persist();
   }
 
   /**
@@ -419,11 +648,11 @@ export class PdppHeldDataManager {
   ): void {
     const s = this.ensure(ref);
     const now = this.now();
-    const start = s.lastAttempt?.id === attemptId ? s.lastAttempt.startedAt : now;
+    const start = s.attempts.get(attemptId) ?? now;
     if (failure.kind === "transport") s.transportStreakStart ??= start;
     else s.transportStreakStart = undefined;
     // A failure of an older attempt never reschedules the newest one.
-    if (s.lastAttempt && s.lastAttempt.id !== attemptId) return;
+    if (s.lastAttemptId !== undefined && s.lastAttemptId !== attemptId) return;
     s.failures += 1;
     let delay = this.retryDelay(s, s.failures, now);
     if (failure.retryAfterMs !== undefined) {
@@ -431,29 +660,34 @@ export class PdppHeldDataManager {
       delay = Math.min(Math.max(delay, failure.retryAfterMs), PDPP_RECONCILIATION_INTERVAL_MS);
     }
     s.nextAttemptAt = start + delay;
+    this.persistInBackground();
   }
 
   /**
    * The owner chose `delete` in this client: an erasure instruction effective
    * at once, and the client's first authenticated receipt (spec-core
-   * #client-disconnect). Conveying it to the AS is reported as pending.
+   * #client-disconnect). Saved before use stops and data is deleted, so it
+   * survives a restart with its conveyance pending. A `choseAt` in the future
+   * is clamped to now (review F12).
    */
-  ownerChoseDelete(ref: PdppGrantRef, choseAt: number = this.now()): Promise<void> {
+  async ownerChoseDelete(ref: PdppGrantRef, choseAt: number = this.now()): Promise<void> {
     const s = this.ensure(ref);
-    return this.receiveErasure(s, {
+    const at = Math.min(choseAt, this.now());
+    await this.receiveErasure(s, {
       origin: "client_choice",
-      instructionId: `local:${ref.grantId}:${choseAt}`,
-      effectiveAt: iso(choseAt),
-      receivedAt: choseAt,
+      instructionId: `local:${ref.grantId}:${at}`,
+      effectiveAt: iso(at),
+      receivedAt: at,
     });
   }
 
   /** The AS returned the instruction id for a client-conveyed `delete`. Never moves a clock. */
   linkInstruction(ref: PdppGrantRef, asInstructionId: string): void {
-    const e = this.state(ref)?.erasure;
+    const e = this.state_(ref)?.erasure;
     if (e && e.asInstructionId === undefined) {
       e.asInstructionId = asInstructionId;
       e.instructionId = asInstructionId;
+      this.persistInBackground();
     }
   }
 
@@ -463,15 +697,17 @@ export class PdppHeldDataManager {
     if (s.readState === "revoked" || s.readState === "expired") return;
     s.readState = readState;
     s.endedAt = iso(endedAt);
+    this.persistInBackground();
   }
 
   /**
    * Decide whether held data of the grant may be used now (Client items 19,
    * 20, 21, 22). `purpose` is the purpose code of the intended use; any purpose
-   * other than the grant's approved one needs a new grant.
+   * other than the grant's approved one needs a new grant. This check does not
+   * run overdue disposal; {@link PdppLifecycleAgent.ensureMayUse} does.
    */
   checkUse(ref: PdppGrantRef, options: { purpose?: string } = {}): PdppUseDecision {
-    const s = this.state(ref);
+    const s = this.state_(ref);
     if (!s) return { allowed: false, reason: "unknown_grant" };
     if (this.clockUncertain) return { allowed: false, reason: "clock_uncertain" };
     if (s.erasure) return { allowed: false, reason: "erased" };
@@ -491,7 +727,7 @@ export class PdppHeldDataManager {
 
   /** Whether the grant has ended (revoked or expired), from AS answers or `expires_at`. */
   hasEnded(ref: PdppGrantRef): boolean {
-    const s = this.state(ref);
+    const s = this.state_(ref);
     return s ? this.ended(s, this.now()) : false;
   }
 
@@ -502,17 +738,17 @@ export class PdppHeldDataManager {
 
   /** The grant as delivered, if known. */
   grantOf(ref: PdppGrantRef): PdppGrant | undefined {
-    return this.state(ref)?.grant;
+    return this.state_(ref)?.grant;
   }
 
   /** The erasure record, if an instruction applies (Client item 26). */
   erasureRecord(ref: PdppGrantRef): Readonly<PdppErasureRecord> | undefined {
-    return this.state(ref)?.erasure;
+    return this.state_(ref)?.erasure;
   }
 
   /** Assessment history: token responses and lifecycle answers, with the client receipt time. */
   assessments(ref: PdppGrantRef): ReadonlyArray<{ at: string; source: string; held_data?: string }> {
-    return this.state(ref)?.assessments ?? [];
+    return this.state_(ref)?.assessments ?? [];
   }
 
   /** Every known grant. */
@@ -520,10 +756,23 @@ export class PdppHeldDataManager {
     return [...this.grants.values()].map((s) => s.ref);
   }
 
+  /** Grants that wait for the owner to approve lifecycle recovery. */
+  grantsNeedingRecovery(): PdppGrantRef[] {
+    return [...this.grants.values()]
+      .filter(
+        (s) =>
+          s.needsRecovery === true ||
+          (s.erasure ? Object.values(s.erasure.reports).includes("needs_current_authentication") : false),
+      )
+      .map((s) => s.ref);
+  }
+
   /**
-   * Register a party acting for the client for this grant (Client item 24).
-   * Throws {@link PdppIndependentRecipientError} unless the party accepts every
-   * flow-down term and makes no independent reuse.
+   * Register a party acting for the client for this grant (Client item 24),
+   * also again after a restart. Throws {@link PdppIndependentRecipientError}
+   * unless the party accepts every flow-down term and makes no independent
+   * reuse. The terms are frozen as registered and checked again on every
+   * classification. If an erasure instruction applies, it is relayed now.
    */
   registerDownstreamHolder(ref: PdppGrantRef, holder: PdppDownstreamHolder): void {
     const failure = flowDownFailure(holder.terms);
@@ -533,15 +782,26 @@ export class PdppHeldDataManager {
       );
     }
     const s = this.ensure(ref);
-    if (s.erasure) {
-      throw new Error(`grant ${ref.grantId} has an erasure instruction; no party may receive its data`);
-    }
     s.holders.set(holder.id, holder);
+    if (!s.holderTerms.some((h) => h.id === holder.id)) {
+      s.holderTerms.push({ id: holder.id, terms: Object.freeze({ ...holder.terms }) });
+    }
+    this.persistInBackground();
+    if (s.erasure) void this.dispose(s).catch(() => undefined);
   }
 
-  /** The registered party acting for the client for this grant, if any. */
+  /** The party, if it is registered for the grant and its frozen and current terms still pass the flow-down. */
+  actingForClient(ref: PdppGrantRef, id: string): PdppDownstreamHolder | undefined {
+    const s = this.state_(ref);
+    const holder = s?.holders.get(id);
+    const frozen = s?.holderTerms.find((h) => h.id === id)?.terms;
+    if (!holder || flowDownFailure(frozen) || flowDownFailure(holder.terms)) return undefined;
+    return holder;
+  }
+
+  /** @deprecated Use {@link actingForClient}, which re-checks the terms. */
   downstreamHolder(ref: PdppGrantRef, id: string): PdppDownstreamHolder | undefined {
-    return this.state(ref)?.holders.get(id);
+    return this.actingForClient(ref, id);
   }
 
   /**
@@ -549,13 +809,12 @@ export class PdppHeldDataManager {
    * `until` is an RFC 3339 date-time, `event:<text>`, or `unknown`; never an
    * invented date. Declare it before an instruction arrives (the retained data
    * lives outside the registered stores, which erasure empties), so the agent
-   * reports `retained` rather than `completed`. Declared after completion was
-   * reported, it is recorded and reported as a correction.
+   * reports `retained` rather than `completed`. Saved before it returns.
    */
-  recordLegalRetention(
+  async recordLegalRetention(
     ref: PdppGrantRef,
     retention: { scope: string; basis: string; until: PdppRetainedUntil },
-  ): void {
+  ): Promise<void> {
     if (!isRetainedUntil(retention.until)) {
       throw new TypeError("retained_until must be an RFC 3339 date-time, event:<text>, or unknown");
     }
@@ -566,30 +825,54 @@ export class PdppHeldDataManager {
       s.erasure.legalRetention = hold;
       s.erasure.reports.retained = "pending";
     }
+    await this.persist();
   }
 
   /** The legal obligation ended and the retained data is deleted: completion is reportable. */
-  recordLegalRetentionEnded(ref: PdppGrantRef): void {
-    const e = this.state(ref)?.erasure;
+  async recordLegalRetentionEnded(ref: PdppGrantRef): Promise<void> {
+    const e = this.state_(ref)?.erasure;
     if (!e?.legalRetention || e.legalRetention.endedAt !== undefined) return;
     e.legalRetention.endedAt = iso(this.now());
     if (e.completedAt) e.reports.completed = "pending";
+    await this.persist();
   }
 
   /** Mark a report outcome; used by the lifecycle agent. */
-  setReportState(
-    ref: PdppGrantRef,
-    report: keyof PdppErasureRecord["reports"],
-    state: ReportState,
-  ): void {
-    const e = this.state(ref)?.erasure;
-    if (e) e.reports[report] = state;
+  setReportState(ref: PdppGrantRef, report: keyof PdppErasureRecord["reports"], state: ReportState): void {
+    const e = this.state_(ref)?.erasure;
+    if (e) {
+      e.reports[report] = state;
+      this.persistInBackground();
+    }
+  }
+
+  /** Append a disclosure-gate decision and save it before the release proceeds. */
+  async appendDisclosure(entry: unknown): Promise<void> {
+    this.disclosures.push(entry);
+    await this.persist();
+  }
+
+  /** Append or update a required-by-law disclosure record and save it. */
+  async putLegalDisclosure(index: number | undefined, record: unknown): Promise<number> {
+    const i = index ?? this.legalDisclosures.length;
+    this.legalDisclosures[i] = record;
+    await this.persist();
+    return i;
+  }
+
+  disclosureLog(): readonly unknown[] {
+    return this.disclosures;
+  }
+
+  legalDisclosureLog(): readonly unknown[] {
+    return this.legalDisclosures;
   }
 
   /**
-   * Complete due disposal before further use (Client item 23): retry any
-   * unfinished erasure and apply retention ceilings in every store and to
-   * derivatives. Returns whether erasure, if any, is complete.
+   * Complete due disposal (Client items 6, 23): retry any unfinished erasure
+   * and apply retention ceilings in every store and to derivatives. A
+   * derivative whose acquisition time is unknown counts as past its ceiling
+   * (review F5). Called before use and on every `runDue`.
    */
   async disposeDue(ref: PdppGrantRef): Promise<{ erasureComplete: boolean }> {
     const s = this.ensure(ref);
@@ -602,21 +885,24 @@ export class PdppHeldDataManager {
       for (const store of this.stores) await store.applyRetention?.(ref, retention);
       const ceilingMs = retentionCeilingMs(retention.max_duration);
       const now = this.now();
+      let changed = false;
       for (const d of [...this.derivatives.values()]) {
         if (!d.inputs.some((i) => keyOf(i) === keyOf(ref))) continue;
-        const acquiredAt = d.acquiredAt ?? s.firstAcquiredAt ?? now;
-        if (now - acquiredAt >= ceilingMs) {
+        const acquiredAt = d.acquiredAt ?? s.firstAcquiredAt ?? Number.NEGATIVE_INFINITY;
+        if (now - acquiredAt >= ceilingMs && d.erase) {
           await d.erase(ref, "retention");
           this.derivatives.delete(d.id);
+          changed = true;
         }
       }
+      if (changed) await this.persist();
     }
     return { erasureComplete: true };
   }
 
   // ── internals ──────────────────────────────────────────────────────────
 
-  private state(ref: PdppGrantRef): GrantState | undefined {
+  private state_(ref: PdppGrantRef): GrantState | undefined {
     return this.grants.get(keyOf(ref));
   }
 
@@ -625,12 +911,14 @@ export class PdppHeldDataManager {
     if (!s) {
       s = {
         ref: { issuer: ref.issuer, grantId: ref.grantId },
-        attemptSeq: 0,
         failures: 0,
         queryRequired: false,
+        assessments: [],
+        holderTerms: [],
         abort: new AbortController(),
         holders: new Map(),
-        assessments: [],
+        attempts: new Map(),
+        attemptSeq: 0,
       };
       this.grants.set(keyOf(ref), s);
     }
@@ -654,15 +942,14 @@ export class PdppHeldDataManager {
   /** Exponential backoff with jitter, capped at the retry interval, or the reconciliation interval while widened. */
   private retryDelay(s: GrantState, failureCount: number, now: number): number {
     const widened =
-      s.transportStreakStart !== undefined &&
-      now - s.transportStreakStart >= PDPP_RECONCILIATION_INTERVAL_MS;
+      s.transportStreakStart !== undefined && now - s.transportStreakStart >= PDPP_RECONCILIATION_INTERVAL_MS;
     const cap = widened ? PDPP_RECONCILIATION_INTERVAL_MS : PDPP_RETRY_INTERVAL_MS;
     const exp = Math.min(cap, BASE_RETRY_DELAY_MS * 2 ** Math.min(30, failureCount - 1));
     // Jitter only shortens the delay, so the cap always holds.
     return Math.max(1_000, Math.round(exp * (0.5 + 0.5 * this.random())));
   }
 
-  private receiveErasure(
+  private async receiveErasure(
     s: GrantState,
     input: {
       origin: "lifecycle" | "client_choice";
@@ -674,9 +961,10 @@ export class PdppHeldDataManager {
     },
   ): Promise<void> {
     if (s.erasure) {
-      // Terminal, recorded once: redelivery only links the AS id.
+      // Terminal, recorded once: redelivery only links the AS id, and never restarts a clock.
       if (input.origin === "lifecycle") this.linkInstruction(s.ref, input.instructionId);
-      return s.erasure.completedAt === undefined ? this.dispose(s) : Promise.resolve();
+      if (s.erasure.completedAt === undefined) await this.dispose(s);
+      return;
     }
     const receivedAt = input.receivedAt ?? this.now();
     const effective = Date.parse(input.effectiveAt);
@@ -685,7 +973,6 @@ export class PdppHeldDataManager {
       input.asStopUseBy !== undefined ? Date.parse(input.asStopUseBy) : Number.POSITIVE_INFINITY,
     );
     const late = receivedAt > stopUseDeadline;
-    const deleteBy = receivedAt + PDPP_DELETION_BOUND_MS;
     s.erasure = {
       instructionId: input.instructionId,
       ...(input.origin === "lifecycle" && { asInstructionId: input.instructionId }),
@@ -698,7 +985,7 @@ export class PdppHeldDataManager {
       stopUseBy: iso(late ? receivedAt : stopUseDeadline),
       // Use stops at once on receipt: it is the earliest practicable point.
       stopUseAt: iso(receivedAt),
-      deleteBy: iso(deleteBy),
+      deleteBy: iso(receivedAt + PDPP_DELETION_BOUND_MS),
       missedDeadline: false,
       pending: [],
       partiesInformed: [],
@@ -712,8 +999,18 @@ export class PdppHeldDataManager {
       },
     };
     s.positive = undefined;
+    // Conveying the owner's choice, and learning the AS instruction id, are due at once.
+    if (input.origin === "client_choice") s.nextAttemptAt = Math.min(s.nextAttemptAt ?? receivedAt, receivedAt);
+    // Stopping use is always safe, so it never waits for storage.
     s.abort.abort(new Error(`erasure instruction for grant ${s.ref.grantId}`));
-    return this.dispose(s);
+    let persistError: unknown;
+    try {
+      await this.persist(); // the record is durable before any deletion
+    } catch (error) {
+      persistError = error;
+    }
+    await this.dispose(s);
+    if (persistError !== undefined) throw new PdppStatePersistError(persistError);
   }
 
   /** Delete covered data everywhere; record what remains pending. */
@@ -729,6 +1026,10 @@ export class PdppHeldDataManager {
     }
     for (const d of [...this.derivatives.values()]) {
       if (!d.inputs.some((i) => keyOf(i) === keyOf(s.ref))) continue;
+      if (!d.erase) {
+        pending.push(`derivative:${d.id}`); // waits for the app to register it again
+        continue;
+      }
       try {
         const outcome = await d.erase(s.ref, "erasure");
         if (outcome === "regenerated") {
@@ -741,8 +1042,13 @@ export class PdppHeldDataManager {
         pending.push(`derivative:${d.id}`);
       }
     }
-    for (const holder of s.holders.values()) {
-      if (e.partiesInformed.some((p) => p.id === holder.id)) continue;
+    for (const { id } of s.holderTerms) {
+      if (e.partiesInformed.some((p) => p.id === id)) continue;
+      const holder = s.holders.get(id);
+      if (!holder) {
+        pending.push(`holder:${id}`);
+        continue;
+      }
       try {
         const confirmation = await holder.relayErasure({
           issuer: s.ref.issuer,
@@ -753,12 +1059,12 @@ export class PdppHeldDataManager {
           deleteBy: e.deleteBy,
         });
         e.partiesInformed.push({
-          id: holder.id,
+          id,
           informedAt: iso(this.now()),
           ...(confirmation?.confirmedAt !== undefined && { confirmedAt: confirmation.confirmedAt }),
         });
       } catch {
-        pending.push(`holder:${holder.id}`);
+        pending.push(`holder:${id}`);
       }
     }
     e.pending = pending;
@@ -768,6 +1074,9 @@ export class PdppHeldDataManager {
       e.completedAt = iso(now);
       e.reports.completed = "pending";
     }
+    await this.persist().catch((error: unknown) => {
+      this.lastPersistError = error;
+    });
   }
 }
 

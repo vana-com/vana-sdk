@@ -122,6 +122,8 @@ export interface PdppDisclosureLogEntry {
 /** A required-by-law disclosure record (spec-core #independent-recipient-disclosure). */
 export interface PdppLegalDisclosureRecord {
   at: string;
+  /** `attempted` is saved before sending; `failed` if `send` threw (some data may have left). */
+  status: "attempted" | "sent" | "failed";
   recipient: string;
   legalObligation: string;
   records: Array<{ instanceId: string; id: string }>;
@@ -154,10 +156,11 @@ export class PdppDisclosureRefusedError extends Error {
 const recipientLabel = (r: PdppRecipient) =>
   r.kind === "owner_destination" ? `owner:${r.destination}` : `party:${r.id}`;
 
+/**
+ * Decisions and required-by-law records are saved in the manager's state
+ * store before data leaves (review F4).
+ */
 export class PdppDisclosureGate {
-  private readonly entries: PdppDisclosureLogEntry[] = [];
-  private readonly legal: PdppLegalDisclosureRecord[] = [];
-
   constructor(private readonly manager: PdppHeldDataManager) {}
 
   /** Classify the receiving party for this operation (Client item 30). */
@@ -171,7 +174,7 @@ export class PdppDisclosureGate {
     // contributing grant; registration already refuses independent reuse.
     const actsForClient =
       request.inputs.length > 0 &&
-      request.inputs.every((ref) => this.manager.downstreamHolder(ref, r.id) !== undefined);
+      request.inputs.every((ref) => this.manager.actingForClient(ref, r.id) !== undefined);
     return actsForClient ? "acting_for_client" : "independent";
   }
 
@@ -211,7 +214,7 @@ export class PdppDisclosureGate {
     send: (payload: T) => R | Promise<R>,
   ): Promise<R> {
     const decision = this.decide(request);
-    this.log(request, decision);
+    await this.log(request, decision);
     if (!decision.allowed) throw new PdppDisclosureRefusedError(decision);
     return send(payload);
   }
@@ -236,7 +239,7 @@ export class PdppDisclosureGate {
         recipientClass: "independent" as const,
         reason: "independent_recipient" as const,
       };
-      this.entries.push({
+      await this.manager.appendDisclosure({
         at,
         recipient: o.recipient,
         recipientClass: "independent",
@@ -244,7 +247,7 @@ export class PdppDisclosureGate {
         inputs: input.inputs,
         released: false,
         reason: "not a binding legal obligation",
-      });
+      } satisfies PdppDisclosureLogEntry);
       throw new PdppDisclosureRefusedError(decision);
     }
     const wanted = new Set(o.records.map((r) => `${r.instanceId}\u0000${r.id}`));
@@ -255,35 +258,52 @@ export class PdppDisclosureGate {
         id: r.id,
         data: Object.fromEntries(Object.entries(r.data).filter(([k]) => o.fields.includes(k))),
       }));
-    const result = await input.send(subset);
-    this.entries.push({
+    const record: PdppLegalDisclosureRecord = {
+      at,
+      status: "attempted",
+      recipient: o.recipient,
+      legalObligation: o.legalObligation,
+      records: subset.map((r) => ({ instanceId: r.instanceId, id: r.id })),
+      fields: [...o.fields],
+      inputs: input.inputs,
+    };
+    // Saved before anything is sent, unless law prohibits the record.
+    const index = o.recordProhibited ? undefined : await this.manager.putLegalDisclosure(undefined, record);
+    let result: R;
+    try {
+      result = await input.send(subset);
+    } catch (error) {
+      if (index !== undefined) await this.manager.putLegalDisclosure(index, { ...record, status: "failed" });
+      await this.manager.appendDisclosure({
+        at,
+        recipient: o.recipient,
+        recipientClass: "independent",
+        content: "required_by_law",
+        inputs: input.inputs,
+        released: false,
+        reason: "send failed; part of the subset may have left",
+      } satisfies PdppDisclosureLogEntry);
+      throw error;
+    }
+    if (index !== undefined) await this.manager.putLegalDisclosure(index, { ...record, status: "sent" });
+    await this.manager.appendDisclosure({
       at,
       recipient: o.recipient,
       recipientClass: "independent",
       content: "required_by_law",
       inputs: input.inputs,
       released: true,
-    });
-    if (!o.recordProhibited) {
-      this.legal.push({
-        at,
-        recipient: o.recipient,
-        legalObligation: o.legalObligation,
-        records: subset.map((r) => ({ instanceId: r.instanceId, id: r.id })),
-        fields: [...o.fields],
-        inputs: input.inputs,
-      });
-    }
+    } satisfies PdppDisclosureLogEntry);
     return result;
   }
 
   /** Every gate decision (adapter-observed release decisions). */
   decisions(): ReadonlyArray<PdppDisclosureLogEntry> {
-    return this.entries;
+    return this.manager.disclosureLog() as PdppDisclosureLogEntry[];
   }
 
-  private log(request: PdppDisclosureRequest, decision: PdppDisclosureDecision): void {
-    this.entries.push({
+  private log(request: PdppDisclosureRequest, decision: PdppDisclosureDecision): Promise<void> {
+    return this.manager.appendDisclosure({
       at: new Date(this.manager.now()).toISOString(),
       recipient: recipientLabel(request.recipient),
       recipientClass: decision.recipientClass,
@@ -292,12 +312,12 @@ export class PdppDisclosureGate {
       released: decision.allowed,
       ...(!decision.allowed && { reason: decision.reason }),
       ...(request.cited && { cited: request.cited }),
-    });
+    } satisfies PdppDisclosureLogEntry);
   }
 
   /** Required-by-law disclosure records (identifiers and fields, not data). */
   legalDisclosures(): ReadonlyArray<PdppLegalDisclosureRecord> {
-    return this.legal;
+    return this.manager.legalDisclosureLog() as PdppLegalDisclosureRecord[];
   }
 }
 

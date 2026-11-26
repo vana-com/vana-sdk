@@ -20,3 +20,4 @@ export * from "./sync-copy";
 export * from "./held-data";
 export * from "./lifecycle";
 export * from "./egress";
+export * from "./endpoints";

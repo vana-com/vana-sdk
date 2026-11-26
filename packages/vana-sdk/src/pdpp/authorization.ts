@@ -17,7 +17,15 @@
  * @category PDPP
  */
 
-import { PdppProtocolError, pdppHttpErrorFrom } from "./errors";
+import { PdppHttpError, PdppProtocolError, pdppHttpErrorFrom } from "./errors";
+import {
+  PDPP_FETCH_REDIRECT,
+  PDPP_REQUEST_TIMEOUT_MS,
+  assertPdppEndpoint,
+  timeoutSignal,
+  type PdppEndpointPolicy,
+} from "./endpoints";
+import type { PdppGrantRef, PdppHeldDataManager } from "./held-data";
 import {
   PDPP_APPENDIX_A_PURPOSES,
   PDPP_CLIENT_SUPPORTED_PROCESSING_PERMISSIONS,
@@ -70,29 +78,44 @@ export function authorizationServerMetadataUrl(issuer: string): string {
 
 /**
  * Fetch AS metadata and check that it is the issuer asked for and that it
- * advertises the Core data-access type (Client item 12).
+ * advertises the Core data-access type (Client item 12). Every endpoint it
+ * names is checked against the issuer origin and `policy` (review F7):
+ * https only, no local or private hosts, no other origin unless allowed.
  */
 export async function discoverPdppAuthorizationServer(
   issuer: string,
-  options: { fetch?: Fetch; metadataUrl?: string } = {},
+  options: { fetch?: Fetch; metadataUrl?: string; policy?: PdppEndpointPolicy } = {},
 ): Promise<PdppAuthorizationServerMetadata> {
-  const doFetch = options.fetch ?? globalThis.fetch;
-  const response = await doFetch(
+  const policy = options.policy ?? {};
+  assertPdppEndpoint(issuer, issuer, "issuer", policy);
+  const metadataUrl = assertPdppEndpoint(
     options.metadataUrl ?? authorizationServerMetadataUrl(issuer),
-    { headers: { Accept: "application/json" } },
+    issuer,
+    "metadata URL",
+    policy,
   );
+  const doFetch = options.fetch ?? globalThis.fetch;
+  const response = await doFetch(metadataUrl, {
+    headers: { Accept: "application/json" },
+    redirect: PDPP_FETCH_REDIRECT,
+    ...withSignal(PDPP_REQUEST_TIMEOUT_MS),
+  });
   if (!response.ok) throw await pdppHttpErrorFrom(response);
   const metadata = (await response.json()) as PdppAuthorizationServerMetadata;
   if (metadata.issuer !== issuer) {
-    throw new PdppProtocolError(
-      `authorization server metadata names issuer ${String(metadata.issuer)}, not ${issuer}`,
-    );
+    throw new PdppProtocolError("authorization server metadata names a different issuer");
   }
-  if (typeof metadata.token_endpoint !== "string") {
-    throw new PdppProtocolError("authorization server metadata has no token_endpoint");
+  assertPdppEndpoint(metadata.token_endpoint, issuer, "token_endpoint", policy);
+  for (const member of ["authorization_endpoint", "revocation_endpoint", "pdpp_grant_lifecycle_endpoint"] as const) {
+    if (metadata[member] !== undefined) assertPdppEndpoint(metadata[member], issuer, member, policy);
   }
   assertSupportsDataAccess(metadata);
   return metadata;
+}
+
+function withSignal(ms: number): { signal?: AbortSignal } {
+  const signal = timeoutSignal(ms);
+  return signal ? { signal } : {};
 }
 
 /** Client item 12: refuse to request a type the AS does not advertise. */
@@ -295,36 +318,61 @@ function checkGrant(grant: unknown, index: number): PdppGrant {
   return grant as PdppGrant;
 }
 
-/** Exchange an authorization code at the token endpoint (RFC 6749 §4.1.3 + PKCE). */
+/**
+ * Exchange an authorization code at the token endpoint (RFC 6749 §4.1.3 +
+ * PKCE). The result is recorded in `heldData` as the positive assessment it
+ * carries (Client item 20); the app need not wire it by hand.
+ */
 export async function exchangeAuthorizationCode(input: {
   metadata: PdppAuthorizationServerMetadata;
   code: string;
   codeVerifier: string;
   clientId: string;
   redirectUri: string;
+  heldData: PdppHeldDataManager;
   fetch?: Fetch;
 }): Promise<PdppTokenResult> {
-  return tokenRequest(input.metadata, input.fetch, {
+  const result = await tokenRequest(input.metadata, input.fetch, {
     grant_type: "authorization_code",
     code: input.code,
     code_verifier: input.codeVerifier,
     client_id: input.clientId,
     redirect_uri: input.redirectUri,
   });
+  for (const issued of result.grants) input.heldData.recordTokenResponse(issued);
+  return result;
 }
 
-/** Refresh; the refresh response is inspected like any other (Client item 13). */
+/**
+ * Refresh; the refresh response is inspected like any other (Client item 13)
+ * and recorded in `heldData`. A failure that shows the grant may have ended
+ * (`invalid_grant` and the others in spec-core #reconciliation) makes a
+ * lifecycle query due before further use of every grant in `grants`.
+ */
 export async function refreshPdppToken(input: {
   metadata: PdppAuthorizationServerMetadata;
   refreshToken: string;
   clientId: string;
+  heldData: PdppHeldDataManager;
+  /** The grants the refresh-token family covers. */
+  grants: PdppGrantRef[];
   fetch?: Fetch;
 }): Promise<PdppTokenResult> {
-  return tokenRequest(input.metadata, input.fetch, {
-    grant_type: "refresh_token",
-    refresh_token: input.refreshToken,
-    client_id: input.clientId,
-  });
+  let result: PdppTokenResult;
+  try {
+    result = await tokenRequest(input.metadata, input.fetch, {
+      grant_type: "refresh_token",
+      refresh_token: input.refreshToken,
+      client_id: input.clientId,
+    });
+  } catch (error) {
+    if (error instanceof PdppHttpError) {
+      for (const ref of input.grants) input.heldData.recordGrantSignal(ref, error);
+    }
+    throw error;
+  }
+  for (const issued of result.grants) input.heldData.recordTokenResponse(issued);
+  return result;
 }
 
 async function tokenRequest(
@@ -340,6 +388,8 @@ async function tokenRequest(
       Accept: "application/json",
     },
     body: new URLSearchParams(form).toString(),
+    redirect: PDPP_FETCH_REDIRECT,
+    ...withSignal(PDPP_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) throw await pdppHttpErrorFrom(response);
   return interpretTokenResponse(await response.json(), metadata.issuer);

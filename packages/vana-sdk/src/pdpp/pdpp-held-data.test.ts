@@ -9,6 +9,7 @@ import {
   InMemoryPdppLifecycleCredentials,
   InMemoryPdppSyncCopy,
   PdppHeldDataManager,
+  InMemoryPdppHeldDataStateStore,
   PdppIndependentRecipientError,
   PdppLifecycleAgent,
   PdppProtocolError,
@@ -30,6 +31,7 @@ const REVOKE = `${ISSUER}/pdpp/v1/token/revoke`;
 const H = 3_600_000;
 const T0 = Date.parse("2026-11-01T00:00:00Z");
 const iso = (ms: number) => new Date(ms).toISOString();
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function grant(overrides: Partial<PdppGrant> = {}): PdppGrant {
   return {
@@ -153,9 +155,9 @@ function setup(options: { grant?: PdppGrant; tokens?: { access: string; refresh?
   const g = options.grant ?? grant();
   const tokens = options.tokens ?? { access: "at_1", refresh: "rt_1" };
   as.grant(g.grant_id, [tokens.access, ...(tokens.refresh ? [tokens.refresh] : [])]);
-  const manager = new PdppHeldDataManager({ now: clock.now, random: () => 1 });
+  const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore(), now: clock.now, random: () => 1 });
   const copy = new InMemoryPdppSyncCopy(clock.now);
-  manager.addStore(copy);
+  void manager.addStore(copy);
   const credentials = new InMemoryPdppLifecycleCredentials(clock.now);
   const agent = new PdppLifecycleAgent({
     manager,
@@ -176,7 +178,7 @@ function setup(options: { grant?: PdppGrant; tokens?: { access: string; refresh?
   );
   const ref: PdppGrantRef = { issuer: ISSUER, grantId: g.grant_id };
   const hold = () => {
-    const session = copy.beginSession({ grantId: g.grant_id, stream: "top_artists" }, { replace: false });
+    const session = copy.beginSession({ issuer: ISSUER, grantId: g.grant_id, stream: "top_artists" }, { replace: false });
     session.apply({ object: "record", id: "r1", instance_id: "inst_A", stream: "top_artists", data: { id: "r1" } });
     session.commit("cs_1");
     manager.recordAcquisition(ref, g);
@@ -245,7 +247,7 @@ describe("lifecycle discovery and wire (Client items 15, 21; cases D2, D3)", () 
     expect(() =>
       interpretTokenResponse({ access_token: "x", authorization_details: [{ type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: ["g1"] }] }, ISSUER),
     ).toThrow(PdppProtocolError);
-    const manager = new PdppHeldDataManager();
+    const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore() });
     manager.recordAcquisition({ issuer: ISSUER, grantId: "g1" });
     expect(manager.checkUse({ issuer: ISSUER, grantId: "g1" })).toEqual({ allowed: false, reason: "no_positive_assessment" });
   });
@@ -389,10 +391,12 @@ describe("reconciliation (Client item 21; cases C1, C1a)", () => {
     clock.advance(PDPP_RECONCILIATION_INTERVAL_MS);
     as.mode = "hang";
     void agent.runDue(); // never answered
+    await tick(); // runDue completes due disposal before it starts attempts
     const firstStart = lifecycleCalls().at(-1)!.at;
     expect(manager.nextAttemptAt(ref)! - firstStart).toBeLessThanOrEqual(PDPP_RETRY_INTERVAL_MS);
     clock.set(manager.nextAttemptAt(ref)!);
     void agent.runDue();
+    await tick();
     expect(lifecycleCalls()).toHaveLength(2);
   });
 
@@ -503,9 +507,9 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     hold();
     const other: PdppGrantRef = { issuer: ISSUER, grantId: "grt_B" };
     const derivatives: string[] = [];
-    manager.registerDerivative({ id: "emb_1", inputs: [ref], erase: () => (derivatives.push("emb_1 deleted"), "deleted") });
+    await manager.registerDerivative({ id: "emb_1", inputs: [ref], erase: () => (derivatives.push("emb_1 deleted"), "deleted") });
     // P2: a derivative mixing two grants is regenerated without the covered one.
-    manager.registerDerivative({ id: "mix_1", inputs: [ref, other], erase: () => (derivatives.push("mix_1 regenerated"), "regenerated") });
+    await manager.registerDerivative({ id: "mix_1", inputs: [ref, other], erase: () => (derivatives.push("mix_1 regenerated"), "regenerated") });
     const signal = manager.useSignal(ref);
     clock.advance(5 * H);
     as.erase("grt_1", clock.now() - H);
@@ -578,7 +582,7 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     agent.recordTokenResponse(result);
     hold();
     let failing = true;
-    manager.addStore({
+    await manager.addStore({
       holdsData: () => failing,
       erase: () => {
         if (failing) throw new Error("disk offline");
@@ -602,7 +606,7 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     agent.recordTokenResponse(result);
     hold();
     const expired: string[] = [];
-    manager.registerDerivative({ id: "summary", inputs: [ref], erase: (_r, reason) => (expired.push(reason), "deleted") });
+    await manager.registerDerivative({ id: "summary", inputs: [ref], erase: (_r, reason) => (expired.push(reason), "deleted") });
     clock.advance(PDPP_RECONCILIATION_INTERVAL_MS + 1);
     await agent.ensureMayUse(ref);
     expect(copy.holdsData(ref)).toBe(false);
@@ -633,9 +637,9 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     const { manager, ref, agent, result, hold, clock, as } = setup();
     agent.recordTokenResponse(result);
     hold();
-    expect(() => { manager.recordLegalRetention(ref, { scope: "invoices", basis: "tax law", until: "event:  " }); }).toThrow(TypeError);
-    expect(() => { manager.recordLegalRetention(ref, { scope: "invoices", basis: "tax law", until: "2027" }); }).toThrow(TypeError);
-    manager.recordLegalRetention(ref, { scope: "invoices for 2026", basis: "tax record-keeping law", until: "event:close of the 2026 tax audit" });
+    await expect(manager.recordLegalRetention(ref, { scope: "invoices", basis: "tax law", until: "event:  " })).rejects.toThrow(TypeError);
+    await expect(manager.recordLegalRetention(ref, { scope: "invoices", basis: "tax law", until: "2027" })).rejects.toThrow(TypeError);
+    await manager.recordLegalRetention(ref, { scope: "invoices for 2026", basis: "tax record-keeping law", until: "event:close of the 2026 tax audit" });
     as.erase("grt_1", clock.now());
     as.current.get("grt_1")!.add("rt_1");
     await agent.query(ref);
@@ -643,7 +647,7 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     expect(retained).toHaveLength(1);
     expect(retained[0]!.form.get("retained_until")).toBe("event:close of the 2026 tax audit");
     expect(retained[0]!.form.get("retention_basis")).toBe("tax record-keeping law");
-    manager.recordLegalRetentionEnded(ref);
+    await manager.recordLegalRetentionEnded(ref);
     await agent.sendReports(ref);
     expect(as.received.map((r) => r.report)).toEqual(["received", "retained", "completed"]);
     expect(manager.erasureRecord(ref)!.legalRetention).toMatchObject({ basis: "tax record-keeping law", until: "event:close of the 2026 tax audit" });
@@ -851,6 +855,6 @@ describe("deliveries after erasure (Client item 22, erasure scope)", () => {
     release();
     await expect(pending).rejects.toMatchObject({ reason: "grant_erased" });
     expect(copy.holdsData(ref)).toBe(false);
-    expect(copy.syncToken({ grantId: g.grant_id, stream: "top_artists" })).toBeUndefined();
+    expect(copy.syncToken({ issuer: ISSUER, grantId: g.grant_id, stream: "top_artists" })).toBeUndefined();
   });
 });

@@ -7,6 +7,7 @@ import {
   PdppClientStoppedError,
   InMemoryPdppSyncCopy,
   PdppHeldDataManager,
+  InMemoryPdppHeldDataStateStore,
   assertSupportsDataAccess,
   authorizationServerMetadataUrl,
   buildAuthorizationRequest,
@@ -23,6 +24,7 @@ import {
 } from "./index";
 
 const ISSUER = "https://ps.example/pdpp/v1";
+const hd = () => new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore() });
 
 function grant(overrides: Partial<PdppGrant> = {}): PdppGrant {
   return {
@@ -162,6 +164,7 @@ describe("authorization (Client items 1, 12, 13, 27, 28, 33)", () => {
       codeVerifier: "v",
       clientId: "https://app.example/client",
       redirectUri: "https://app.example/cb",
+      heldData: hd(),
       fetch,
     });
     expect(result.grants).toEqual([{ issuer: ISSUER, grant: grant() }]);
@@ -175,7 +178,7 @@ describe("resource reads (Client items 2, 7, 9, 11, 14, 15, 32)", () => {
 
   it("sends the access token and pins PDPP-Version 0.1 (items 2, 32)", async () => {
     const { fetch, calls } = scripted([json(page({}), { headers: v })]);
-    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch });
     await client.listRecords("top_artists");
     expect(calls[0]!.headers.get("Authorization")).toBe("Bearer at");
     expect(calls[0]!.headers.get("PDPP-Version")).toBe("0.1");
@@ -185,7 +188,7 @@ describe("resource reads (Client items 2, 7, 9, 11, 14, 15, 32)", () => {
     "does not use a successful response whose PDPP-Version is %j (item 32)",
     async (selected) => {
       const { fetch } = scripted([json(page({}), { headers: selected === undefined ? {} : { "PDPP-Version": selected } })]);
-      const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+      const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch });
       await expect(client.listRecords("top_artists")).rejects.toThrow(PdppProtocolError);
     },
   );
@@ -194,7 +197,7 @@ describe("resource reads (Client items 2, 7, 9, 11, 14, 15, 32)", () => {
     const { fetch } = scripted([
       json({ error: { code: "brand_new_code", type: "permission_error", message: "x" } }, { status: 429, headers: { "Retry-After": "7" } }),
     ]);
-    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch });
     const error = (await client.listRecords("top_artists").catch((e) => e)) as PdppHttpError;
     expect(error.status).toBe(429);
     expect(error.code).toBe("brand_new_code");
@@ -209,7 +212,7 @@ describe("resource reads (Client items 2, 7, 9, 11, 14, 15, 32)", () => {
         { status: 401, headers: { "WWW-Authenticate": 'Bearer error="invalid_token"' } },
       ),
     ]);
-    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch });
     await expect(client.listRecords("top_artists")).rejects.toBeInstanceOf(PdppHttpError);
     expect(client.stoppedReason).toBe("grant_revoked");
     await expect(client.listRecords("top_artists")).rejects.toBeInstanceOf(PdppClientStoppedError);
@@ -217,7 +220,7 @@ describe("resource reads (Client items 2, 7, 9, 11, 14, 15, 32)", () => {
 
   it("raises on a 404 rather than reporting the record as absent at the source (item 11)", async () => {
     const { fetch } = scripted([json({ error: { code: "not_found", type: "not_found_error", message: "no" } }, { status: 404, headers: v })]);
-    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch });
     await expect(client.getRecord("top_artists", "r1", "inst_A")).rejects.toMatchObject({ status: 404 });
   });
 
@@ -225,7 +228,7 @@ describe("resource reads (Client items 2, 7, 9, 11, 14, 15, 32)", () => {
     const { fetch } = scripted([
       json(page({ data: [{ object: "record", id: "r1", instance_id: "inst_A", stream: "top_artists", data: { id: "r1" }, future_member: 1 }], extra: true }), { headers: v }),
     ]);
-    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch });
     const result = await client.listRecords("top_artists");
     expect(result.data[0]!.data).toEqual({ id: "r1" });
   });
@@ -233,7 +236,7 @@ describe("resource reads (Client items 2, 7, 9, 11, 14, 15, 32)", () => {
 
 describe("sync (Client items 3, 4, 5, 6, 10)", () => {
   const issuedGrant = { issuer: ISSUER, grant: grant() };
-  const ctx = { grantId: "grt_1", stream: "top_artists" };
+  const ctx = { issuer: ISSUER, grantId: "grt_1", stream: "top_artists" };
   const rec = (instance: string, id: string, data?: Record<string, unknown>, deleted = false) => ({
     object: "record" as const, id, instance_id: instance, stream: "top_artists", ...(deleted ? { deleted: true } : { data }),
   });
@@ -244,7 +247,7 @@ describe("sync (Client items 3, 4, 5, 6, 10)", () => {
       json(page({ next_changes_since: "cs_9", data: [rec("inst_B", "r1", { id: "r1" })] }), { headers: v }),
     ]);
     const copy = new InMemoryPdppSyncCopy();
-    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch });
     await client.sync("top_artists", copy);
     expect(calls[0]!.url.searchParams.get("changes_since")).toBe("beginning");
     expect(calls[1]!.url.searchParams.get("changes_since")).toBe("beginning");
@@ -257,11 +260,11 @@ describe("sync (Client items 3, 4, 5, 6, 10)", () => {
   it("replaces a record within its projection, removes omitted fields, keeps nulls, and ignores tombstones for unheld records (items 5, 10)", async () => {
     const copy = new InMemoryPdppSyncCopy();
     const first = scripted([json(page({ next_changes_since: "cs_1", data: [rec("inst_A", "r1", { id: "r1", name: "x", genre: "y" })] }), { headers: v })]);
-    await new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch: first.fetch }).sync("top_artists", copy);
+    await new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch: first.fetch }).sync("top_artists", copy);
     const second = scripted([
       json(page({ next_changes_since: "cs_2", data: [rec("inst_A", "r1", { id: "r1", name: null }), rec("inst_A", "ghost", undefined, true)] }), { headers: v }),
     ]);
-    await new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch: second.fetch }).sync("top_artists", copy);
+    await new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch: second.fetch }).sync("top_artists", copy);
     expect(second.calls[0]!.url.searchParams.get("changes_since")).toBe("cs_1");
     expect(copy.records(ctx).map((r) => r.data)).toEqual([{ id: "r1", name: null }]);
   });
@@ -269,12 +272,12 @@ describe("sync (Client items 3, 4, 5, 6, 10)", () => {
   it("restarts from beginning on 410 cursor_expired and replaces the copy (item 5)", async () => {
     const copy = new InMemoryPdppSyncCopy();
     const seed = scripted([json(page({ next_changes_since: "cs_1", data: [rec("inst_A", "old", { id: "old" })] }), { headers: v })]);
-    await new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch: seed.fetch }).sync("top_artists", copy);
+    await new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch: seed.fetch }).sync("top_artists", copy);
     const { fetch, calls } = scripted([
       json({ error: { code: "cursor_expired", type: "gone_error", message: "expired" } }, { status: 410, headers: v }),
       json(page({ next_changes_since: "cs_fresh", data: [rec("inst_A", "new", { id: "new" })] }), { headers: v }),
     ]);
-    const result = await new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch }).sync("top_artists", copy);
+    const result = await new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch }).sync("top_artists", copy);
     expect(result.restarted).toBe(true);
     expect(calls[1]!.url.searchParams.get("changes_since")).toBe("beginning");
     expect(copy.records(ctx).map((r) => r.id)).toEqual(["new"]);
@@ -283,7 +286,7 @@ describe("sync (Client items 3, 4, 5, 6, 10)", () => {
   it("refuses a terminal page without next_changes_since", async () => {
     const { fetch } = scripted([json(page({}), { headers: v })]);
     await expect(
-      new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch }).sync("top_artists", new InMemoryPdppSyncCopy()),
+      new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch }).sync("top_artists", new InMemoryPdppSyncCopy()),
     ).rejects.toThrow(/next_changes_since/);
   });
 
@@ -291,7 +294,7 @@ describe("sync (Client items 3, 4, 5, 6, 10)", () => {
     let now = Date.parse("2026-01-01T00:00:00Z");
     const copy = new InMemoryPdppSyncCopy(() => now);
     const client = (responses: Response[]) =>
-      new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch: scripted(responses).fetch });
+      new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch: scripted(responses).fetch });
     await client([json(page({ next_changes_since: "cs_1", data: [rec("inst_A", "r1", { id: "r1" })] }), { headers: v })]).sync("top_artists", copy);
     now += 20 * 86_400_000;
     // Re-read 20 days later: the ceiling still counts from day 0.
@@ -329,11 +332,11 @@ describe("slice 2 re-check of slice 1 items (Client items 1, 6, 9, 10, 13, 32, 3
       json(page({ has_more: true, next_cursor: "pc_3", data: [rec("r1", { id: "r1" })] }), { headers: v }),
       json(page({ next_changes_since: "cs_1", data: [rec("r2", { id: "r2" })] }), { headers: { "PDPP-Version": "0.2" } }),
     ]);
-    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch });
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch });
     await expect(client.sync("top_artists", copy)).rejects.toThrow(PdppProtocolError);
     expect(calls.map((c) => c.headers.get("PDPP-Version"))).toEqual(["0.1", "0.1", "0.1", "0.1"]);
     expect(calls).toHaveLength(4); // no retry without the pin, no fallback request
-    expect(copy.syncToken({ grantId: "grt_1", stream: "top_artists" })).toBeUndefined();
+    expect(copy.syncToken({ issuer: ISSUER, grantId: "grt_1", stream: "top_artists" })).toBeUndefined();
   });
 
   it("Client 33: required_fields must be unique and within fields", () => {
@@ -346,7 +349,7 @@ describe("slice 2 re-check of slice 1 items (Client items 1, 6, 9, 10, 13, 32, 3
 
   it("Client 33: a record without a required field is reported, or refused in strict mode", async () => {
     const lax = scripted([json(page({ data: [rec("r1", { name: "x" }), rec("r2", { id: "r2" })] }), { headers: v })]);
-    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch: lax.fetch });
+    const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, heldData: hd(), fetch: lax.fetch });
     await client.listRecords("top_artists");
     expect(client.requiredFieldGaps).toEqual([{ stream: "top_artists", instanceId: "inst_A", id: "r1", missing: ["id"] }]);
     expect(missingRequiredFields({ object: "record", id: "x", instance_id: "i", stream: "s", deleted: true }, grant().streams[0]!)).toEqual([]);
@@ -355,6 +358,7 @@ describe("slice 2 re-check of slice 1 items (Client items 1, 6, 9, 10, 13, 32, 3
       coreQueryBase: "https://ps.example/v1",
       accessToken: "at",
       issuedGrant,
+      heldData: hd(),
       fetch: strict.fetch,
       requireRequiredFields: true,
     });
@@ -365,7 +369,7 @@ describe("slice 2 re-check of slice 1 items (Client items 1, 6, 9, 10, 13, 32, 3
     const now = Date.parse("2026-01-01T00:00:00Z");
     const expiredSeen: unknown[] = [];
     const copy = new InMemoryPdppSyncCopy(() => now, { onExpired: (_c, records) => expiredSeen.push(...records) });
-    const ctx = { grantId: "grt_1", stream: "top_artists" };
+    const ctx = { issuer: ISSUER, grantId: "grt_1", stream: "top_artists" };
     const session = copy.beginSession(ctx, { replace: true });
     session.apply(rec("r1", { id: "r1" }));
     session.commit("cs");
@@ -376,18 +380,18 @@ describe("slice 2 re-check of slice 1 items (Client items 1, 6, 9, 10, 13, 32, 3
   it("Client 6: a clock moving backwards never moves a retention ceiling later", () => {
     let now = Date.parse("2026-01-01T00:00:00Z");
     const copy = new InMemoryPdppSyncCopy(() => now);
-    const ctx = { grantId: "grt_1", stream: "top_artists" };
+    const ctx = { issuer: ISSUER, grantId: "grt_1", stream: "top_artists" };
     const s1 = copy.beginSession(ctx, { replace: true });
     s1.apply(rec("r1", { id: "r1" }));
     s1.commit("cs");
     now += 31 * 86_400_000;
-    copy.applyRetention({ grantId: "grt_other" }, { max_duration: "P30D", on_expiry: "delete" }); // observes the time
+    copy.applyRetention({ issuer: ISSUER, grantId: "grt_other" }, { max_duration: "P30D", on_expiry: "delete" }); // observes the time
     now -= 10 * 86_400_000;
     expect(copy.applyRetention(ctx, { max_duration: "P30D", on_expiry: "delete" })).toEqual({ expired: 1 });
   });
 
   it("Client 10: records read outside sync are recorded as held data for reconciliation", async () => {
-    const manager = new PdppHeldDataManager({ now: () => Date.parse("2026-01-01T00:00:00Z") });
+    const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore(), now: () => Date.parse("2026-01-01T00:00:00Z") });
     const { fetch } = scripted([json(page({ data: [rec("r1", { id: "r1" })] }), { headers: v })]);
     const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch, heldData: manager });
     await client.listRecords("top_artists");
@@ -395,7 +399,7 @@ describe("slice 2 re-check of slice 1 items (Client items 1, 6, 9, 10, 13, 32, 3
   });
 
   it("Client 9: no request is made under a grant with an erasure instruction", async () => {
-    const manager = new PdppHeldDataManager();
+    const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore() });
     await manager.ownerChoseDelete({ issuer: ISSUER, grantId: "grt_1" });
     const { fetch, calls } = scripted([]);
     const client = new PdppResourceClient({ coreQueryBase: "https://ps.example/v1", accessToken: "at", issuedGrant, fetch, heldData: manager });

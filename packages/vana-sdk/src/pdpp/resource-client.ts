@@ -37,8 +37,9 @@ import {
 } from "./errors";
 import type { PdppIssuedGrant } from "./authorization";
 import type { PdppRecord, PdppRecordPage, PdppStreamGrant } from "./types";
-import type { PdppSyncCopy } from "./sync-copy";
+import type { PdppSyncContext, PdppSyncCopy } from "./sync-copy";
 import { grantRefOf, type PdppHeldDataManager } from "./held-data";
+import { PDPP_FETCH_REDIRECT, assertPdppEndpoint, type PdppEndpointPolicy } from "./endpoints";
 
 type Fetch = typeof globalThis.fetch;
 
@@ -52,21 +53,29 @@ export interface PdppResourceClientOptions {
   /** The grant this token covers, as interpreted from the token response. */
   issuedGrant: PdppIssuedGrant;
   fetch?: Fetch;
-  /** Records acquisitions and grant signals (Client items 9, 21). */
-  heldData?: PdppHeldDataManager;
+  /**
+   * Required: records acquisitions and grant signals and stops requests on an
+   * erased or ended grant (Client items 9, 20–22). The spec gives a client no
+   * way to opt out of these duties, so there is no opt-out (review F6).
+   */
+  heldData: PdppHeldDataManager;
+  /** Endpoint policy for `coreQueryBase`; see {@link assertPdppEndpoint}. */
+  policy?: PdppEndpointPolicy;
   /** Refuse a record whose `data` lacks a `required_fields` entry (Client item 33). Default: report only. */
   requireRequiredFields?: boolean;
 }
 
 /** Thrown once the client has stopped (Client item 9). */
 export class PdppClientStoppedError extends Error {
-  constructor(readonly reason: "token_inactive" | "grant_revoked" | "grant_erased") {
+  constructor(readonly reason: "token_inactive" | "grant_revoked" | "grant_ended" | "grant_erased") {
     super(
       reason === "token_inactive"
         ? "the access token is inactive; obtain a new one before further requests"
         : reason === "grant_revoked"
           ? "the grant was revoked; no further requests are made against it"
-          : "an erasure instruction applies to the grant; no further requests are made against it",
+          : reason === "grant_ended"
+            ? "the grant has ended (revoked or expired); no further requests are made against it"
+            : "an erasure instruction applies to the grant; no further requests are made against it",
     );
     this.name = "PdppClientStoppedError";
   }
@@ -114,23 +123,35 @@ export function protectedResourceMetadataUrl(resource: string): string {
  */
 export async function discoverPdppResourceServer(
   resource: string,
-  options: { fetch?: Fetch; metadataUrl?: string } = {},
+  options: { fetch?: Fetch; metadataUrl?: string; policy?: PdppEndpointPolicy } = {},
 ): Promise<PdppProtectedResourceMetadata & { coreQueryBaseUrl: string }> {
+  assertPdppEndpoint(resource, resource, "resource", options.policy);
+  const metadataUrl = assertPdppEndpoint(
+    options.metadataUrl ?? protectedResourceMetadataUrl(resource),
+    resource,
+    "protected resource metadata URL",
+    options.policy,
+  );
   const doFetch = options.fetch ?? globalThis.fetch;
-  const response = await doFetch(options.metadataUrl ?? protectedResourceMetadataUrl(resource), {
+  const response = await doFetch(metadataUrl, {
     headers: { Accept: "application/json" },
+    redirect: PDPP_FETCH_REDIRECT,
   });
   if (!response.ok) throw await pdppHttpErrorFrom(response);
   const metadata = (await response.json()) as PdppProtectedResourceMetadata;
   if (metadata.resource !== resource) {
-    throw new PdppProtocolError(
-      `protected resource metadata names resource ${String(metadata.resource)}, not ${resource}`,
-    );
+    throw new PdppProtocolError("protected resource metadata names a different resource");
   }
   if (typeof metadata.pdpp_core_query_base !== "string") {
     throw new PdppProtocolError("protected resource metadata has no pdpp_core_query_base");
   }
-  return { ...metadata, coreQueryBaseUrl: new URL(metadata.pdpp_core_query_base, resource).toString() };
+  const coreQueryBaseUrl = assertPdppEndpoint(
+    new URL(metadata.pdpp_core_query_base, resource).toString(),
+    resource,
+    "pdpp_core_query_base",
+    options.policy,
+  );
+  return { ...metadata, coreQueryBaseUrl };
 }
 
 export class PdppResourceClient {
@@ -139,7 +160,7 @@ export class PdppResourceClient {
   private stopped: PdppClientStoppedError | undefined;
 
   constructor(private readonly options: PdppResourceClientOptions) {
-    this.base = options.coreQueryBase.replace(/\/$/, "");
+    this.base = assertPdppEndpoint(options.coreQueryBase, options.coreQueryBase, "coreQueryBase", options.policy).replace(/\/$/, "");
     this.doFetch = options.fetch ?? globalThis.fetch;
   }
 
@@ -186,12 +207,7 @@ export class PdppResourceClient {
 
   /** Record an acquisition and check required fields for one returned record. */
   private observe(stream: string, record: PdppRecord): void {
-    // A delivery that arrives after an erasure instruction is covered data:
-    // it is never applied or returned, and the session is not committed.
-    if (this.options.heldData?.erasureRecord(grantRefOf(this.options.issuedGrant))) {
-      this.stopped = new PdppClientStoppedError("grant_erased");
-      throw this.stopped;
-    }
+    this.assertNotErased();
     if (record.deleted === true) return;
     const streamGrant = this.options.issuedGrant.grant.streams.find((s) => s.name === stream);
     if (streamGrant) {
@@ -205,7 +221,18 @@ export class PdppResourceClient {
         this.gaps.push({ stream, instanceId: record.instance_id, id: record.id, missing });
       }
     }
-    this.options.heldData?.recordAcquisition(grantRefOf(this.options.issuedGrant), this.options.issuedGrant.grant);
+    this.options.heldData.recordAcquisition(grantRefOf(this.options.issuedGrant), this.options.issuedGrant.grant);
+  }
+
+  /**
+   * A delivery that arrives after an erasure instruction is covered data: it
+   * is never applied or returned, and no session commits (review F1).
+   */
+  private assertNotErased(): void {
+    if (this.options.heldData.erasureRecord(grantRefOf(this.options.issuedGrant))) {
+      this.stopped = new PdppClientStoppedError("grant_erased");
+      throw this.stopped;
+    }
   }
 
   /**
@@ -235,8 +262,12 @@ export class PdppResourceClient {
     copy: PdppSyncCopy,
     query: { fields?: string[]; limit?: number } = {},
   ): Promise<{ applied: number; restarted: boolean }> {
-    const grantId = this.options.issuedGrant.grant.grant_id;
-    const context = { grantId, stream, fields: query.fields };
+    const context = {
+      issuer: this.options.issuedGrant.issuer,
+      grantId: this.options.issuedGrant.grant.grant_id,
+      stream,
+      ...(query.fields !== undefined && { fields: query.fields }),
+    };
     let restarted = false;
     let token = copy.syncToken(context) ?? "beginning";
     for (;;) {
@@ -263,7 +294,7 @@ export class PdppResourceClient {
   private async syncSession(
     stream: string,
     copy: PdppSyncCopy,
-    context: { grantId: string; stream: string; fields?: string[] },
+    context: PdppSyncContext,
     changesSince: string,
     query: { fields?: string[]; limit?: number },
   ): Promise<number> {
@@ -278,6 +309,8 @@ export class PdppResourceClient {
         ...(query.fields !== undefined && { fields: query.fields.join(",") }),
         ...(query.limit !== undefined && { limit: String(query.limit) }),
       })) as PdppRecordPage;
+      // Checked after every awaited response, including an empty page.
+      this.assertNotErased();
       for (const record of page.data ?? []) {
         this.observe(stream, record);
         session.apply(record);
@@ -294,6 +327,7 @@ export class PdppResourceClient {
       if (typeof page.next_changes_since !== "string") {
         throw new PdppProtocolError("the terminal sync page carries no next_changes_since");
       }
+      this.assertNotErased();
       session.commit(page.next_changes_since);
       return applied;
     }
@@ -301,8 +335,10 @@ export class PdppResourceClient {
 
   private async get(path: string, params: Record<string, string>): Promise<unknown> {
     if (this.stopped) throw this.stopped;
-    if (this.options.heldData?.erasureRecord(grantRefOf(this.options.issuedGrant))) {
-      this.stopped = new PdppClientStoppedError("grant_erased");
+    this.assertNotErased();
+    // Review F6: a grant the manager knows has ended gets no request at all.
+    if (this.options.heldData.hasEnded(grantRefOf(this.options.issuedGrant))) {
+      this.stopped = new PdppClientStoppedError("grant_ended");
       throw this.stopped;
     }
     const url = new URL(this.base + path);
@@ -313,11 +349,12 @@ export class PdppResourceClient {
         "PDPP-Version": PDPP_CLIENT_VERSION,
         Accept: "application/json",
       },
+      redirect: PDPP_FETCH_REDIRECT,
     });
     if (!response.ok) {
       const error = await pdppHttpErrorFrom(response);
       // Client item 9: a sign the grant may have ended obliges a lifecycle query before further use.
-      this.options.heldData?.recordGrantSignal(grantRefOf(this.options.issuedGrant), error);
+      this.options.heldData.recordGrantSignal(grantRefOf(this.options.issuedGrant), error);
       if (error.tokenInactive) {
         this.stopped = new PdppClientStoppedError(
           error.grantRevoked ? "grant_revoked" : "token_inactive",

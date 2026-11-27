@@ -51,20 +51,33 @@ export interface PdppSyncSession {
 
 export interface PdppSyncCopy {
   syncToken(context: PdppSyncContext): string | undefined;
-  beginSession(context: PdppSyncContext, options: { replace: boolean }): PdppSyncSession;
+  beginSession(
+    context: PdppSyncContext,
+    options: { replace: boolean },
+  ): PdppSyncSession;
 }
 
 const contextKey = (c: PdppSyncContext) =>
-  JSON.stringify([c.issuer, c.grantId, c.stream, c.fields ? [...c.fields].sort() : null]);
-const grantKey = (r: Pick<PdppGrantRef, "issuer" | "grantId">) => JSON.stringify([r.issuer, r.grantId]);
-const sameGrant = (c: PdppSyncContext, r: Pick<PdppGrantRef, "issuer" | "grantId">) =>
-  c.issuer === r.issuer && c.grantId === r.grantId;
-const recordKey = (instanceId: string, id: string) => `${instanceId}\u0000${id}`;
+  JSON.stringify([
+    c.issuer,
+    c.grantId,
+    c.stream,
+    c.fields ? [...c.fields].sort() : null,
+  ]);
+const grantKey = (r: Pick<PdppGrantRef, "issuer" | "grantId">) =>
+  JSON.stringify([r.issuer, r.grantId]);
+const sameGrant = (
+  c: PdppSyncContext,
+  r: Pick<PdppGrantRef, "issuer" | "grantId">,
+) => c.issuer === r.issuer && c.grantId === r.grantId;
+const recordKey = (instanceId: string, id: string) =>
+  `${instanceId}\u0000${id}`;
 
 /** Parse an ISO 8601 `PnD` duration (the only form spec-core allows for `max_duration`). */
 export function parseRetentionDays(maxDuration: string): number {
   const match = /^P([1-9]\d*)D$/.exec(maxDuration);
-  if (!match) throw new TypeError(`retention.max_duration ${maxDuration} is not PnD`);
+  if (!match)
+    throw new TypeError(`retention.max_duration ${maxDuration} is not PnD`);
   return Number(match[1]);
 }
 
@@ -118,7 +131,10 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
 
   /** Delete every record, sync token and acquisition time of the grant (erasure). */
   erase(ref: Pick<PdppGrantRef, "issuer" | "grantId">): void {
-    this.erasures.set(grantKey(ref), (this.erasures.get(grantKey(ref)) ?? 0) + 1);
+    this.erasures.set(
+      grantKey(ref),
+      (this.erasures.get(grantKey(ref)) ?? 0) + 1,
+    );
     for (const [key, context] of this.contexts) {
       if (!sameGrant(context, ref)) continue;
       this.streams.delete(key);
@@ -138,13 +154,19 @@ export class InMemoryPdppSyncCopy implements PdppSyncCopy, PdppHeldDataStore {
     return [...(this.streams.get(contextKey(context))?.values() ?? [])];
   }
 
-  beginSession(context: PdppSyncContext, options: { replace: boolean }): PdppSyncSession {
+  beginSession(
+    context: PdppSyncContext,
+    options: { replace: boolean },
+  ): PdppSyncSession {
     const key = contextKey(context);
     const generation = this.erasures.get(grantKey(context)) ?? 0;
-    const erasedSince = () => (this.erasures.get(grantKey(context)) ?? 0) !== generation;
+    const erasedSince = () =>
+      (this.erasures.get(grantKey(context)) ?? 0) !== generation;
     const current = this.streams.get(key) ?? new Map<string, PdppHeldRecord>();
     // A `beginning` session builds its result in isolation and replaces the copy on commit.
-    const target = options.replace ? new Map<string, PdppHeldRecord>() : new Map(current);
+    const target = options.replace
+      ? new Map<string, PdppHeldRecord>()
+      : new Map(current);
     return {
       apply: (record) => {
         if (erasedSince()) throw new PdppGrantErasedError(context.grantId);

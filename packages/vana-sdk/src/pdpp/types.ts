@@ -17,17 +17,20 @@ export const PDPP_DATA_ACCESS_TYPE = "https://pdpp.dev/data-access";
 export const PDPP_GRANT_LIFECYCLE_TYPE = "https://pdpp.dev/grant-lifecycle";
 
 /** The one processing permission Core defines; reserved and unsupported in v0.1 (spec-core #ai-training). */
-export const PDPP_AI_TRAINING_PERMISSION = "https://pdpp.dev/processing/ai_training";
+export const PDPP_AI_TRAINING_PERMISSION =
+  "https://pdpp.dev/processing/ai_training";
 
 /** The legacy purpose code; it confers no AI training authority (Client item 17). */
-export const PDPP_LEGACY_AI_TRAINING_PURPOSE = "https://pdpp.dev/purpose/ai_training";
+export const PDPP_LEGACY_AI_TRAINING_PURPOSE =
+  "https://pdpp.dev/purpose/ai_training";
 
 /**
  * Processing permissions this client can exercise. Empty: v0.1 registers no
  * supported permission, so no client holds training or independent-disclosure
  * authority (spec-core #processing-permissions).
  */
-export const PDPP_CLIENT_SUPPORTED_PROCESSING_PERMISSIONS: readonly string[] = [];
+export const PDPP_CLIENT_SUPPORTED_PROCESSING_PERMISSIONS: readonly string[] =
+  [];
 
 /**
  * Purpose codes registered in spec-core Appendix A. The earlier

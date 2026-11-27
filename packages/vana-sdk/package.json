@@ -73,6 +73,15 @@
       "import": "./dist/session-relay.js",
       "require": "./dist/session-relay.cjs"
     },
+    "./pdpp": {
+      "browser": {
+        "types": "./dist/pdpp.d.ts",
+        "import": "./dist/pdpp.js"
+      },
+      "types": "./dist/pdpp.d.ts",
+      "import": "./dist/pdpp.js",
+      "require": "./dist/pdpp.cjs"
+    },
     "./chains": {
       "browser": {
         "types": "./dist/chains.browser.d.ts",

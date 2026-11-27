@@ -520,7 +520,7 @@ import { vana } from "@/lib/vana"; // your createDirectDataController({ grants, 
 const handler = createVanaConnectHandler({
   controller: vana,
   returnUrl: `${process.env.APP_URL}/connect/return`,
-  clientId: "my-app", // the embed client id Vana Account registered for your origin
+  clientId: "my-app", // copy the site ID from Account → Developers → your app → Connect websites
   // Recommended in production: only your signed-in users create requests.
   session: async (request) => (await getSession(request))?.userId ?? null,
 });

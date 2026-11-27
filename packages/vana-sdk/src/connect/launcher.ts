@@ -217,6 +217,14 @@ export function open(options: ConnectOpenOptions): ConnectHandle {
 
   const handleSheetMessage = (message: SheetMessage) => {
     switch (message.type) {
+      case "vana:account-setup": {
+        if (!ready) return;
+        const setup = new URL("/embed/connect/setup", vanaOrigin);
+        setup.searchParams.set("client_id", options.clientId);
+        setup.searchParams.set("origin", window.location.origin);
+        window.location.assign(setup.href);
+        return;
+      }
       case "vana:ready":
         // A sheet that mounts twice (strict-mode dev builds) says ready twice.
         if (ready) {

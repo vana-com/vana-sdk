@@ -8,7 +8,12 @@
  * endpoint, the endpoint must (review NEW-5):
  * - sit on the base's origin (or its `https` upgrade on the same host), or on
  *   an origin the app lists in `allowedOrigins`;
- * - use `https`, except plain `http` to a local or private host;
+ * - use `https`. Plain `http` is accepted only to a loopback host
+ *   (`localhost`, `127.0.0.0/8`, `::1`) or a tailscale CGNAT address
+ *   (`100.64.0.0/10`, already encrypted by WireGuard). Any other private or LAN
+ *   address (`10/8`, `172.16/12`, `192.168/16`, `.local`, `.lan`, `fd00::/8`, …)
+ *   needs `https` unless the app sets `allowInsecureLan`, because tokens would
+ *   cross the local network unencrypted;
  * - name a local or private host (loopback, LAN, `.local`, CGNAT/tailscale
  *   `100.64/10`, …) only when it is the base's own host, or when the app sets
  *   `allowLocal`. A Desktop or self-hosted Personal Server on `localhost`,
@@ -35,6 +40,12 @@ export interface PdppEndpointPolicy {
   allowedOrigins?: string[];
   /** Also permit local and private hosts other than the base's own host (development). */
   allowLocal?: boolean;
+  /**
+   * Accept plain `http` to a private or LAN host other than loopback and
+   * tailscale. Tokens then cross the local network unencrypted; set it only
+   * when the owner chose that setup.
+   */
+  allowInsecureLan?: boolean;
 }
 
 /** Fetch options for every request this module family makes. */
@@ -173,12 +184,18 @@ export function assertPdppEndpoint(
       `${what} names a local or private host other than the configured one; set allowLocal for development`,
     );
   }
-  if (
-    url.protocol !== "https:" &&
-    !(url.protocol === "http:" && host.local && localAllowed)
-  ) {
+  // Plain http: loopback and tailscale CGNAT only, unless the app allows an insecure LAN.
+  const tailnet =
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(
+      url.hostname,
+    );
+  const plainHttpOk =
+    host.local &&
+    localAllowed &&
+    (host.loopback || tailnet || policy.allowInsecureLan === true);
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && plainHttpOk)) {
     throw new PdppProtocolError(
-      `${what} must use https (plain http only to a local or private host)`,
+      `${what} must use https (plain http only to loopback or a tailscale address, or a LAN host with allowInsecureLan)`,
     );
   }
   if (url.username || url.password) {

@@ -1526,7 +1526,7 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
   });
 
   it.each([
-    ["a LAN Personal Server over http", lan],
+    ["a LAN Personal Server over https", "https://192.168.1.20:8443"],
     ["a tailscale address", "http://100.101.102.103:8080"],
     ["localhost", "http://localhost:8080"],
     ["a .local name over https", "https://vana-ps.local"],
@@ -1894,6 +1894,70 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
     expect(m2.checkUse(ref)).toEqual({
       allowed: false,
       reason: "clock_uncertain",
+    });
+  });
+
+  describe("plain http classes (decided narrowing of NEW-5)", () => {
+    const check = (url: string, policy = {}) =>
+      assertPdppEndpoint(url, url, "issuer", policy);
+
+    it.each([
+      "http://localhost:8080/pdpp/v1",
+      "http://127.0.0.5:8080/x",
+      "http://[::1]:8080/x",
+    ])("loopback over http is accepted: %s", (url) => {
+      expect(check(url)).toBe(new URL(url).toString());
+    });
+
+    it.each([
+      "http://100.64.0.1:8080/x",
+      "http://100.101.102.103/x",
+      "http://100.127.255.254/x",
+    ])("tailscale CGNAT over http is accepted: %s", (url) => {
+      expect(check(url)).toBe(new URL(url).toString());
+    });
+
+    it("an address just outside CGNAT is public and needs https", () => {
+      expect(() => check("http://100.128.0.1/x")).toThrow(/must use https/);
+    });
+
+    it.each([
+      "http://10.0.0.5:8080/x",
+      "http://172.16.0.1/x",
+      "http://172.31.255.1/x",
+      "http://192.168.1.20:8080/x",
+      "http://vana-ps.local/x",
+      "http://nas.lan/x",
+      "http://[fd00::1]/x",
+      "http://[fe80::1]/x",
+    ])(
+      "a LAN host over http needs https unless allowInsecureLan: %s",
+      (url) => {
+        expect(() => check(url)).toThrow(/must use https/);
+        expect(check(url, { allowInsecureLan: true })).toBe(
+          new URL(url).toString(),
+        );
+      },
+    );
+
+    it.each([
+      "https://10.0.0.5/x",
+      "https://192.168.1.20:8443/x",
+      "https://vana-ps.local/x",
+      "https://[fd00::1]/x",
+    ])("a LAN host over https is accepted without any flag: %s", (url) => {
+      expect(check(url)).toBe(new URL(url).toString());
+    });
+
+    it("allowInsecureLan does not widen the origin rule", () => {
+      expect(() =>
+        assertPdppEndpoint(
+          "http://192.168.1.21/x",
+          "http://192.168.1.20",
+          "endpoint",
+          { allowInsecureLan: true },
+        ),
+      ).toThrow(/not on http:\/\/192\.168\.1\.20/);
     });
   });
 });

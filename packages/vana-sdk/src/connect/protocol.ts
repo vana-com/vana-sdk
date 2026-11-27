@@ -74,6 +74,7 @@ export const CLIENT_CHECK_PATH = "/api/embed/connect/client";
 
 /** Query parameters the sheet reads. The origin is re-checked server side. */
 export const SHEET_QUERY = {
+  accountSetup: "account_setup",
   clientId: "client_id",
   display: "display",
   origin: "origin",
@@ -213,6 +214,7 @@ export type SheetErrorCode =
 
 /** Sheet to partner. */
 export type SheetMessage =
+  | { type: "vana:account-setup"; v: ProtocolVersion }
   | { type: "vana:ready"; v: ProtocolVersion }
   | { height: number; type: "vana:resize"; v: ProtocolVersion }
   | { type: "vana:signed-in"; v: ProtocolVersion }
@@ -379,6 +381,7 @@ export function parseSheetMessage(data: unknown): SheetMessage | null {
   }
   const v = message.v;
   switch (message.type) {
+    case "vana:account-setup":
     case "vana:ready":
     case "vana:signed-in":
     case "vana:request-needed":
@@ -511,6 +514,7 @@ export function sheetUrl(input: {
   const url = new URL(SHEET_PATH, input.vanaOrigin);
   url.searchParams.set(SHEET_QUERY.clientId, input.clientId);
   url.searchParams.set(SHEET_QUERY.origin, input.partnerOrigin);
+  url.searchParams.set(SHEET_QUERY.accountSetup, "same-tab");
   url.searchParams.set(SHEET_QUERY.version, String(PROTOCOL_VERSION));
   // The default is left out: a bottom sheet's URL is what it has always been.
   if (input.display && input.display !== DEFAULT_CONNECT_DISPLAY) {

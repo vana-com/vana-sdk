@@ -87,6 +87,37 @@ afterEach(() => {
 });
 
 describe("connect.open", () => {
+  it("visits Account in the current tab only when the ready sheet requests setup", () => {
+    const h = mount();
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    try {
+      expect(new URL(h.iframe.src).searchParams.get("account_setup")).toBe(
+        "same-tab",
+      );
+      const setup = { type: "vana:account-setup", v: PROTOCOL_VERSION };
+      h.send(setup);
+      h.send({ type: "vana:ready", v: PROTOCOL_VERSION });
+      h.send(setup, { origin: "https://unregistered.example" });
+      h.send(setup, { source: {} });
+      expect(assign).not.toHaveBeenCalled();
+      h.send({
+        ...setup,
+        url: "https://elsewhere.example",
+        origin: "https://elsewhere.example",
+      });
+      const expected = new URL("/embed/connect/setup", VANA);
+      expected.searchParams.set("client_id", "example-app");
+      expected.searchParams.set("origin", window.location.origin);
+      expect(assign).toHaveBeenCalledTimes(1);
+      expect(assign).toHaveBeenCalledWith(expected.href);
+    } finally {
+      h.handle.close();
+      assign.mockRestore();
+    }
+  });
+
   it("frames the registered client's sheet with the partner origin and sandbox", () => {
     const { handle, iframe } = mount();
     const url = new URL(iframe.src);

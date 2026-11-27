@@ -37,6 +37,19 @@ GET  {base}/data?requestId   ──▶ read from the Personal Server ──▶ P
 `{base}` is any path (the SDK defaults to `/api/vana`). The browser calls it
 same-origin with cookies.
 
+## Website registration and wallet setup
+
+In Vana Account, open Developers, choose the registered app and network, and
+add the exact HTTPS origin under Connect websites. Use the resulting client ID
+in your Connect configuration. Each website has its own ID.
+
+When an existing wallet needs one-time Account setup, the sheet offers
+**Continue to Vana**. The launcher advertises `account_setup=same-tab` and
+accepts `vana:account-setup` only from its own ready Account frame. It opens
+the fixed Account setup route in the current tab with the client ID and page
+origin. Once setup is verified, the person returns to the registered website
+and taps Connect again to review the request.
+
 ## Routes
 
 All responses are JSON with `Cache-Control: no-store`. Errors are

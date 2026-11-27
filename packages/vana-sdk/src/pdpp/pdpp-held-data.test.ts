@@ -1204,7 +1204,8 @@ describe("disconnect in the client (Client item 25; cases P4, D5)", () => {
         },
       ],
     });
-    expect(manager.hasEnded(ref)).toBe(false);
+    // The AS was not told (not_conveyable), but the owner's keep binds locally at once (spec-core L1569).
+    expect(manager.hasEnded(ref)).toBe(true);
   });
 });
 

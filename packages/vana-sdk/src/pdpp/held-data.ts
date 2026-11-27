@@ -907,6 +907,16 @@ export class PdppHeldDataManager {
     }
   }
 
+  /**
+   * The owner ended access in this client and it could not be conveyed (no
+   * revocation path). It binds at once (spec-core L1569): reads stop, and held
+   * data follows the surviving-use terms.
+   */
+  recordOwnerEnding(ref: PdppGrantRef, at: number = this.now()): void {
+    this.endLocally(this.ensure(ref), Math.min(at, this.now()));
+    this.persistInBackground();
+  }
+
   private endLocally(s: GrantState, at: number): void {
     s.endedLocallyAt ??= iso(at);
   }

@@ -989,6 +989,9 @@ export class PdppLifecycleAgent {
               },
         );
       } else {
+        // Review R2-SDK-1: the owner's keep binds at once even when it cannot be
+        // conveyed (spec-core L1569): reads stop, held data follows the surviving-use terms.
+        this.manager.recordOwnerEnding(p.ref, choseAt);
         results.push({
           grant: p.ref,
           disposition,
@@ -1041,10 +1044,15 @@ export class PdppLifecycleAgent {
     }
     const refresh = this.options.credentials.refreshToken?.(ref);
     const family = this.options.credentials.familyGrants?.(ref) ?? [];
+    // A family member with an erasure can never take a keep revocation (keep is
+    // never sent after delete), and Core has no per-grant keep: stop retrying.
+    // The grant already ended locally when the owner chose keep.
+    if (family.some((f) => this.manager.erasureRecord(f))) {
+      this.manager.clearRevocation(ref);
+      return "answered";
+    }
     const inside = family.every(
-      (f) =>
-        this.manager.pendingRevocation(f) !== undefined &&
-        !this.manager.erasureRecord(f),
+      (f) => this.manager.pendingRevocation(f) !== undefined,
     );
     if (
       this.revocationEndpoint === undefined ||

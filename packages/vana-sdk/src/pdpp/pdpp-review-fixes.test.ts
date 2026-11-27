@@ -2211,3 +2211,135 @@ describe("Final sweep fixes (F-SDK-1, F-SDK-2, F-SDK-5)", () => {
     ).rejects.toThrow(/leaves the configured host/);
   });
 });
+
+describe("Residuals (R2-SDK-1, P3)", () => {
+  it("R2-SDK-1: a keep with no revocation path still ends the grant locally at once", async () => {
+    const manager = new PdppHeldDataManager({
+      state: new InMemoryPdppHeldDataStateStore(),
+      now: () => T0,
+    });
+    const agent = new PdppLifecycleAgent({
+      manager,
+      lifecycleEndpoint: LIFECYCLE,
+      clientId: "c",
+      credentials: new InMemoryPdppLifecycleCredentials(() => T0),
+      fetch: async () => json({}),
+    });
+    agent.recordTokenResponse(
+      interpretTokenResponse(
+        {
+          access_token: "at",
+          authorization_details: [
+            { type: PDPP_DATA_ACCESS_TYPE, grant: grant() },
+          ],
+        },
+        ISSUER,
+      ),
+    );
+    const outcome = await agent.disconnect({
+      grants: [ref],
+      disposition: "keep",
+    });
+    expect(outcome.results[0]!.state).toBe("not_conveyable");
+    expect(manager.hasEnded(ref)).toBe(true);
+    expect(manager.checkUse(ref, { purpose: grant().purpose_code })).toEqual({
+      allowed: true,
+    });
+    expect(
+      manager.checkUse(ref, { purpose: "https://pdpp.dev/purpose/research" }),
+    ).toMatchObject({ allowed: false });
+    let reads = 0;
+    const client = new PdppResourceClient({
+      coreQueryBase: "https://ps.example/v1",
+      accessToken: "at",
+      issuedGrant: { issuer: ISSUER, grant: grant() },
+      heldData: manager,
+      fetch: async () => {
+        reads += 1;
+        return page([]);
+      },
+    });
+    await expect(client.listRecords("st")).rejects.toMatchObject({
+      reason: "grant_ended",
+    });
+    expect(reads).toBe(0);
+  });
+
+  it("P3: a queued keep whose family has an erased member stops retrying", async () => {
+    let t = T0;
+    const manager = new PdppHeldDataManager({
+      state: new InMemoryPdppHeldDataStateStore(),
+      now: () => t,
+    });
+    const revokes: string[] = [];
+    const agent = new PdppLifecycleAgent({
+      manager,
+      lifecycleEndpoint: LIFECYCLE,
+      revocationEndpoint: REVOKE,
+      clientId: "c",
+      credentials: new InMemoryPdppLifecycleCredentials(() => t),
+      fetch: async (url, init) => {
+        if (String(url) === REVOKE) {
+          revokes.push(
+            new URLSearchParams(String(init?.body)).get("pdpp_disposition")!,
+          );
+          return new Response(null, { status: 503 });
+        }
+        const id = new URLSearchParams(String(init?.body)).get("grant_id")!;
+        return json({ grants: [{ ...eraseAnswer(t), grant_id: id }] });
+      },
+    });
+    agent.recordTokenResponse(
+      interpretTokenResponse(
+        {
+          access_token: "at",
+          refresh_token: "rt_shared",
+          authorization_details: [
+            {
+              type: PDPP_DATA_ACCESS_TYPE,
+              grant: grant({ grant_id: "grt_A" }),
+            },
+            {
+              type: PDPP_DATA_ACCESS_TYPE,
+              grant: grant({ grant_id: "grt_B" }),
+            },
+          ],
+        },
+        ISSUER,
+      ),
+    );
+    const A = { issuer: ISSUER, grantId: "grt_A" };
+    const B = { issuer: ISSUER, grantId: "grt_B" };
+    await agent.disconnect({ grants: [A, B], disposition: "keep" });
+    await manager.ownerChoseDelete(B);
+    t += H;
+    await agent.runDue();
+    expect(manager.pendingRevocation(A)).toBeUndefined();
+    const sent = revokes.length;
+    for (let i = 0; i < 5; i += 1) {
+      t += H;
+      await agent.runDue();
+    }
+    expect(revokes.length).toBe(sent);
+    expect(revokes.every((d) => d === "keep")).toBe(true);
+    expect(manager.hasEnded(A)).toBe(true);
+  });
+
+  it.each([
+    "https://metadata.google.internal/x",
+    "http://metadata.google.internal/x",
+    "https://metadata/x",
+    "https://[fe80::a9fe:a9fe]/x",
+    "http://[fe80::a9fe:a9fe]/x",
+  ])(
+    "P3: with allowLocal, the cloud metadata host %s is still refused",
+    (url) => {
+      expect(() =>
+        assertPdppEndpoint(url, url, "issuer", {
+          allowLocal: true,
+          allowInsecureLan: true,
+        }),
+      ).toThrow(/instance-metadata/);
+    },
+  );
+});

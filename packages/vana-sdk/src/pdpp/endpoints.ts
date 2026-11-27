@@ -87,6 +87,15 @@ function ipv6Groups(h: string): number[] | undefined {
     : undefined;
 }
 
+/** Hostnames of cloud instance-metadata services. */
+const METADATA_HOSTS = [
+  "metadata.google.internal",
+  "metadata.goog",
+  "metadata",
+  "instance-data",
+  "instance-data.ec2.internal",
+];
+
 /** Hostname suffixes reserved for local or private use. */
 const LOCAL_SUFFIXES = [
   ".localhost",
@@ -108,6 +117,9 @@ function isLocalHost(hostname: string): {
     .replace(/\.+$/, "");
   if (h === "localhost" || h.endsWith(".localhost"))
     return { local: true, loopback: true };
+  // Cloud instance-metadata hostnames: always refused (review F-SDK-3 residual).
+  if (METADATA_HOSTS.includes(h))
+    return { local: true, loopback: false, metadata: true };
   if (LOCAL_SUFFIXES.some((suffix) => h.endsWith(suffix)) || h === "internal")
     return { local: true, loopback: false };
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
@@ -165,6 +177,14 @@ function isLocalHost(hostname: string): {
           metadata: server.metadata === true || client.metadata === true,
         };
       }
+    }
+    // A link-local IPv6 address carrying 169.254.x.x in its low 32 bits (e.g. fe80::a9fe:a9fe).
+    if (
+      (g[0]! & 0xffc0) === 0xfe80 &&
+      g[6]! >> 8 === 169 &&
+      (g[6]! & 255) === 254
+    ) {
+      return { local: true, loopback: false, metadata: true };
     }
     const local =
       (g[0]! & 0xfe00) === 0xfc00 || // unique local

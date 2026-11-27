@@ -22,6 +22,7 @@ import {
   PDPP_FETCH_REDIRECT,
   PDPP_REQUEST_TIMEOUT_MS,
   assertPdppEndpoint,
+  fetchPdppMetadata,
   timeoutSignal,
   type PdppEndpointPolicy,
 } from "./endpoints";
@@ -84,7 +85,11 @@ export function authorizationServerMetadataUrl(issuer: string): string {
  */
 export async function discoverPdppAuthorizationServer(
   issuer: string,
-  options: { fetch?: Fetch; metadataUrl?: string; policy?: PdppEndpointPolicy } = {},
+  options: {
+    fetch?: Fetch;
+    metadataUrl?: string;
+    policy?: PdppEndpointPolicy;
+  } = {},
 ): Promise<PdppAuthorizationServerMetadata> {
   const policy = options.policy ?? {};
   assertPdppEndpoint(issuer, issuer, "issuer", policy);
@@ -94,20 +99,25 @@ export async function discoverPdppAuthorizationServer(
     "metadata URL",
     policy,
   );
-  const doFetch = options.fetch ?? globalThis.fetch;
-  const response = await doFetch(metadataUrl, {
+  const response = await fetchPdppMetadata(metadataUrl, options.fetch, {
     headers: { Accept: "application/json" },
-    redirect: PDPP_FETCH_REDIRECT,
     ...withSignal(PDPP_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) throw await pdppHttpErrorFrom(response);
   const metadata = (await response.json()) as PdppAuthorizationServerMetadata;
   if (metadata.issuer !== issuer) {
-    throw new PdppProtocolError("authorization server metadata names a different issuer");
+    throw new PdppProtocolError(
+      "authorization server metadata names a different issuer",
+    );
   }
   assertPdppEndpoint(metadata.token_endpoint, issuer, "token_endpoint", policy);
-  for (const member of ["authorization_endpoint", "revocation_endpoint", "pdpp_grant_lifecycle_endpoint"] as const) {
-    if (metadata[member] !== undefined) assertPdppEndpoint(metadata[member], issuer, member, policy);
+  for (const member of [
+    "authorization_endpoint",
+    "revocation_endpoint",
+    "pdpp_grant_lifecycle_endpoint",
+  ] as const) {
+    if (metadata[member] !== undefined)
+      assertPdppEndpoint(metadata[member], issuer, member, policy);
   }
   assertSupportsDataAccess(metadata);
   return metadata;
@@ -120,9 +130,16 @@ function withSignal(ms: number): { signal?: AbortSignal } {
 
 /** Client item 12: refuse to request a type the AS does not advertise. */
 export function assertSupportsDataAccess(
-  metadata: Pick<PdppAuthorizationServerMetadata, "authorization_details_types_supported">,
+  metadata: Pick<
+    PdppAuthorizationServerMetadata,
+    "authorization_details_types_supported"
+  >,
 ): void {
-  if (!metadata.authorization_details_types_supported?.includes(PDPP_DATA_ACCESS_TYPE)) {
+  if (
+    !metadata.authorization_details_types_supported?.includes(
+      PDPP_DATA_ACCESS_TYPE,
+    )
+  ) {
     throw new PdppProtocolError(
       `authorization server does not advertise ${PDPP_DATA_ACCESS_TYPE}`,
     );
@@ -143,7 +160,9 @@ export function buildDataAccessDetail(
   const hasStreams = detail.streams !== undefined;
   const hasPreset = detail.selection_preset !== undefined;
   if (hasStreams === hasPreset) {
-    throw new TypeError("a data-access detail carries exactly one of streams or selection_preset");
+    throw new TypeError(
+      "a data-access detail carries exactly one of streams or selection_preset",
+    );
   }
   for (const stream of detail.streams ?? []) {
     if (stream.fields === undefined && stream.view === undefined) {
@@ -163,7 +182,10 @@ export function buildDataAccessDetail(
   }
   if (
     !PDPP_APPENDIX_A_PURPOSES.includes(detail.purpose_code) &&
-    !(typeof detail.purpose_description === "string" && detail.purpose_description.trim() !== "")
+    !(
+      typeof detail.purpose_description === "string" &&
+      detail.purpose_description.trim() !== ""
+    )
   ) {
     throw new TypeError(
       `purpose_code ${detail.purpose_code} is not in Appendix A and needs a purpose_description the owner can understand`,
@@ -191,7 +213,9 @@ export function buildAuthorizationRequest(input: {
   }
   for (const detail of input.details) {
     if (detail.type !== PDPP_DATA_ACCESS_TYPE) {
-      throw new TypeError("every detail must have type https://pdpp.dev/data-access");
+      throw new TypeError(
+        "every detail must have type https://pdpp.dev/data-access",
+      );
     }
   }
   const json = {
@@ -238,7 +262,10 @@ export async function createPkcePair(): Promise<{
 function base64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 /**
@@ -259,26 +286,35 @@ export function interpretTokenResponse(
   if (typeof b.access_token !== "string" || b.access_token === "") {
     throw new PdppProtocolError("token response has no access_token");
   }
-  if (!Array.isArray(b.authorization_details) || b.authorization_details.length === 0) {
+  if (
+    !Array.isArray(b.authorization_details) ||
+    b.authorization_details.length === 0
+  ) {
     throw new PdppProtocolError(
       "token response carries no authorization result; disclosure must not be requested",
     );
   }
-  const grants: PdppIssuedGrant[] = b.authorization_details.map((element, index) => {
-    if (!element || typeof element !== "object") {
-      throw new PdppProtocolError(`authorization result element ${index} is not an object`);
-    }
-    const e = element as { type?: unknown; grant?: unknown };
-    if (e.type !== PDPP_DATA_ACCESS_TYPE) {
-      throw new PdppProtocolError(
-        `authorization result element ${index} has type ${String(e.type)}, not ${PDPP_DATA_ACCESS_TYPE}`,
-      );
-    }
-    return { issuer, grant: checkGrant(e.grant, index) };
-  });
+  const grants: PdppIssuedGrant[] = b.authorization_details.map(
+    (element, index) => {
+      if (!element || typeof element !== "object") {
+        throw new PdppProtocolError(
+          `authorization result element ${index} is not an object`,
+        );
+      }
+      const e = element as { type?: unknown; grant?: unknown };
+      if (e.type !== PDPP_DATA_ACCESS_TYPE) {
+        throw new PdppProtocolError(
+          `authorization result element ${index} has type ${String(e.type)}, not ${PDPP_DATA_ACCESS_TYPE}`,
+        );
+      }
+      return { issuer, grant: checkGrant(e.grant, index) };
+    },
+  );
   return {
     accessToken: b.access_token,
-    ...(typeof b.refresh_token === "string" && { refreshToken: b.refresh_token }),
+    ...(typeof b.refresh_token === "string" && {
+      refreshToken: b.refresh_token,
+    }),
     ...(typeof b.expires_in === "number" && { expiresIn: b.expires_in }),
     grants,
   };
@@ -286,20 +322,28 @@ export function interpretTokenResponse(
 
 function checkGrant(grant: unknown, index: number): PdppGrant {
   const fail = (what: string): never => {
-    throw new PdppProtocolError(`authorization result element ${index}: ${what}`);
+    throw new PdppProtocolError(
+      `authorization result element ${index}: ${what}`,
+    );
   };
   if (!grant || typeof grant !== "object") return fail("grant is missing");
   const g = grant as Record<string, unknown>;
   if (typeof g.grant_id !== "string") fail("grant_id is missing");
   if (typeof g.access_mode !== "string") fail("access_mode is missing");
   const source = g.source as Record<string, unknown> | undefined;
-  if (!source || typeof source.id !== "string" || typeof source.kind !== "string") {
+  if (
+    !source ||
+    typeof source.id !== "string" ||
+    typeof source.kind !== "string"
+  ) {
     fail("source {kind, id} is missing");
   }
-  if (!Array.isArray(g.streams) || g.streams.length === 0) fail("streams are missing");
+  if (!Array.isArray(g.streams) || g.streams.length === 0)
+    fail("streams are missing");
   for (const s of g.streams as unknown[]) {
     const stream = s as Record<string, unknown>;
-    const strings = (v: unknown) => Array.isArray(v) && v.every((x) => typeof x === "string");
+    const strings = (v: unknown) =>
+      Array.isArray(v) && v.every((x) => typeof x === "string");
     if (
       typeof stream?.name !== "string" ||
       !strings(stream.instance_ids) ||
@@ -307,12 +351,19 @@ function checkGrant(grant: unknown, index: number): PdppGrant {
       // Client item 33: the frozen consent floor comes from the result.
       !strings(stream.required_fields)
     ) {
-      fail(`stream ${String(stream?.name)} lacks name, instance_ids, fields or required_fields`);
+      fail(
+        `stream ${String(stream?.name)} lacks name, instance_ids, fields or required_fields`,
+      );
     }
     const fields = stream.fields as string[];
     const required = stream.required_fields as string[];
-    if (new Set(required).size !== required.length || !required.every((f) => fields.includes(f))) {
-      fail(`stream ${String(stream.name)} has required_fields that are repeated or not in fields`);
+    if (
+      new Set(required).size !== required.length ||
+      !required.every((f) => fields.includes(f))
+    ) {
+      fail(
+        `stream ${String(stream.name)} has required_fields that are repeated or not in fields`,
+      );
     }
   }
   return grant as PdppGrant;
@@ -339,7 +390,8 @@ export async function exchangeAuthorizationCode(input: {
     client_id: input.clientId,
     redirect_uri: input.redirectUri,
   });
-  for (const issued of result.grants) input.heldData.recordTokenResponse(issued);
+  for (const issued of result.grants)
+    input.heldData.recordTokenResponse(issued);
   return result;
 }
 
@@ -367,11 +419,13 @@ export async function refreshPdppToken(input: {
     });
   } catch (error) {
     if (error instanceof PdppHttpError) {
-      for (const ref of input.grants) input.heldData.recordGrantSignal(ref, error);
+      for (const ref of input.grants)
+        input.heldData.recordGrantSignal(ref, error);
     }
     throw error;
   }
-  for (const issued of result.grants) input.heldData.recordTokenResponse(issued);
+  for (const issued of result.grants)
+    input.heldData.recordTokenResponse(issued);
   return result;
 }
 

@@ -34,7 +34,10 @@ import {
   timeoutSignal,
   type PdppEndpointPolicy,
 } from "./endpoints";
-import type { PdppAuthorizationServerMetadata, PdppTokenResult } from "./authorization";
+import type {
+  PdppAuthorizationServerMetadata,
+  PdppTokenResult,
+} from "./authorization";
 import {
   PdppStatePersistError,
   type PdppHeldDataManager,
@@ -49,7 +52,9 @@ import { PDPP_DATA_ACCESS_TYPE, PDPP_GRANT_LIFECYCLE_TYPE } from "./types";
 type Fetch = typeof globalThis.fetch;
 
 /** The lifecycle endpoint from AS metadata (spec-core #grant-lifecycle "Discovery"). */
-export function grantLifecycleEndpointOf(metadata: PdppAuthorizationServerMetadata): string {
+export function grantLifecycleEndpointOf(
+  metadata: PdppAuthorizationServerMetadata,
+): string {
   const endpoint = metadata.pdpp_grant_lifecycle_endpoint;
   if (typeof endpoint !== "string" || endpoint === "") {
     throw new PdppProtocolError(
@@ -60,8 +65,14 @@ export function grantLifecycleEndpointOf(metadata: PdppAuthorizationServerMetada
 }
 
 /** Whether the AS advertises lifecycle recovery (every AS must). */
-export function supportsLifecycleRecovery(metadata: PdppAuthorizationServerMetadata): boolean {
-  return metadata.authorization_details_types_supported?.includes(PDPP_GRANT_LIFECYCLE_TYPE) ?? false;
+export function supportsLifecycleRecovery(
+  metadata: PdppAuthorizationServerMetadata,
+): boolean {
+  return (
+    metadata.authorization_details_types_supported?.includes(
+      PDPP_GRANT_LIFECYCLE_TYPE,
+    ) ?? false
+  );
 }
 
 export type PdppLifecycleEntryError =
@@ -71,38 +82,62 @@ export type PdppLifecycleEntryError =
 
 export type PdppLifecycleEntry =
   | { kind: "answer"; answer: PdppLifecycleAnswer }
-  | { kind: "error"; grant_id: string; error: PdppLifecycleEntryError | string };
+  | {
+      kind: "error";
+      grant_id: string;
+      error: PdppLifecycleEntryError | string;
+    };
 
 export interface PdppLifecycleToken {
   token: string;
   hint?: "access_token" | "refresh_token";
 }
 
-const READ_STATES: readonly PdppReadState[] = ["active", "window_closed", "expired", "revoked"];
+const READ_STATES: readonly PdppReadState[] = [
+  "active",
+  "window_closed",
+  "expired",
+  "revoked",
+];
 
 /** Parse a lifecycle response body for the grants requested, in request order. */
-export function parseLifecycleResponse(body: unknown, requested: string[]): PdppLifecycleEntry[] {
+export function parseLifecycleResponse(
+  body: unknown,
+  requested: string[],
+): PdppLifecycleEntry[] {
   const grants = (body as { grants?: unknown } | null)?.grants;
   if (!Array.isArray(grants) || grants.length !== requested.length) {
-    throw new PdppProtocolError("lifecycle response must carry one entry per requested grant_id");
+    throw new PdppProtocolError(
+      "lifecycle response must carry one entry per requested grant_id",
+    );
   }
   return grants.map((raw, index) => {
     const expected = requested[index]!;
     const e = raw as Record<string, unknown> | null;
     if (!e || typeof e !== "object" || e.grant_id !== expected) {
-      throw new PdppProtocolError(`lifecycle entry ${index} does not name grant ${expected}`);
+      throw new PdppProtocolError(
+        `lifecycle entry ${index} does not name grant ${expected}`,
+      );
     }
-    if (typeof e.error === "string") return { kind: "error", grant_id: expected, error: e.error };
+    if (typeof e.error === "string")
+      return { kind: "error", grant_id: expected, error: e.error };
     const bad = (what: string): never => {
       throw new PdppProtocolError(`lifecycle answer for ${expected}: ${what}`);
     };
-    if (typeof e.assessed_at !== "string" || Number.isNaN(Date.parse(e.assessed_at))) bad("assessed_at");
-    if (e.held_data !== "permitted" && e.held_data !== "erase") bad("held_data");
+    if (
+      typeof e.assessed_at !== "string" ||
+      Number.isNaN(Date.parse(e.assessed_at))
+    )
+      bad("assessed_at");
+    if (e.held_data !== "permitted" && e.held_data !== "erase")
+      bad("held_data");
     // An unrecognized read_state never hides an erasure instruction (review F12).
     const answer: PdppLifecycleAnswer = {
       grant_id: expected,
       assessed_at: e.assessed_at as string,
-      read_state: READ_STATES.includes(e.read_state as PdppReadState) ? (e.read_state as PdppReadState) : "unknown",
+      read_state: READ_STATES.includes(e.read_state as PdppReadState)
+        ? (e.read_state as PdppReadState)
+        : "unknown",
       held_data: e.held_data as "permitted" | "erase",
       ...(typeof e.ended_at === "string" && { ended_at: e.ended_at }),
     };
@@ -114,7 +149,9 @@ export function parseLifecycleResponse(body: unknown, requested: string[]): Pdpp
         typeof x.accepted_at !== "string" ||
         typeof x.effective_at !== "string" ||
         typeof x.stop_use_by !== "string" ||
-        [x.accepted_at, x.effective_at, x.stop_use_by].some((t) => Number.isNaN(Date.parse(t as string)))
+        [x.accepted_at, x.effective_at, x.stop_use_by].some((t) =>
+          Number.isNaN(Date.parse(t as string)),
+        )
       ) {
         bad("an erase answer lacks a complete erasure object");
       }
@@ -158,7 +195,10 @@ async function lifecycleRequest(
   fetchImpl?: Fetch,
   timeoutMs?: number,
 ): Promise<PdppLifecycleEntry> {
-  const form = new URLSearchParams({ grant_id: grantId, token: credential.token });
+  const form = new URLSearchParams({
+    grant_id: grantId,
+    token: credential.token,
+  });
   if (credential.hint) form.set("token_type_hint", credential.hint);
   for (const [k, v] of Object.entries(extra)) form.set(k, v);
   const response = await postForm(endpoint, form, fetchImpl, timeoutMs);
@@ -174,7 +214,14 @@ export function queryGrantLifecycle(input: {
   fetch?: Fetch;
   timeoutMs?: number;
 }): Promise<PdppLifecycleEntry> {
-  return lifecycleRequest(input.endpoint, input.grantId, input.credential, {}, input.fetch, input.timeoutMs);
+  return lifecycleRequest(
+    input.endpoint,
+    input.grantId,
+    input.credential,
+    {},
+    input.fetch,
+    input.timeoutMs,
+  );
 }
 
 /** A `received`, `completed` or `retained` report; needs current authentication. */
@@ -204,8 +251,12 @@ export function reportGrantLifecycle(input: {
       reported_at: input.reportedAt,
       ...(input.report === "retained" && {
         retained_until: input.retainedUntil!,
-        ...(input.retentionBasis !== undefined && { retention_basis: input.retentionBasis }),
-        ...(input.retentionScope !== undefined && { retention_scope: input.retentionScope }),
+        ...(input.retentionBasis !== undefined && {
+          retention_basis: input.retentionBasis,
+        }),
+        ...(input.retentionScope !== undefined && {
+          retention_scope: input.retentionScope,
+        }),
       }),
     },
     input.fetch,
@@ -247,7 +298,10 @@ export async function revokeWithDisposition(input: {
   fetch?: Fetch;
   timeoutMs?: number;
 }): Promise<void> {
-  const form = new URLSearchParams({ token: input.token, client_id: input.clientId });
+  const form = new URLSearchParams({
+    token: input.token,
+    client_id: input.clientId,
+  });
   if (input.tokenTypeHint) form.set("token_type_hint", input.tokenTypeHint);
   if (input.disposition) form.set("pdpp_disposition", input.disposition);
   if (input.reportedAt !== undefined) {
@@ -256,7 +310,12 @@ export async function revokeWithDisposition(input: {
     }
     form.set("reported_at", input.reportedAt);
   }
-  const response = await postForm(input.revocationEndpoint, form, input.fetch, input.timeoutMs);
+  const response = await postForm(
+    input.revocationEndpoint,
+    form,
+    input.fetch,
+    input.timeoutMs,
+  );
   if (!response.ok) throw await pdppHttpErrorFrom(response);
 }
 
@@ -270,7 +329,9 @@ export function buildLifecycleRecoveryDetail(grantIds: string[]): {
     grantIds.some((g) => typeof g !== "string" || g === "") ||
     new Set(grantIds).size !== grantIds.length
   ) {
-    throw new TypeError("grant_ids must be a non-empty array of distinct, non-empty strings");
+    throw new TypeError(
+      "grant_ids must be a non-empty array of distinct, non-empty strings",
+    );
   }
   return { type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: [...grantIds] };
 }
@@ -297,7 +358,10 @@ export function buildLifecycleRecoveryRequest(input: {
     ...(input.state !== undefined && { state: input.state }),
   };
   return {
-    query: new URLSearchParams({ ...base, authorization_details: JSON.stringify(details) }),
+    query: new URLSearchParams({
+      ...base,
+      authorization_details: JSON.stringify(details),
+    }),
     json: { ...base, authorization_details: details },
   };
 }
@@ -317,11 +381,15 @@ export function interpretRecoveryTokenResponse(body: unknown): {
   }
   const details = b.authorization_details;
   if (!Array.isArray(details) || details.length !== 1) {
-    throw new PdppProtocolError("recovery token response must return exactly the recovery element");
+    throw new PdppProtocolError(
+      "recovery token response must return exactly the recovery element",
+    );
   }
   const d = details[0] as Record<string, unknown>;
   if (d?.type === PDPP_DATA_ACCESS_TYPE) {
-    throw new PdppProtocolError("a recovery token response must not return a data-access grant");
+    throw new PdppProtocolError(
+      "a recovery token response must not return a data-access grant",
+    );
   }
   if (
     d?.type !== PDPP_GRANT_LIFECYCLE_TYPE ||
@@ -329,9 +397,14 @@ export function interpretRecoveryTokenResponse(body: unknown): {
     d.grant_ids.length === 0 ||
     !d.grant_ids.every((g) => typeof g === "string" && g !== "")
   ) {
-    throw new PdppProtocolError("recovery token response carries no approved grant_ids");
+    throw new PdppProtocolError(
+      "recovery token response carries no approved grant_ids",
+    );
   }
-  return { accessToken: b.access_token, grantIds: [...(d.grant_ids as string[])] };
+  return {
+    accessToken: b.access_token,
+    grantIds: [...(d.grant_ids as string[])],
+  };
 }
 
 /** Redeem a lifecycle recovery authorization code (RFC 6749 §4.1.3 + PKCE). */
@@ -409,19 +482,29 @@ export class InMemoryPdppLifecycleCredentials implements PdppLifecycleCredential
 
   /** Record a token response; the newest refresh token supersedes older ones and covers every grant returned. */
   recordTokenResponse(result: PdppTokenResult): void {
-    const expiresAt = result.expiresIn !== undefined ? this.now() + result.expiresIn * 1000 : undefined;
+    const expiresAt =
+      result.expiresIn !== undefined
+        ? this.now() + result.expiresIn * 1000
+        : undefined;
     const refs = result.grants.map(grantRefOf);
     for (const ref of refs) {
       const e = this.entry(ref);
-      e.access.push({ token: result.accessToken, ...(expiresAt !== undefined && { expiresAt }) });
+      e.access.push({
+        token: result.accessToken,
+        ...(expiresAt !== undefined && { expiresAt }),
+      });
       if (result.refreshToken) e.refresh.push(result.refreshToken);
     }
     if (result.refreshToken) this.families.set(result.refreshToken, refs);
   }
 
   /** Record a lifecycle recovery token for the approved grants of one issuer. */
-  recordRecoveryToken(issuer: string, recovery: { accessToken: string; grantIds: string[] }): void {
-    for (const grantId of recovery.grantIds) this.entry({ issuer, grantId }).recovery = recovery.accessToken;
+  recordRecoveryToken(
+    issuer: string,
+    recovery: { accessToken: string; grantIds: string[] },
+  ): void {
+    for (const grantId of recovery.grantIds)
+      this.entry({ issuer, grantId }).recovery = recovery.accessToken;
   }
 
   queryToken(ref: PdppGrantRef): PdppLifecycleToken | undefined {
@@ -435,11 +518,17 @@ export class InMemoryPdppLifecycleCredentials implements PdppLifecycleCredential
 
   writeToken(ref: PdppGrantRef): PdppLifecycleToken | undefined {
     const e = this.entry(ref);
-    if (e.recovery && !e.refused.has(e.recovery)) return { token: e.recovery, hint: "access_token" };
+    if (e.recovery && !e.refused.has(e.recovery))
+      return { token: e.recovery, hint: "access_token" };
     const refresh = e.refresh.at(-1);
-    if (refresh && !e.refused.has(refresh)) return { token: refresh, hint: "refresh_token" };
+    if (refresh && !e.refused.has(refresh))
+      return { token: refresh, hint: "refresh_token" };
     const access = e.access.at(-1);
-    if (access && !e.refused.has(access.token) && (access.expiresAt === undefined || access.expiresAt > this.now())) {
+    if (
+      access &&
+      !e.refused.has(access.token) &&
+      (access.expiresAt === undefined || access.expiresAt > this.now())
+    ) {
       return { token: access.token, hint: "access_token" };
     }
     return undefined;
@@ -470,6 +559,11 @@ export interface PdppLifecycleAgentOptions {
   fetch?: Fetch;
   /** Endpoint policy (https, no local hosts unless allowed). */
   policy?: PdppEndpointPolicy;
+  /**
+   * The issuer the app configured; endpoints are checked against its origin.
+   * Defaults to the lifecycle endpoint itself (an endpoint the app passed in).
+   */
+  issuer?: string;
   /** Timeout for each lifecycle and revocation request (review F9). Default 30 s. */
   requestTimeoutMs?: number;
   /** How long `ensureMayUse` waits for a required query before deciding (review F9). Default 2 s. */
@@ -480,8 +574,26 @@ export interface PdppLifecycleAgentOptions {
 export interface PdppDisconnectOffer {
   grants: PdppGrantRef[];
   statement: string;
-  choices: Array<{ value: "keep" | "delete"; label: string; explanation: string }>;
+  choices: Array<{
+    value: "keep" | "delete";
+    label: string;
+    explanation: string;
+  }>;
   preselected: null;
+}
+
+/** One grant's outcome in a disconnect (review NEW-2). */
+export interface PdppDisconnectResult {
+  grant: PdppGrantRef;
+  disposition: "keep" | "delete";
+  /**
+   * - `revoked`: the refresh family was revoked with the disposition.
+   * - `conveyed`: a `delete` reached the AS through the lifecycle write.
+   * - `pending`: not delivered; `runDue` retries it (`keep` access has not ended yet).
+   * - `not_conveyable`: `keep` with no revocation path; access did not end.
+   */
+  state: "revoked" | "conveyed" | "pending" | "not_conveyable";
+  reason?: string;
 }
 
 /** Raised when a disconnect would end grants the owner did not choose (review F3). */
@@ -510,27 +622,39 @@ export class PdppLifecycleAgent {
 
   constructor(private readonly options: PdppLifecycleAgentOptions) {
     this.manager = options.manager;
+    const base = options.issuer ?? options.lifecycleEndpoint;
     this.lifecycleEndpoint = assertPdppEndpoint(
       options.lifecycleEndpoint,
-      options.lifecycleEndpoint,
+      base,
       "lifecycle endpoint",
       options.policy,
     );
     this.revocationEndpoint =
       options.revocationEndpoint !== undefined
-        ? assertPdppEndpoint(options.revocationEndpoint, options.lifecycleEndpoint, "revocation endpoint", options.policy)
+        ? assertPdppEndpoint(
+            options.revocationEndpoint,
+            base,
+            "revocation endpoint",
+            options.policy,
+          )
         : undefined;
   }
 
   /** Build an agent from discovered (and checked) AS metadata. */
   static fromMetadata(
     metadata: PdppAuthorizationServerMetadata,
-    options: Omit<PdppLifecycleAgentOptions, "lifecycleEndpoint" | "revocationEndpoint">,
+    options: Omit<
+      PdppLifecycleAgentOptions,
+      "lifecycleEndpoint" | "revocationEndpoint" | "issuer"
+    >,
   ): PdppLifecycleAgent {
     return new PdppLifecycleAgent({
       ...options,
+      issuer: metadata.issuer,
       lifecycleEndpoint: grantLifecycleEndpointOf(metadata),
-      ...(metadata.revocation_endpoint !== undefined && { revocationEndpoint: metadata.revocation_endpoint }),
+      ...(metadata.revocation_endpoint !== undefined && {
+        revocationEndpoint: metadata.revocation_endpoint,
+      }),
     });
   }
 
@@ -561,7 +685,8 @@ export class PdppLifecycleAgent {
     if (this.options.credentials instanceof InMemoryPdppLifecycleCredentials) {
       this.options.credentials.recordTokenResponse(result);
     }
-    for (const issued of result.grants) this.manager.recordTokenResponse(issued);
+    for (const issued of result.grants)
+      this.manager.recordTokenResponse(issued);
   }
 
   /**
@@ -578,7 +703,9 @@ export class PdppLifecycleAgent {
   }
 
   /** Refresh a family's tokens; success and failure reach the manager (see `refreshPdppToken`). */
-  async refresh(input: Omit<Parameters<typeof refreshToken>[0], "heldData">): Promise<PdppTokenResult> {
+  async refresh(
+    input: Omit<Parameters<typeof refreshToken>[0], "heldData">,
+  ): Promise<PdppTokenResult> {
     const result = await refreshToken({ ...input, heldData: this.manager });
     this.recordCredentials(result);
     return result;
@@ -627,7 +754,8 @@ export class PdppLifecycleAgent {
           ...(retryAfterMs !== undefined && { retryAfterMs }),
         });
         // A disabled or unknown token: recovery is the path back (case D3).
-        if (error.status === 401 && error.code === "invalid_token") this.manager.markNeedsRecovery(ref);
+        if (error.status === 401 && error.code === "invalid_token")
+          this.manager.markNeedsRecovery(ref);
       } else if (error instanceof PdppProtocolError) {
         this.manager.recordFailure(ref, attempt, { kind: "http" });
       } else {
@@ -649,23 +777,25 @@ export class PdppLifecycleAgent {
    */
   async runDue(): Promise<Array<"answered" | "failed">> {
     await this.manager.retryPersist();
-    for (const ref of this.manager.knownGrants()) {
-      try {
-        await this.manager.disposeDue(ref);
-      } catch {
-        // retried on the next run; a missed deadline is recorded by the manager
-      }
-    }
+    // Every grant's disposal runs side by side, and each callee is bounded by the
+    // manager's erase timeout, so one hung store cannot hold up other grants (review NEW-4).
+    await Promise.allSettled(
+      this.manager.knownGrants().map((ref) => this.manager.disposeDue(ref)),
+    );
     const started = this.manager.dueGrants().map((ref) => {
+      if (this.manager.pendingRevocation(ref)) return this.retryRevocation(ref);
       const conveyance = this.manager.erasureRecord(ref)?.reports.conveyance;
-      return conveyance === "pending" || conveyance === "needs_current_authentication"
+      return conveyance === "pending" ||
+        conveyance === "needs_current_authentication"
         ? this.retryConveyance(ref)
         : this.query(ref);
     });
     return Promise.all(started);
   }
 
-  private async retryConveyance(ref: PdppGrantRef): Promise<"answered" | "failed"> {
+  private async retryConveyance(
+    ref: PdppGrantRef,
+  ): Promise<"answered" | "failed"> {
     const attempt = this.manager.beginAttempt(ref);
     const ok = await this.conveyDelete(ref);
     if (!ok) {
@@ -681,7 +811,10 @@ export class PdppLifecycleAgent {
    * and waits for it at most `useQueryWaitMs` (a failed or slow one does not
    * stop permitted use), completes due disposal, then decides.
    */
-  async ensureMayUse(ref: PdppGrantRef, options: { purpose?: string } = {}): Promise<PdppUseDecision> {
+  async ensureMayUse(
+    ref: PdppGrantRef,
+    options: { purpose?: string } = {},
+  ): Promise<PdppUseDecision> {
     const decision = this.manager.checkUse(ref, options);
     if (!decision.allowed && decision.reason === "query_required") {
       const pending = this.query(ref);
@@ -700,7 +833,8 @@ export class PdppLifecycleAgent {
 
   /** Send pending reports for one grant, or for all (spec-core #erasure "Reports and records"). */
   async sendReports(ref?: PdppGrantRef): Promise<void> {
-    for (const r of ref ? [ref] : this.manager.knownGrants()) await this.sendReportsFor(r);
+    for (const r of ref ? [ref] : this.manager.knownGrants())
+      await this.sendReportsFor(r);
   }
 
   /** Grants that wait for the owner to approve lifecycle recovery (see {@link buildLifecycleRecoveryRequest}). */
@@ -743,7 +877,9 @@ export class PdppLifecycleAgent {
     const chosen = new Set(grants.map(refKey));
     return grants.flatMap((ref) =>
       this.options.credentials.refreshToken?.(ref) !== undefined
-        ? (this.options.credentials.familyGrants?.(ref) ?? []).filter((f) => !chosen.has(refKey(f)))
+        ? (this.options.credentials.familyGrants?.(ref) ?? []).filter(
+            (f) => !chosen.has(refKey(f)),
+          )
         : [],
     );
   }
@@ -769,63 +905,161 @@ export class PdppLifecycleAgent {
     grants: PdppGrantRef[];
     disposition: "keep" | "delete";
     choseAt?: number;
-  }): Promise<{ conveyed: boolean }> {
+  }): Promise<{ conveyed: boolean; results: PdppDisconnectResult[] }> {
     const disposition = input.disposition as unknown;
     if (disposition !== "keep" && disposition !== "delete") {
-      throw new TypeError("disconnect needs an explicit disposition: keep or delete");
+      throw new TypeError(
+        "disconnect needs an explicit disposition: keep or delete",
+      );
     }
     const chosen = new Set(input.grants.map(refKey));
     const plan = input.grants.map((ref) => {
       const refresh = this.options.credentials.refreshToken?.(ref);
       const family = this.options.credentials.familyGrants?.(ref);
-      const outside = family ? family.filter((f) => !chosen.has(refKey(f))) : undefined;
-      const revocable = this.revocationEndpoint !== undefined && refresh !== undefined && outside !== undefined && outside.length === 0;
+      const outside = family
+        ? family.filter((f) => !chosen.has(refKey(f)))
+        : undefined;
+      const revocable =
+        this.revocationEndpoint !== undefined &&
+        refresh !== undefined &&
+        outside !== undefined &&
+        outside.length === 0;
       return { ref, refresh, outside: outside ?? [], revocable };
     });
     if (disposition === "keep") {
-      const outside = plan.flatMap((p) => (p.refresh !== undefined && this.revocationEndpoint ? p.outside : []));
+      const outside = plan.flatMap((p) =>
+        p.refresh !== undefined && this.revocationEndpoint ? p.outside : [],
+      );
       if (outside.length > 0) throw new PdppDisconnectScopeError(outside);
     }
-    const choseAt = Math.min(input.choseAt ?? this.manager.now(), this.manager.now());
+    const choseAt = Math.min(
+      input.choseAt ?? this.manager.now(),
+      this.manager.now(),
+    );
     if (disposition === "delete") {
-      for (const ref of input.grants) await this.manager.ownerChoseDelete(ref, choseAt);
+      for (const ref of input.grants)
+        await this.manager.ownerChoseDelete(ref, choseAt);
     }
-    let conveyed = true;
-    const revoked = new Set<string>();
+    const results: PdppDisconnectResult[] = [];
+    const revocations = new Map<string, Promise<boolean>>();
     for (const p of plan) {
       if (p.revocable) {
-        if (!revoked.has(p.refresh!)) {
-          try {
-            await revokeWithDisposition({
-              revocationEndpoint: this.revocationEndpoint!,
-              clientId: this.options.clientId,
-              token: p.refresh!,
-              tokenTypeHint: "refresh_token",
-              disposition,
-              ...(disposition === "delete" && { reportedAt: new Date(choseAt).toISOString() }),
-              ...this.fetchOptions,
-            });
-            revoked.add(p.refresh!);
-          } catch {
-            conveyed = false;
-            continue;
-          }
+        let outcome = revocations.get(p.refresh!);
+        if (!outcome) {
+          outcome = this.revokeFamily(p.refresh!, disposition, choseAt);
+          revocations.set(p.refresh!, outcome);
         }
-        this.afterRevocation(p.ref, disposition);
-        continue;
+        if (await outcome) {
+          this.afterRevocation(p.ref, disposition);
+          results.push({ grant: p.ref, disposition, state: "revoked" });
+          continue;
+        }
+        if (disposition === "keep") {
+          // Review NEW-2: queued; runDue retries it. Access has not ended yet.
+          this.manager.queueRevocation(p.ref, choseAt);
+          results.push({
+            grant: p.ref,
+            disposition,
+            state: "pending",
+            reason: "revocation failed; queued for retry",
+          });
+          continue;
+        }
       }
       if (disposition === "delete") {
-        if (!(await this.conveyDelete(p.ref))) conveyed = false;
+        // Erased locally already; conveyed by the per-grant lifecycle write, or retried by runDue.
+        const ok = await this.conveyDelete(p.ref);
+        results.push(
+          ok
+            ? { grant: p.ref, disposition, state: "conveyed" }
+            : {
+                grant: p.ref,
+                disposition,
+                state: "pending",
+                reason:
+                  this.manager.erasureRecord(p.ref)?.reports.conveyance ===
+                  "needs_current_authentication"
+                    ? "needs current authentication: ask the owner to approve lifecycle recovery"
+                    : "not delivered; queued for retry",
+              },
+        );
       } else {
-        conveyed = false; // no revocation path: access did not end
+        results.push({
+          grant: p.ref,
+          disposition,
+          state: "not_conveyable",
+          reason: "no revocation endpoint or refresh token: access did not end",
+        });
       }
     }
-    return { conveyed };
+    return {
+      conveyed: results.every(
+        (r) => r.state === "revoked" || r.state === "conveyed",
+      ),
+      results,
+    };
   }
 
-  private afterRevocation(ref: PdppGrantRef, disposition: "keep" | "delete"): void {
+  private async revokeFamily(
+    refresh: string,
+    disposition: "keep" | "delete",
+    choseAt: number,
+  ): Promise<boolean> {
+    try {
+      await revokeWithDisposition({
+        revocationEndpoint: this.revocationEndpoint!,
+        clientId: this.options.clientId,
+        token: refresh,
+        tokenTypeHint: "refresh_token",
+        disposition,
+        ...(disposition === "delete" && {
+          reportedAt: new Date(choseAt).toISOString(),
+        }),
+        ...this.fetchOptions,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Retry a queued `keep` revocation (review NEW-2). */
+  private async retryRevocation(
+    ref: PdppGrantRef,
+  ): Promise<"answered" | "failed"> {
+    const attempt = this.manager.beginAttempt(ref);
+    const queued = this.manager.pendingRevocation(ref)!;
+    const refresh = this.options.credentials.refreshToken?.(ref);
+    const family = this.options.credentials.familyGrants?.(ref) ?? [];
+    const inside = family.every(
+      (f) => this.manager.pendingRevocation(f) !== undefined,
+    );
+    if (
+      this.revocationEndpoint === undefined ||
+      refresh === undefined ||
+      !inside
+    ) {
+      this.manager.recordFailure(ref, attempt, { kind: "per_grant" });
+      return "failed";
+    }
+    if (!(await this.revokeFamily(refresh, "keep", queued.choseAt))) {
+      this.manager.recordFailure(ref, attempt, { kind: "transport" });
+      return "failed";
+    }
+    for (const f of family) {
+      this.manager.clearRevocation(f);
+      this.afterRevocation(f, "keep");
+    }
+    return "answered";
+  }
+
+  private afterRevocation(
+    ref: PdppGrantRef,
+    disposition: "keep" | "delete",
+  ): void {
     this.manager.recordEnding(ref, "revoked");
-    if (disposition === "delete") this.manager.setReportState(ref, "conveyance", "sent");
+    if (disposition === "delete")
+      this.manager.setReportState(ref, "conveyance", "sent");
   }
 
   private async conveyDelete(ref: PdppGrantRef): Promise<boolean> {
@@ -845,14 +1079,19 @@ export class PdppLifecycleAgent {
   private async sendReportsFor(ref: PdppGrantRef): Promise<void> {
     const e = this.manager.erasureRecord(ref);
     if (!e) return;
-    const isWaiting = (s: string) => s === "pending" || s === "needs_current_authentication";
+    const isWaiting = (s: string) =>
+      s === "pending" || s === "needs_current_authentication";
     if (isWaiting(e.reports.conveyance)) await this.conveyDelete(ref);
     const instructionId = e.asInstructionId;
     if (instructionId === undefined) return; // learned through the next query
     const send = (
       report: "received" | "completed" | "retained",
       reportedAt: string,
-      extra: { retainedUntil?: string; retentionBasis?: string; retentionScope?: string } = {},
+      extra: {
+        retainedUntil?: string;
+        retentionBasis?: string;
+        retentionScope?: string;
+      } = {},
     ) =>
       this.write(ref, report, (credential) =>
         reportGrantLifecycle({
@@ -867,7 +1106,8 @@ export class PdppLifecycleAgent {
         }),
       );
     if (isWaiting(e.reports.received)) await send("received", e.firstReceiptAt);
-    const retaining = e.legalRetention !== undefined && e.legalRetention.endedAt === undefined;
+    const retaining =
+      e.legalRetention !== undefined && e.legalRetention.endedAt === undefined;
     if (retaining && isWaiting(e.reports.retained)) {
       await send("retained", e.legalRetention!.recordedAt, {
         retainedUntil: e.legalRetention!.until,
@@ -896,11 +1136,16 @@ export class PdppLifecycleAgent {
       if (entry.kind === "error") {
         if (entry.error === "current_authentication_required") {
           this.options.credentials.refusedForWrites?.(ref, credential.token);
-          this.manager.setReportState(ref, report, "needs_current_authentication");
+          this.manager.setReportState(
+            ref,
+            report,
+            "needs_current_authentication",
+          );
         }
         return false;
       }
-      if (entry.answer.erasure) this.manager.linkInstruction(ref, entry.answer.erasure.instruction_id);
+      if (entry.answer.erasure)
+        this.manager.linkInstruction(ref, entry.answer.erasure.instruction_id);
       this.manager.setReportState(ref, report, "sent");
       return true;
     } catch {

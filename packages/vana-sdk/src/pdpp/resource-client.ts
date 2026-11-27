@@ -30,16 +30,19 @@
  * @category PDPP
  */
 
-import {
-  PdppHttpError,
-  PdppProtocolError,
-  pdppHttpErrorFrom,
-} from "./errors";
+import { PdppHttpError, PdppProtocolError, pdppHttpErrorFrom } from "./errors";
 import type { PdppIssuedGrant } from "./authorization";
 import type { PdppRecord, PdppRecordPage, PdppStreamGrant } from "./types";
 import type { PdppSyncContext, PdppSyncCopy } from "./sync-copy";
 import { grantRefOf, type PdppHeldDataManager } from "./held-data";
-import { PDPP_FETCH_REDIRECT, assertPdppEndpoint, type PdppEndpointPolicy } from "./endpoints";
+import {
+  PDPP_FETCH_REDIRECT,
+  PDPP_REQUEST_TIMEOUT_MS,
+  assertPdppEndpoint,
+  fetchPdppMetadata,
+  timeoutSignal,
+  type PdppEndpointPolicy,
+} from "./endpoints";
 
 type Fetch = typeof globalThis.fetch;
 
@@ -61,13 +64,23 @@ export interface PdppResourceClientOptions {
   heldData: PdppHeldDataManager;
   /** Endpoint policy for `coreQueryBase`; see {@link assertPdppEndpoint}. */
   policy?: PdppEndpointPolicy;
+  /** Timeout for each RS request (review NEW-7). Default 30 s. */
+  requestTimeoutMs?: number;
+  /** Most pages one sync session may read before it fails (review NEW-7). Default 10 000. */
+  maxSyncPages?: number;
   /** Refuse a record whose `data` lacks a `required_fields` entry (Client item 33). Default: report only. */
   requireRequiredFields?: boolean;
 }
 
 /** Thrown once the client has stopped (Client item 9). */
 export class PdppClientStoppedError extends Error {
-  constructor(readonly reason: "token_inactive" | "grant_revoked" | "grant_ended" | "grant_erased") {
+  constructor(
+    readonly reason:
+      | "token_inactive"
+      | "grant_revoked"
+      | "grant_ended"
+      | "grant_erased",
+  ) {
     super(
       reason === "token_inactive"
         ? "the access token is inactive; obtain a new one before further requests"
@@ -80,6 +93,14 @@ export class PdppClientStoppedError extends Error {
     this.name = "PdppClientStoppedError";
   }
 }
+
+function withSignal(ms: number): { signal?: AbortSignal } {
+  const signal = timeoutSignal(ms);
+  return signal ? { signal } : {};
+}
+
+/** Default bound on pages in one sync session (review NEW-7). */
+export const PDPP_SYNC_MAX_PAGES = 10_000;
 
 /** A returned record that lacks fields of its StreamGrant's `required_fields`. */
 export interface PdppRequiredFieldGap {
@@ -94,10 +115,15 @@ export interface PdppRequiredFieldGap {
  * `data`. Absence may mean the stored version has no value, so this is an
  * observation, not proof of a bad RS. Tombstones carry no `data` and have none.
  */
-export function missingRequiredFields(record: PdppRecord, streamGrant: PdppStreamGrant): string[] {
+export function missingRequiredFields(
+  record: PdppRecord,
+  streamGrant: PdppStreamGrant,
+): string[] {
   if (record.deleted === true) return [];
   const data = record.data ?? {};
-  return streamGrant.required_fields.filter((f) => !Object.prototype.hasOwnProperty.call(data, f));
+  return streamGrant.required_fields.filter(
+    (f) => !Object.prototype.hasOwnProperty.call(data, f),
+  );
 }
 
 /** Protected resource metadata members this client reads (spec-core #protected-resource-metadata). */
@@ -123,7 +149,11 @@ export function protectedResourceMetadataUrl(resource: string): string {
  */
 export async function discoverPdppResourceServer(
   resource: string,
-  options: { fetch?: Fetch; metadataUrl?: string; policy?: PdppEndpointPolicy } = {},
+  options: {
+    fetch?: Fetch;
+    metadataUrl?: string;
+    policy?: PdppEndpointPolicy;
+  } = {},
 ): Promise<PdppProtectedResourceMetadata & { coreQueryBaseUrl: string }> {
   assertPdppEndpoint(resource, resource, "resource", options.policy);
   const metadataUrl = assertPdppEndpoint(
@@ -132,18 +162,21 @@ export async function discoverPdppResourceServer(
     "protected resource metadata URL",
     options.policy,
   );
-  const doFetch = options.fetch ?? globalThis.fetch;
-  const response = await doFetch(metadataUrl, {
+  const response = await fetchPdppMetadata(metadataUrl, options.fetch, {
     headers: { Accept: "application/json" },
-    redirect: PDPP_FETCH_REDIRECT,
+    ...withSignal(PDPP_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) throw await pdppHttpErrorFrom(response);
   const metadata = (await response.json()) as PdppProtectedResourceMetadata;
   if (metadata.resource !== resource) {
-    throw new PdppProtocolError("protected resource metadata names a different resource");
+    throw new PdppProtocolError(
+      "protected resource metadata names a different resource",
+    );
   }
   if (typeof metadata.pdpp_core_query_base !== "string") {
-    throw new PdppProtocolError("protected resource metadata has no pdpp_core_query_base");
+    throw new PdppProtocolError(
+      "protected resource metadata has no pdpp_core_query_base",
+    );
   }
   const coreQueryBaseUrl = assertPdppEndpoint(
     new URL(metadata.pdpp_core_query_base, resource).toString(),
@@ -160,7 +193,12 @@ export class PdppResourceClient {
   private stopped: PdppClientStoppedError | undefined;
 
   constructor(private readonly options: PdppResourceClientOptions) {
-    this.base = assertPdppEndpoint(options.coreQueryBase, options.coreQueryBase, "coreQueryBase", options.policy).replace(/\/$/, "");
+    this.base = assertPdppEndpoint(
+      options.coreQueryBase,
+      options.coreQueryBase,
+      "coreQueryBase",
+      options.policy,
+    ).replace(/\/$/, "");
     this.doFetch = options.fetch ?? globalThis.fetch;
   }
 
@@ -185,14 +223,22 @@ export class PdppResourceClient {
   /** One page of a list read. `fields` must be within the grant (else 403 `field_not_granted`). */
   async listRecords(
     stream: string,
-    query: { limit?: number; cursor?: string; order?: "asc" | "desc"; fields?: string[] } = {},
+    query: {
+      limit?: number;
+      cursor?: string;
+      order?: "asc" | "desc";
+      fields?: string[];
+    } = {},
   ): Promise<PdppRecordPage> {
-    const page = (await this.get(`/streams/${encodeURIComponent(stream)}/records`, {
-      ...(query.limit !== undefined && { limit: String(query.limit) }),
-      ...(query.cursor !== undefined && { cursor: query.cursor }),
-      ...(query.order !== undefined && { order: query.order }),
-      ...(query.fields !== undefined && { fields: query.fields.join(",") }),
-    })) as PdppRecordPage;
+    const page = (await this.get(
+      `/streams/${encodeURIComponent(stream)}/records`,
+      {
+        ...(query.limit !== undefined && { limit: String(query.limit) }),
+        ...(query.cursor !== undefined && { cursor: query.cursor }),
+        ...(query.order !== undefined && { order: query.order }),
+        ...(query.fields !== undefined && { fields: query.fields.join(",") }),
+      },
+    )) as PdppRecordPage;
     // Client item 10: records read outside sync are held data the client reconciles itself.
     for (const record of page.data ?? []) this.observe(stream, record);
     return page;
@@ -209,7 +255,9 @@ export class PdppResourceClient {
   private observe(stream: string, record: PdppRecord): void {
     this.assertNotErased();
     if (record.deleted === true) return;
-    const streamGrant = this.options.issuedGrant.grant.streams.find((s) => s.name === stream);
+    const streamGrant = this.options.issuedGrant.grant.streams.find(
+      (s) => s.name === stream,
+    );
     if (streamGrant) {
       const missing = missingRequiredFields(record, streamGrant);
       if (missing.length > 0) {
@@ -218,10 +266,18 @@ export class PdppResourceClient {
             `record ${record.instance_id}/${record.id} lacks required fields ${missing.join(", ")}`,
           );
         }
-        this.gaps.push({ stream, instanceId: record.instance_id, id: record.id, missing });
+        this.gaps.push({
+          stream,
+          instanceId: record.instance_id,
+          id: record.id,
+          missing,
+        });
       }
     }
-    this.options.heldData.recordAcquisition(grantRefOf(this.options.issuedGrant), this.options.issuedGrant.grant);
+    this.options.heldData.recordAcquisition(
+      grantRefOf(this.options.issuedGrant),
+      this.options.issuedGrant.grant,
+    );
   }
 
   /**
@@ -229,7 +285,9 @@ export class PdppResourceClient {
    * is never applied or returned, and no session commits (review F1).
    */
   private assertNotErased(): void {
-    if (this.options.heldData.erasureRecord(grantRefOf(this.options.issuedGrant))) {
+    if (
+      this.options.heldData.erasureRecord(grantRefOf(this.options.issuedGrant))
+    ) {
       this.stopped = new PdppClientStoppedError("grant_erased");
       throw this.stopped;
     }
@@ -239,7 +297,11 @@ export class PdppResourceClient {
    * A single record. A 404 raises {@link PdppHttpError}; it is not evidence
    * that the record does not exist at the source (Client item 11).
    */
-  async getRecord(stream: string, id: string, instanceId?: string): Promise<PdppRecord> {
+  async getRecord(
+    stream: string,
+    id: string,
+    instanceId?: string,
+  ): Promise<PdppRecord> {
     const record = (await this.get(
       `/streams/${encodeURIComponent(stream)}/records/${encodeURIComponent(id)}`,
       instanceId ? { instance_id: instanceId } : {},
@@ -272,7 +334,13 @@ export class PdppResourceClient {
     let token = copy.syncToken(context) ?? "beginning";
     for (;;) {
       try {
-        const applied = await this.syncSession(stream, copy, context, token, query);
+        const applied = await this.syncSession(
+          stream,
+          copy,
+          context,
+          token,
+          query,
+        );
         return { applied, restarted };
       } catch (error) {
         if (
@@ -302,13 +370,25 @@ export class PdppResourceClient {
     const session = copy.beginSession(context, { replace: fromBeginning });
     let cursor: string | undefined;
     let applied = 0;
+    let pages = 0;
+    const seenCursors = new Set<string>();
+    const maxPages = this.options.maxSyncPages ?? PDPP_SYNC_MAX_PAGES;
     for (;;) {
-      const page = (await this.get(`/streams/${encodeURIComponent(stream)}/records`, {
-        changes_since: changesSince,
-        ...(cursor !== undefined && { cursor }),
-        ...(query.fields !== undefined && { fields: query.fields.join(",") }),
-        ...(query.limit !== undefined && { limit: String(query.limit) }),
-      })) as PdppRecordPage;
+      pages += 1;
+      if (pages > maxPages) {
+        throw new PdppProtocolError(
+          `sync session exceeded ${maxPages} pages; nothing was committed`,
+        );
+      }
+      const page = (await this.get(
+        `/streams/${encodeURIComponent(stream)}/records`,
+        {
+          changes_since: changesSince,
+          ...(cursor !== undefined && { cursor }),
+          ...(query.fields !== undefined && { fields: query.fields.join(",") }),
+          ...(query.limit !== undefined && { limit: String(query.limit) }),
+        },
+      )) as PdppRecordPage;
       // Checked after every awaited response, including an empty page.
       this.assertNotErased();
       for (const record of page.data ?? []) {
@@ -318,14 +398,25 @@ export class PdppResourceClient {
       }
       if (page.has_more) {
         if (typeof page.next_cursor !== "string") {
-          throw new PdppProtocolError("a non-terminal sync page carries no next_cursor");
+          throw new PdppProtocolError(
+            "a non-terminal sync page carries no next_cursor",
+          );
         }
+        // A cursor seen before in this session means the RS made no progress.
+        if (seenCursors.has(page.next_cursor)) {
+          throw new PdppProtocolError(
+            "sync made no progress: the RS returned a page cursor again",
+          );
+        }
+        seenCursors.add(page.next_cursor);
         // Client item 3: a page cursor is never used as a changes_since token.
         cursor = page.next_cursor;
         continue;
       }
       if (typeof page.next_changes_since !== "string") {
-        throw new PdppProtocolError("the terminal sync page carries no next_changes_since");
+        throw new PdppProtocolError(
+          "the terminal sync page carries no next_changes_since",
+        );
       }
       this.assertNotErased();
       session.commit(page.next_changes_since);
@@ -333,7 +424,10 @@ export class PdppResourceClient {
     }
   }
 
-  private async get(path: string, params: Record<string, string>): Promise<unknown> {
+  private async get(
+    path: string,
+    params: Record<string, string>,
+  ): Promise<unknown> {
     if (this.stopped) throw this.stopped;
     this.assertNotErased();
     // Review F6: a grant the manager knows has ended gets no request at all.
@@ -350,11 +444,15 @@ export class PdppResourceClient {
         Accept: "application/json",
       },
       redirect: PDPP_FETCH_REDIRECT,
+      ...withSignal(this.options.requestTimeoutMs ?? PDPP_REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) {
       const error = await pdppHttpErrorFrom(response);
       // Client item 9: a sign the grant may have ended obliges a lifecycle query before further use.
-      this.options.heldData.recordGrantSignal(grantRefOf(this.options.issuedGrant), error);
+      this.options.heldData.recordGrantSignal(
+        grantRefOf(this.options.issuedGrant),
+        error,
+      );
       if (error.tokenInactive) {
         this.stopped = new PdppClientStoppedError(
           error.grantRevoked ? "grant_revoked" : "token_inactive",

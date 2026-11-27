@@ -40,29 +40,53 @@ function grant(overrides: Partial<PdppGrant> = {}): PdppGrant {
     issued_at: "2026-11-01T00:00:00Z",
     subject: { id: "sub" },
     client: { client_id: "https://app.example/client" },
-    source: { kind: "connector", id: "https://registry.pdpp.dev/sources/spotify" },
+    source: {
+      kind: "connector",
+      id: "https://registry.pdpp.dev/sources/spotify",
+    },
     source_declaration: { version: "rev1" },
     purpose_code: "https://pdpp.dev/purpose/analytics",
     access_mode: "continuous",
-    streams: [{ name: "top_artists", instance_ids: ["inst_A"], fields: ["id", "name"], required_fields: ["id"] }],
+    streams: [
+      {
+        name: "top_artists",
+        instance_ids: ["inst_A"],
+        fields: ["id", "name"],
+        required_fields: ["id"],
+      },
+    ],
     retention: { max_duration: "P90D", on_expiry: "delete" },
     ...overrides,
   };
 }
 
-type Erasure = { instruction_id: string; accepted_at: string; effective_at: string; stop_use_by: string };
+type Erasure = {
+  instruction_id: string;
+  accepted_at: string;
+  effective_at: string;
+  stop_use_by: string;
+};
 
 /** A fake Personal Server lifecycle endpoint and RFC 7009 revocation endpoint. */
 class FakeAs {
-  mode: "up" | "transport_down" | "hang" | "unavailable" | "rate_limited" = "up";
+  mode: "up" | "transport_down" | "hang" | "unavailable" | "rate_limited" =
+    "up";
   retryAfter = "300";
   seq = 0;
-  readonly calls: Array<{ url: string; form: URLSearchParams; at: number }> = [];
-  readonly state = new Map<string, { read_state: string; ended_at?: string; erasure?: Erasure }>();
+  readonly calls: Array<{ url: string; form: URLSearchParams; at: number }> =
+    [];
+  readonly state = new Map<
+    string,
+    { read_state: string; ended_at?: string; erasure?: Erasure }
+  >();
   /** Tokens issued per grant; `current` ones authenticate writes. */
   readonly issued = new Map<string, Set<string>>();
   readonly current = new Map<string, Set<string>>();
-  readonly received: Array<{ grantId: string; report: string; reported_at?: string }> = [];
+  readonly received: Array<{
+    grantId: string;
+    report: string;
+    reported_at?: string;
+  }> = [];
 
   constructor(private readonly clock: () => number) {}
 
@@ -106,12 +130,22 @@ class FakeAs {
     this.calls.push({ url, form, at: this.clock() });
     if (this.mode === "transport_down") throw new TypeError("fetch failed");
     if (this.mode === "hang") return new Promise<Response>(() => undefined);
-    const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
-      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
+    const json = (
+      body: unknown,
+      status = 200,
+      headers: Record<string, string> = {},
+    ) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json", ...headers },
+      });
     if (this.mode === "unavailable") {
-      return json({ error: "temporarily_unavailable" }, 503, { "Retry-After": this.retryAfter });
+      return json({ error: "temporarily_unavailable" }, 503, {
+        "Retry-After": this.retryAfter,
+      });
     }
-    if (this.mode === "rate_limited") return json({ error: "rate_limited" }, 429);
+    if (this.mode === "rate_limited")
+      return json({ error: "rate_limited" }, 429);
     if (url === REVOKE) {
       const token = form.get("token")!;
       for (const [grantId, tokens] of this.issued) {
@@ -119,9 +153,16 @@ class FakeAs {
         const s = this.state.get(grantId)!;
         s.read_state = "revoked";
         s.ended_at = iso(this.clock());
-        if (form.get("pdpp_disposition") === "delete" && this.current.get(grantId)!.has(token)) {
+        if (
+          form.get("pdpp_disposition") === "delete" &&
+          this.current.get(grantId)!.has(token)
+        ) {
           this.erase(grantId, this.clock());
-          this.received.push({ grantId, report: "disposition", reported_at: form.get("reported_at") ?? undefined });
+          this.received.push({
+            grantId,
+            report: "disposition",
+            reported_at: form.get("reported_at") ?? undefined,
+          });
         }
       }
       return new Response(null, { status: 200 });
@@ -129,33 +170,65 @@ class FakeAs {
     const grantId = form.get("grant_id")!;
     const token = form.get("token")!;
     if (![...this.issued.values()].some((t) => t.has(token))) {
-      return json({ error: "invalid_token" }, 401, { "WWW-Authenticate": 'Bearer error="invalid_token"' });
+      return json({ error: "invalid_token" }, 401, {
+        "WWW-Authenticate": 'Bearer error="invalid_token"',
+      });
     }
-    if (!this.issued.get(grantId)?.has(token)) return json({ grants: [{ grant_id: grantId, error: "invalid_grant" }] });
+    if (!this.issued.get(grantId)?.has(token))
+      return json({ grants: [{ grant_id: grantId, error: "invalid_grant" }] });
     const write = form.has("report") || form.has("pdpp_disposition");
     if (write) {
       if (!this.current.get(grantId)!.has(token)) {
-        return json({ grants: [{ grant_id: grantId, error: "current_authentication_required" }] });
+        return json({
+          grants: [
+            { grant_id: grantId, error: "current_authentication_required" },
+          ],
+        });
       }
       if (form.get("pdpp_disposition") === "delete") {
-        if (!this.state.get(grantId)!.erasure) this.erase(grantId, this.clock());
-        this.received.push({ grantId, report: "disposition", reported_at: form.get("reported_at") ?? undefined });
+        if (!this.state.get(grantId)!.erasure)
+          this.erase(grantId, this.clock());
+        this.received.push({
+          grantId,
+          report: "disposition",
+          reported_at: form.get("reported_at") ?? undefined,
+        });
       } else {
-        this.received.push({ grantId, report: form.get("report")!, reported_at: form.get("reported_at") ?? undefined });
+        this.received.push({
+          grantId,
+          report: form.get("report")!,
+          reported_at: form.get("reported_at") ?? undefined,
+        });
       }
     }
     return json({ grants: [this.answer(grantId)] });
   };
 }
 
-function setup(options: { grant?: PdppGrant; tokens?: { access: string; refresh?: string } } = {}) {
+function setup(
+  options: {
+    grant?: PdppGrant;
+    tokens?: { access: string; refresh?: string };
+  } = {},
+) {
   let t = T0;
-  const clock = { now: () => t, set: (v: number) => (t = v), advance: (d: number) => (t += d) };
+  const clock = {
+    now: () => t,
+    set: (v: number) => (t = v),
+    advance: (d: number) => (t += d),
+  };
   const as = new FakeAs(clock.now);
   const g = options.grant ?? grant();
   const tokens = options.tokens ?? { access: "at_1", refresh: "rt_1" };
-  as.grant(g.grant_id, [tokens.access, ...(tokens.refresh ? [tokens.refresh] : [])]);
-  const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore(), now: clock.now, random: () => 1 });
+  as.grant(g.grant_id, [
+    tokens.access,
+    ...(tokens.refresh ? [tokens.refresh] : []),
+  ]);
+  const manager = new PdppHeldDataManager({
+    state: new InMemoryPdppHeldDataStateStore(),
+    now: clock.now,
+    random: () => 1,
+  });
   const copy = new InMemoryPdppSyncCopy(clock.now);
   void manager.addStore(copy);
   const credentials = new InMemoryPdppLifecycleCredentials(clock.now);
@@ -178,51 +251,124 @@ function setup(options: { grant?: PdppGrant; tokens?: { access: string; refresh?
   );
   const ref: PdppGrantRef = { issuer: ISSUER, grantId: g.grant_id };
   const hold = () => {
-    const session = copy.beginSession({ issuer: ISSUER, grantId: g.grant_id, stream: "top_artists" }, { replace: false });
-    session.apply({ object: "record", id: "r1", instance_id: "inst_A", stream: "top_artists", data: { id: "r1" } });
+    const session = copy.beginSession(
+      { issuer: ISSUER, grantId: g.grant_id, stream: "top_artists" },
+      { replace: false },
+    );
+    session.apply({
+      object: "record",
+      id: "r1",
+      instance_id: "inst_A",
+      stream: "top_artists",
+      data: { id: "r1" },
+    });
     session.commit("cs_1");
     manager.recordAcquisition(ref, g);
   };
   const lifecycleCalls = () => as.calls.filter((c) => c.url === LIFECYCLE);
-  return { clock, as, manager, copy, credentials, agent, result, ref, hold, grant: g, lifecycleCalls };
+  return {
+    clock,
+    as,
+    manager,
+    copy,
+    credentials,
+    agent,
+    result,
+    ref,
+    hold,
+    grant: g,
+    lifecycleCalls,
+  };
 }
 
 describe("lifecycle discovery and wire (Client items 15, 21; cases D2, D3)", () => {
   it("Client 21: reads pdpp_grant_lifecycle_endpoint and refuses an AS without one", () => {
     expect(
-      grantLifecycleEndpointOf({ issuer: ISSUER, token_endpoint: "x", pdpp_grant_lifecycle_endpoint: LIFECYCLE }),
+      grantLifecycleEndpointOf({
+        issuer: ISSUER,
+        token_endpoint: "x",
+        pdpp_grant_lifecycle_endpoint: LIFECYCLE,
+      }),
     ).toBe(LIFECYCLE);
-    expect(() => grantLifecycleEndpointOf({ issuer: ISSUER, token_endpoint: "x" })).toThrow(PdppProtocolError);
+    expect(() =>
+      grantLifecycleEndpointOf({ issuer: ISSUER, token_endpoint: "x" }),
+    ).toThrow(PdppProtocolError);
     expect(
       supportsLifecycleRecovery({
         issuer: ISSUER,
         token_endpoint: "x",
-        authorization_details_types_supported: [PDPP_DATA_ACCESS_TYPE, PDPP_GRANT_LIFECYCLE_TYPE],
+        authorization_details_types_supported: [
+          PDPP_DATA_ACCESS_TYPE,
+          PDPP_GRANT_LIFECYCLE_TYPE,
+        ],
       }),
     ).toBe(true);
   });
 
   it("Client 15: ignores unknown members and refuses an entry for another grant or an incomplete erase", () => {
     const entries = parseLifecycleResponse(
-      { grants: [{ grant_id: "g", assessed_at: iso(T0), read_state: "active", held_data: "permitted", extra: 1 }], meta: {} },
+      {
+        grants: [
+          {
+            grant_id: "g",
+            assessed_at: iso(T0),
+            read_state: "active",
+            held_data: "permitted",
+            extra: 1,
+          },
+        ],
+        meta: {},
+      },
       ["g"],
     );
     expect(entries[0]).toEqual({
       kind: "answer",
-      answer: { grant_id: "g", assessed_at: iso(T0), read_state: "active", held_data: "permitted" },
+      answer: {
+        grant_id: "g",
+        assessed_at: iso(T0),
+        read_state: "active",
+        held_data: "permitted",
+      },
     });
     expect(() =>
-      parseLifecycleResponse({ grants: [{ grant_id: "other", assessed_at: iso(T0), read_state: "active", held_data: "permitted" }] }, ["g"]),
+      parseLifecycleResponse(
+        {
+          grants: [
+            {
+              grant_id: "other",
+              assessed_at: iso(T0),
+              read_state: "active",
+              held_data: "permitted",
+            },
+          ],
+        },
+        ["g"],
+      ),
     ).toThrow(PdppProtocolError);
     expect(() =>
-      parseLifecycleResponse({ grants: [{ grant_id: "g", assessed_at: iso(T0), read_state: "revoked", held_data: "erase" }] }, ["g"]),
+      parseLifecycleResponse(
+        {
+          grants: [
+            {
+              grant_id: "g",
+              assessed_at: iso(T0),
+              read_state: "revoked",
+              held_data: "erase",
+            },
+          ],
+        },
+        ["g"],
+      ),
     ).toThrow(/erasure/);
   });
 
   it("D2: an invalid_grant entry is a failed attempt, not an assessment", async () => {
     const { manager, agent, credentials, as, hold } = setup();
     const other: PdppGrantRef = { issuer: ISSUER, grantId: "grt_foreign" };
-    credentials.recordTokenResponse({ accessToken: "at_1", grants: [{ issuer: ISSUER, grant: grant({ grant_id: "grt_foreign" }) }] });
+    credentials.recordTokenResponse({
+      accessToken: "at_1",
+      grants: [{ issuer: ISSUER, grant: grant({ grant_id: "grt_foreign" }) }],
+    });
     hold();
     expect(await agent.query(other)).toBe("failed");
     expect(manager.checkUse(other).allowed).toBe(false);
@@ -230,26 +376,49 @@ describe("lifecycle discovery and wire (Client items 15, 21; cases D2, D3)", () 
   });
 
   it("D3: a recovery token response is not a data grant or an assessment, and yields no refresh token", () => {
-    expect(buildLifecycleRecoveryDetail(["g1", "g2"])).toEqual({ type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: ["g1", "g2"] });
+    expect(buildLifecycleRecoveryDetail(["g1", "g2"])).toEqual({
+      type: PDPP_GRANT_LIFECYCLE_TYPE,
+      grant_ids: ["g1", "g2"],
+    });
     expect(() => buildLifecycleRecoveryDetail(["g1", "g1"])).toThrow(TypeError);
     expect(() => buildLifecycleRecoveryDetail([])).toThrow(TypeError);
     const recovered = interpretRecoveryTokenResponse({
       access_token: "lt_1",
       token_type: "Bearer",
       refresh_token: "should_not_be_kept",
-      authorization_details: [{ type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: ["g1"] }],
+      authorization_details: [
+        { type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: ["g1"] },
+      ],
     });
     expect(recovered).toEqual({ accessToken: "lt_1", grantIds: ["g1"] });
     expect(() =>
-      interpretRecoveryTokenResponse({ access_token: "x", authorization_details: [{ type: PDPP_DATA_ACCESS_TYPE, grant: grant() }] }),
+      interpretRecoveryTokenResponse({
+        access_token: "x",
+        authorization_details: [
+          { type: PDPP_DATA_ACCESS_TYPE, grant: grant() },
+        ],
+      }),
     ).toThrow(/data-access/);
     // Item 13: the data path refuses a recovery response, so it can never authorize reads.
     expect(() =>
-      interpretTokenResponse({ access_token: "x", authorization_details: [{ type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: ["g1"] }] }, ISSUER),
+      interpretTokenResponse(
+        {
+          access_token: "x",
+          authorization_details: [
+            { type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: ["g1"] },
+          ],
+        },
+        ISSUER,
+      ),
     ).toThrow(PdppProtocolError);
-    const manager = new PdppHeldDataManager({ state: new InMemoryPdppHeldDataStateStore() });
+    const manager = new PdppHeldDataManager({
+      state: new InMemoryPdppHeldDataStateStore(),
+    });
     manager.recordAcquisition({ issuer: ISSUER, grantId: "g1" });
-    expect(manager.checkUse({ issuer: ISSUER, grantId: "g1" })).toEqual({ allowed: false, reason: "no_positive_assessment" });
+    expect(manager.checkUse({ issuer: ISSUER, grantId: "g1" })).toEqual({
+      allowed: false,
+      reason: "no_positive_assessment",
+    });
   });
 });
 
@@ -257,14 +426,20 @@ describe("positive assessment and surviving use (Client items 19, 20)", () => {
   it("Client 20: no first use before a positive assessment; delivery and read errors are never one", async () => {
     const { manager, ref, hold, agent, result, grant: g } = setup();
     hold(); // record delivery only
-    expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "no_positive_assessment" });
+    expect(manager.checkUse(ref)).toEqual({
+      allowed: false,
+      reason: "no_positive_assessment",
+    });
     const client = new PdppResourceClient({
       coreQueryBase: "https://ps.example/v1",
       accessToken: "at_1",
       issuedGrant: { issuer: ISSUER, grant: g },
       heldData: manager,
       fetch: async () =>
-        new Response(JSON.stringify({ error: { code: "internal", message: "x" } }), { status: 500 }),
+        new Response(
+          JSON.stringify({ error: { code: "internal", message: "x" } }),
+          { status: 500 },
+        ),
     });
     await expect(client.listRecords("top_artists")).rejects.toThrow();
     expect(manager.checkUse(ref).allowed).toBe(false);
@@ -278,20 +453,34 @@ describe("positive assessment and surviving use (Client items 19, 20)", () => {
     hold();
     expect(await agent.query(ref)).toBe("answered");
     expect(manager.checkUse(ref)).toEqual({ allowed: true });
-    expect(manager.assessments(ref).map((a) => a.source)).toEqual(["lifecycle"]);
+    expect(manager.assessments(ref).map((a) => a.source)).toEqual([
+      "lifecycle",
+    ]);
   });
 
   it("Client 20: a replayed answer with an earlier assessed_at is not a new assessment", async () => {
     const { manager, ref, agent, result } = setup();
     agent.recordTokenResponse(result);
     const first = manager.beginAttempt(ref);
-    await manager.recordAnswer(ref, first, { grant_id: "grt_1", assessed_at: iso(T0 + 10), read_state: "active", held_data: "permitted" });
+    await manager.recordAnswer(ref, first, {
+      grant_id: "grt_1",
+      assessed_at: iso(T0 + 10),
+      read_state: "active",
+      held_data: "permitted",
+    });
     const before = manager.assessments(ref).length;
     const replay = manager.beginAttempt(ref);
-    await manager.recordAnswer(ref, replay, { grant_id: "grt_1", assessed_at: iso(T0 + 10), read_state: "active", held_data: "permitted" });
+    await manager.recordAnswer(ref, replay, {
+      grant_id: "grt_1",
+      assessed_at: iso(T0 + 10),
+      read_state: "active",
+      held_data: "permitted",
+    });
     expect(manager.assessments(ref)).toHaveLength(before);
     // The replay counts as a failed attempt: a retry is due within the retry interval.
-    expect(manager.nextAttemptAt(ref)! - T0).toBeLessThanOrEqual(PDPP_RETRY_INTERVAL_MS);
+    expect(manager.nextAttemptAt(ref)! - T0).toBeLessThanOrEqual(
+      PDPP_RETRY_INTERVAL_MS,
+    );
   });
 
   it("Client 19 / P6: after expiry with keep, use stays within the approved purpose; other purposes need a new grant", async () => {
@@ -301,21 +490,31 @@ describe("positive assessment and surviving use (Client items 19, 20)", () => {
     hold();
     clock.advance(3 * H);
     expect(manager.hasEnded(ref)).toBe(true);
-    expect(manager.checkUse(ref, { purpose: g.purpose_code })).toEqual({ allowed: true });
-    expect(manager.checkUse(ref, { purpose: "https://pdpp.dev/purpose/research" })).toEqual({
+    expect(manager.checkUse(ref, { purpose: g.purpose_code })).toEqual({
+      allowed: true,
+    });
+    expect(
+      manager.checkUse(ref, { purpose: "https://pdpp.dev/purpose/research" }),
+    ).toEqual({
       allowed: false,
       reason: "purpose_not_approved",
     });
   });
 
   it("Client 19: a grant that carries a processing permission has no ordinary surviving use after it ends", async () => {
-    const g = grant({ processing_permissions: ["https://example.test/processing/x"], expires_at: iso(T0 + H) });
+    const g = grant({
+      processing_permissions: ["https://example.test/processing/x"],
+      expires_at: iso(T0 + H),
+    });
     const { manager, ref, agent, result, clock, hold } = setup({ grant: g });
     agent.recordTokenResponse(result);
     hold();
     expect(manager.checkUse(ref)).toEqual({ allowed: true });
     clock.advance(2 * H);
-    expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "no_surviving_use" });
+    expect(manager.checkUse(ref)).toEqual({
+      allowed: false,
+      reason: "no_surviving_use",
+    });
     // Keeping is allowed: nothing is deleted.
     expect(manager.holdsData(ref)).toBe(true);
   });
@@ -323,7 +522,8 @@ describe("positive assessment and surviving use (Client items 19, 20)", () => {
 
 describe("reconciliation (Client item 21; cases C1, C1a)", () => {
   it("C1: first attempt is due one interval after first acquisition, then once per interval; none while nothing is held", async () => {
-    const { manager, ref, agent, result, clock, hold, lifecycleCalls, copy } = setup();
+    const { manager, ref, agent, result, clock, hold, lifecycleCalls, copy } =
+      setup();
     agent.recordTokenResponse(result);
     clock.advance(H);
     await agent.runDue();
@@ -348,19 +548,24 @@ describe("reconciliation (Client item 21; cases C1, C1a)", () => {
   });
 
   it("C1 variant: data cleared before the first attempt, then reacquired after an interval: query before further use", async () => {
-    const { manager, ref, agent, result, clock, hold, copy, lifecycleCalls } = setup();
+    const { manager, ref, agent, result, clock, hold, copy, lifecycleCalls } =
+      setup();
     agent.recordTokenResponse(result);
     hold();
     copy.erase(ref);
     clock.advance(PDPP_RECONCILIATION_INTERVAL_MS + H);
     hold();
-    expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "query_required" });
+    expect(manager.checkUse(ref)).toEqual({
+      allowed: false,
+      reason: "query_required",
+    });
     expect(await agent.ensureMayUse(ref)).toEqual({ allowed: true });
     expect(lifecycleCalls()).toHaveLength(1);
   });
 
   it("C1a: an outage covering a scheduled attempt is retried within the retry interval of each start", async () => {
-    const { ref, agent, result, clock, hold, as, lifecycleCalls, manager } = setup();
+    const { ref, agent, result, clock, hold, as, lifecycleCalls, manager } =
+      setup();
     agent.recordTokenResponse(result);
     hold();
     for (let outage = 0; outage < 2; outage += 1) {
@@ -385,7 +590,8 @@ describe("reconciliation (Client item 21; cases C1, C1a)", () => {
   });
 
   it("C1a: an unanswered request does not delay the next attempt beyond the retry interval of its start", async () => {
-    const { ref, agent, result, clock, hold, as, lifecycleCalls, manager } = setup();
+    const { ref, agent, result, clock, hold, as, lifecycleCalls, manager } =
+      setup();
     agent.recordTokenResponse(result);
     hold();
     clock.advance(PDPP_RECONCILIATION_INTERVAL_MS);
@@ -393,7 +599,9 @@ describe("reconciliation (Client item 21; cases C1, C1a)", () => {
     void agent.runDue(); // never answered
     await tick(); // runDue completes due disposal before it starts attempts
     const firstStart = lifecycleCalls().at(-1)!.at;
-    expect(manager.nextAttemptAt(ref)! - firstStart).toBeLessThanOrEqual(PDPP_RETRY_INTERVAL_MS);
+    expect(manager.nextAttemptAt(ref)! - firstStart).toBeLessThanOrEqual(
+      PDPP_RETRY_INTERVAL_MS,
+    );
     clock.set(manager.nextAttemptAt(ref)!);
     void agent.runDue();
     await tick();
@@ -412,17 +620,22 @@ describe("reconciliation (Client item 21; cases C1, C1a)", () => {
     as.retryAfter = String(5 * 24 * 3600);
     clock.set(manager.nextAttemptAt(ref)!);
     await agent.runDue();
-    expect(manager.nextAttemptAt(ref)! - clock.now()).toBe(PDPP_RECONCILIATION_INTERVAL_MS);
+    expect(manager.nextAttemptAt(ref)! - clock.now()).toBe(
+      PDPP_RECONCILIATION_INTERVAL_MS,
+    );
     as.mode = "rate_limited";
     clock.set(manager.nextAttemptAt(ref)!);
     expect(await agent.runDue()).toEqual(["failed"]);
-    expect(manager.nextAttemptAt(ref)! - clock.now()).toBeLessThanOrEqual(PDPP_RETRY_INTERVAL_MS);
+    expect(manager.nextAttemptAt(ref)! - clock.now()).toBeLessThanOrEqual(
+      PDPP_RETRY_INTERVAL_MS,
+    );
     // A failed query does not stop permitted use.
     expect(manager.checkUse(ref)).toEqual({ allowed: true });
   });
 
   it("C1a: a 3-day transport outage widens retries only after one interval of failures, never beyond it", async () => {
-    const { ref, agent, result, clock, hold, as, manager, lifecycleCalls } = setup();
+    const { ref, agent, result, clock, hold, as, manager, lifecycleCalls } =
+      setup();
     agent.recordTokenResponse(result);
     hold();
     const outageStart = T0 + PDPP_RECONCILIATION_INTERVAL_MS;
@@ -433,17 +646,24 @@ describe("reconciliation (Client item 21; cases C1, C1a)", () => {
       clock.set(manager.nextAttemptAt(ref)!);
     }
     const starts = lifecycleCalls().map((c) => c.at);
-    const gaps = starts.slice(1).map((s, i) => ({ at: starts[i]!, gap: s - starts[i]! }));
+    const gaps = starts
+      .slice(1)
+      .map((s, i) => ({ at: starts[i]!, gap: s - starts[i]! }));
     for (const { at, gap } of gaps) {
       expect(gap).toBeLessThanOrEqual(
-        at - outageStart >= PDPP_RECONCILIATION_INTERVAL_MS ? PDPP_RECONCILIATION_INTERVAL_MS : PDPP_RETRY_INTERVAL_MS,
+        at - outageStart >= PDPP_RECONCILIATION_INTERVAL_MS
+          ? PDPP_RECONCILIATION_INTERVAL_MS
+          : PDPP_RETRY_INTERVAL_MS,
       );
     }
-    expect(Math.max(...gaps.map((g) => g.gap))).toBeGreaterThan(PDPP_RETRY_INTERVAL_MS); // widening happened
+    expect(Math.max(...gaps.map((g) => g.gap))).toBeGreaterThan(
+      PDPP_RETRY_INTERVAL_MS,
+    ); // widening happened
   });
 
   it("C1a suspension: no attempts while off; on resume a query starts before any use, and a failed one does not stop use", async () => {
-    const { ref, agent, result, clock, hold, as, manager, lifecycleCalls } = setup();
+    const { ref, agent, result, clock, hold, as, manager, lifecycleCalls } =
+      setup();
     agent.recordTokenResponse(result);
     hold();
     clock.advance(PDPP_RECONCILIATION_INTERVAL_MS);
@@ -452,18 +672,34 @@ describe("reconciliation (Client item 21; cases C1, C1a)", () => {
     const calls = lifecycleCalls().length;
     clock.advance(3 * 24 * H); // powered off
     expect(lifecycleCalls()).toHaveLength(calls);
-    expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "query_required" });
+    expect(manager.checkUse(ref)).toEqual({
+      allowed: false,
+      reason: "query_required",
+    });
     expect(await agent.ensureMayUse(ref)).toEqual({ allowed: true });
     expect(lifecycleCalls()).toHaveLength(calls + 1);
   });
 });
 
 describe("grant signals (Client item 9)", () => {
-  const rs = (status: number, body: unknown, headers: Record<string, string>) => async () =>
-    new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
+  const rs =
+    (status: number, body: unknown, headers: Record<string, string>) =>
+    async () =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json", ...headers },
+      });
 
   it("Client 9: 401 invalid_token stops the token, is not revocation, and makes a lifecycle query due before use", async () => {
-    const { manager, ref, agent, result, hold, grant: g, lifecycleCalls } = setup();
+    const {
+      manager,
+      ref,
+      agent,
+      result,
+      hold,
+      grant: g,
+      lifecycleCalls,
+    } = setup();
     agent.recordTokenResponse(result);
     hold();
     const client = new PdppResourceClient({
@@ -471,13 +707,20 @@ describe("grant signals (Client item 9)", () => {
       accessToken: "at_1",
       issuedGrant: { issuer: ISSUER, grant: g },
       heldData: manager,
-      fetch: rs(401, { error: { code: "authentication_error", message: "x" } }, { "WWW-Authenticate": 'Bearer error="invalid_token"' }),
+      fetch: rs(
+        401,
+        { error: { code: "authentication_error", message: "x" } },
+        { "WWW-Authenticate": 'Bearer error="invalid_token"' },
+      ),
     });
     await expect(client.listRecords("top_artists")).rejects.toThrow();
     expect(client.stoppedReason).toBe("token_inactive");
     expect(manager.hasEnded(ref)).toBe(false);
     expect(manager.erasureRecord(ref)).toBeUndefined();
-    expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "query_required" });
+    expect(manager.checkUse(ref)).toEqual({
+      allowed: false,
+      reason: "query_required",
+    });
     expect(await agent.ensureMayUse(ref)).toEqual({ allowed: true });
     expect(lifecycleCalls()).toHaveLength(1);
   });
@@ -491,9 +734,15 @@ describe("grant signals (Client item 9)", () => {
       accessToken: "at_1",
       issuedGrant: { issuer: ISSUER, grant: g },
       heldData: manager,
-      fetch: rs(401, { error: { code: "grant_revoked", message: "x" } }, { "WWW-Authenticate": 'Bearer error="invalid_token"' }),
+      fetch: rs(
+        401,
+        { error: { code: "grant_revoked", message: "x" } },
+        { "WWW-Authenticate": 'Bearer error="invalid_token"' },
+      ),
     });
-    await expect(client.sync("top_artists", new InMemoryPdppSyncCopy())).rejects.toThrow();
+    await expect(
+      client.sync("top_artists", new InMemoryPdppSyncCopy()),
+    ).rejects.toThrow();
     expect(client.stoppedReason).toBe("grant_revoked");
     expect(manager.checkUse(ref).allowed).toBe(false);
     expect(manager.holdsData(ref)).toBe(true);
@@ -507,9 +756,17 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     hold();
     const other: PdppGrantRef = { issuer: ISSUER, grantId: "grt_B" };
     const derivatives: string[] = [];
-    await manager.registerDerivative({ id: "emb_1", inputs: [ref], erase: () => (derivatives.push("emb_1 deleted"), "deleted") });
+    await manager.registerDerivative({
+      id: "emb_1",
+      inputs: [ref],
+      erase: () => (derivatives.push("emb_1 deleted"), "deleted"),
+    });
     // P2: a derivative mixing two grants is regenerated without the covered one.
-    await manager.registerDerivative({ id: "mix_1", inputs: [ref, other], erase: () => (derivatives.push("mix_1 regenerated"), "regenerated") });
+    await manager.registerDerivative({
+      id: "mix_1",
+      inputs: [ref, other],
+      erase: () => (derivatives.push("mix_1 regenerated"), "regenerated"),
+    });
     const signal = manager.useSignal(ref);
     clock.advance(5 * H);
     as.erase("grt_1", clock.now() - H);
@@ -541,10 +798,17 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     const first = { ...manager.erasureRecord(ref)! };
     clock.advance(24 * H);
     await agent.query(ref);
-    expect(manager.erasureRecord(ref)!.firstReceiptAt).toBe(first.firstReceiptAt);
+    expect(manager.erasureRecord(ref)!.firstReceiptAt).toBe(
+      first.firstReceiptAt,
+    );
     expect(manager.erasureRecord(ref)!.deleteBy).toBe(first.deleteBy);
     const attempt = manager.beginAttempt(ref);
-    await manager.recordAnswer(ref, attempt, { grant_id: "grt_1", assessed_at: iso(clock.now() + 10_000), read_state: "revoked", held_data: "permitted" });
+    await manager.recordAnswer(ref, attempt, {
+      grant_id: "grt_1",
+      assessed_at: iso(clock.now() + 10_000),
+      read_state: "revoked",
+      held_data: "permitted",
+    });
     agent.recordTokenResponse(result);
     expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "erased" });
   });
@@ -574,7 +838,9 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
       { grantId: "grt_1", report: "received", reported_at: iso(clock.now()) },
       { grantId: "grt_1", report: "completed", reported_at: iso(clock.now()) },
     ]);
-    expect(manager.erasureRecord(ref)!.instructionId).toBe(erasure.instruction_id);
+    expect(manager.erasureRecord(ref)!.instructionId).toBe(
+      erasure.instruction_id,
+    );
   });
 
   it("Client 23: overdue disposal is completed before further use and the missed deadline is recorded", async () => {
@@ -595,19 +861,30 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     expect(manager.erasureRecord(ref)!.pending).toEqual(["store:disk"]);
     clock.advance(PDPP_DELETION_BOUND_MS + H); // powered off past the deadline
     failing = false;
-    expect(await agent.ensureMayUse(ref)).toEqual({ allowed: false, reason: "erased" });
+    expect(await agent.ensureMayUse(ref)).toEqual({
+      allowed: false,
+      reason: "erased",
+    });
     const record = manager.erasureRecord(ref)!;
     expect(record.completedAt).toBe(iso(clock.now()));
     expect(record.missedDeadline).toBe(true);
   });
 
   it("C6 / Client 23: a record past its retention ceiling is disposed before further use", async () => {
-    const g = grant({ retention: { max_duration: "P1D", on_expiry: "delete" } });
-    const { manager, ref, agent, result, hold, clock, copy } = setup({ grant: g });
+    const g = grant({
+      retention: { max_duration: "P1D", on_expiry: "delete" },
+    });
+    const { manager, ref, agent, result, hold, clock, copy } = setup({
+      grant: g,
+    });
     agent.recordTokenResponse(result);
     hold();
     const expired: string[] = [];
-    await manager.registerDerivative({ id: "summary", inputs: [ref], erase: (_r, reason) => (expired.push(reason), "deleted") });
+    await manager.registerDerivative({
+      id: "summary",
+      inputs: [ref],
+      erase: (_r, reason) => (expired.push(reason), "deleted"),
+    });
     clock.advance(PDPP_RECONCILIATION_INTERVAL_MS + 1);
     await agent.ensureMayUse(ref);
     expect(copy.holdsData(ref)).toBe(false);
@@ -629,7 +906,10 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     const fresh = setup();
     fresh.agent.recordTokenResponse(fresh.result);
     fresh.manager.markClockUncertain();
-    expect(fresh.manager.checkUse(fresh.ref)).toEqual({ allowed: false, reason: "clock_uncertain" });
+    expect(fresh.manager.checkUse(fresh.ref)).toEqual({
+      allowed: false,
+      reason: "clock_uncertain",
+    });
     fresh.manager.establishClock();
     expect(fresh.manager.checkUse(fresh.ref)).toEqual({ allowed: true });
   });
@@ -638,27 +918,69 @@ describe("erasure (Client items 22, 23, 26; cases C2, C4, C5a, C6, C9, P2)", () 
     const { manager, ref, agent, result, hold, clock, as } = setup();
     agent.recordTokenResponse(result);
     hold();
-    await expect(manager.recordLegalRetention(ref, { scope: "invoices", basis: "tax law", until: "event:  " })).rejects.toThrow(TypeError);
-    await expect(manager.recordLegalRetention(ref, { scope: "invoices", basis: "tax law", until: "2027" })).rejects.toThrow(TypeError);
-    await manager.recordLegalRetention(ref, { scope: "invoices for 2026", basis: "tax record-keeping law", until: "event:close of the 2026 tax audit" });
+    await expect(
+      manager.recordLegalRetention(ref, {
+        scope: "invoices",
+        basis: "tax law",
+        until: "event:  ",
+      }),
+    ).rejects.toThrow(TypeError);
+    await expect(
+      manager.recordLegalRetention(ref, {
+        scope: "invoices",
+        basis: "tax law",
+        until: "2027",
+      }),
+    ).rejects.toThrow(TypeError);
+    await manager.recordLegalRetention(ref, {
+      scope: "invoices for 2026",
+      basis: "tax record-keeping law",
+      until: "event:close of the 2026 tax audit",
+    });
     as.erase("grt_1", clock.now());
     as.current.get("grt_1")!.add("rt_1");
     await agent.query(ref);
-    const retained = as.calls.filter((c) => c.form.get("report") === "retained");
+    const retained = as.calls.filter(
+      (c) => c.form.get("report") === "retained",
+    );
     expect(retained).toHaveLength(1);
-    expect(retained[0]!.form.get("retained_until")).toBe("event:close of the 2026 tax audit");
-    expect(retained[0]!.form.get("retention_basis")).toBe("tax record-keeping law");
+    expect(retained[0]!.form.get("retained_until")).toBe(
+      "event:close of the 2026 tax audit",
+    );
+    expect(retained[0]!.form.get("retention_basis")).toBe(
+      "tax record-keeping law",
+    );
     await manager.recordLegalRetentionEnded(ref);
     await agent.sendReports(ref);
-    expect(as.received.map((r) => r.report)).toEqual(["received", "retained", "completed"]);
-    expect(manager.erasureRecord(ref)!.legalRetention).toMatchObject({ basis: "tax record-keeping law", until: "event:close of the 2026 tax audit" });
+    expect(as.received.map((r) => r.report)).toEqual([
+      "received",
+      "retained",
+      "completed",
+    ]);
+    expect(manager.erasureRecord(ref)!.legalRetention).toMatchObject({
+      basis: "tax record-keeping law",
+      until: "event:close of the 2026 tax audit",
+    });
     const record = manager.erasureRecord(ref)!;
     expect(Object.keys(record).sort()).toEqual(
       [
-        "instructionId", "asInstructionId", "origin", "acceptedAt", "effectiveAt", "asStopUseBy", "firstReceiptAt",
-        "learnedAfterStopUseBound", "stopUseBy", "stopUseAt", "deleteBy", "completedAt", "missedDeadline", "pending",
+        "instructionId",
+        "asInstructionId",
+        "origin",
+        "acceptedAt",
+        "effectiveAt",
+        "asStopUseBy",
+        "firstReceiptAt",
+        "learnedAfterStopUseBound",
+        "stopUseBy",
+        "stopUseAt",
+        "deleteBy",
+        "completedAt",
+        "missedDeadline",
+        "pending",
         "legalRetention",
-        "partiesInformed", "reports",
+        "partiesInformed",
+        "reports",
       ].sort(),
     );
   });
@@ -672,7 +994,12 @@ describe("downstream holders (Client item 24; cases C8, O5)", () => {
     const notices: unknown[] = [];
     manager.registerDownstreamHolder(ref, {
       id: "storage-provider",
-      terms: { purposeAndRetention: true, heldDataDuties: true, trainingRestriction: true, independentReuse: false },
+      terms: {
+        purposeAndRetention: true,
+        heldDataDuties: true,
+        trainingRestriction: true,
+        independentReuse: false,
+      },
       relayErasure: (notice) => {
         notices.push(notice);
         return { confirmedAt: iso(clock.now()) };
@@ -692,34 +1019,56 @@ describe("downstream holders (Client item 24; cases C8, O5)", () => {
         deleteBy: record.deleteBy,
       },
     ]);
-    expect(record.partiesInformed).toEqual([{ id: "storage-provider", informedAt: iso(clock.now()), confirmedAt: iso(clock.now()) }]);
+    expect(record.partiesInformed).toEqual([
+      {
+        id: "storage-provider",
+        informedAt: iso(clock.now()),
+        confirmedAt: iso(clock.now()),
+      },
+    ]);
   });
 
   it("Client 24: a party without the flow-down, or with independent reuse, cannot be registered as acting for the client", () => {
     const { manager, ref } = setup();
-    expect(() =>
-      { manager.registerDownstreamHolder(ref, {
+    expect(() => {
+      manager.registerDownstreamHolder(ref, {
         id: "model-host",
-        terms: { purposeAndRetention: true, heldDataDuties: true, trainingRestriction: true, independentReuse: true },
+        terms: {
+          purposeAndRetention: true,
+          heldDataDuties: true,
+          trainingRestriction: true,
+          independentReuse: true,
+        },
         relayErasure: () => undefined,
-      }); },
-    ).toThrow(PdppIndependentRecipientError);
-    expect(() =>
-      { manager.registerDownstreamHolder(ref, {
+      });
+    }).toThrow(PdppIndependentRecipientError);
+    expect(() => {
+      manager.registerDownstreamHolder(ref, {
         id: "cache",
-        terms: { purposeAndRetention: true, heldDataDuties: false, trainingRestriction: true, independentReuse: false },
+        terms: {
+          purposeAndRetention: true,
+          heldDataDuties: false,
+          trainingRestriction: true,
+          independentReuse: false,
+        },
         relayErasure: () => undefined,
-      }); },
-    ).toThrow(/held-data duties/);
+      });
+    }).toThrow(/held-data duties/);
   });
 
   it("Client 21 / 24: data held only by a party acting for the client keeps reconciliation due", async () => {
-    const { manager, ref, agent, result, hold, clock, copy, lifecycleCalls } = setup();
+    const { manager, ref, agent, result, hold, clock, copy, lifecycleCalls } =
+      setup();
     agent.recordTokenResponse(result);
     hold();
     manager.registerDownstreamHolder(ref, {
       id: "backup",
-      terms: { purposeAndRetention: true, heldDataDuties: true, trainingRestriction: true, independentReuse: false },
+      terms: {
+        purposeAndRetention: true,
+        heldDataDuties: true,
+        trainingRestriction: true,
+        independentReuse: false,
+      },
       relayErasure: () => undefined,
     });
     copy.erase(ref);
@@ -736,7 +1085,12 @@ describe("disconnect in the client (Client item 25; cases P4, D5)", () => {
     expect(offer.preselected).toBeNull();
     expect(offer.choices.map((c) => c.value)).toEqual(["keep", "delete"]);
     expect(offer.statement).toMatch(/data it already holds/);
-    await expect(agent.disconnect({ grants: [ref], disposition: undefined as unknown as "keep" })).rejects.toThrow(/explicit disposition/);
+    await expect(
+      agent.disconnect({
+        grants: [ref],
+        disposition: undefined as unknown as "keep",
+      }),
+    ).rejects.toThrow(/explicit disposition/);
   });
 
   it("P4: delete while the AS is unreachable binds at the owner's choice; conveyed later with reported_at", async () => {
@@ -745,7 +1099,11 @@ describe("disconnect in the client (Client item 25; cases P4, D5)", () => {
     hold();
     as.mode = "transport_down";
     const choseAt = clock.now();
-    const outcome = await agent.disconnect({ grants: [ref], disposition: "delete", choseAt });
+    const outcome = await agent.disconnect({
+      grants: [ref],
+      disposition: "delete",
+      choseAt,
+    });
     expect(outcome.conveyed).toBe(false);
     expect(manager.checkUse(ref)).toEqual({ allowed: false, reason: "erased" });
     expect(copy.holdsData(ref)).toBe(false);
@@ -757,7 +1115,9 @@ describe("disconnect in the client (Client item 25; cases P4, D5)", () => {
     as.mode = "up";
     await agent.sendReports(ref);
     // No revocation went through, so the lifecycle write conveys it.
-    const conveyed = as.calls.filter((c) => c.form.get("pdpp_disposition") === "delete");
+    const conveyed = as.calls.filter(
+      (c) => c.form.get("pdpp_disposition") === "delete",
+    );
     expect(conveyed.at(-1)!.form.get("reported_at")).toBe(iso(choseAt));
     expect(manager.erasureRecord(ref)!.reports.conveyance).toBe("sent");
     expect(manager.erasureRecord(ref)!.firstReceiptAt).toBe(iso(choseAt));
@@ -787,19 +1147,26 @@ describe("disconnect in the client (Client item 25; cases P4, D5)", () => {
     expect(revoke.form.has("reported_at")).toBe(false);
     expect(copy.holdsData(ref)).toBe(true);
     expect(manager.hasEnded(ref)).toBe(true);
-    expect(manager.checkUse(ref, { purpose: "https://pdpp.dev/purpose/analytics" })).toEqual({ allowed: true });
+    expect(
+      manager.checkUse(ref, { purpose: "https://pdpp.dev/purpose/analytics" }),
+    ).toEqual({ allowed: true });
   });
 
   it("D5: a report refused for lack of current authentication is resent with a lifecycle recovery token", async () => {
-    const { manager, ref, agent, result, hold, clock, as, credentials } = setup();
+    const { manager, ref, agent, result, hold, clock, as, credentials } =
+      setup();
     agent.recordTokenResponse(result);
     hold();
     as.erase("grt_1", clock.now());
     await agent.query(ref);
-    expect(manager.erasureRecord(ref)!.reports.received).toBe("needs_current_authentication");
+    expect(manager.erasureRecord(ref)!.reports.received).toBe(
+      "needs_current_authentication",
+    );
     const recovery = interpretRecoveryTokenResponse({
       access_token: "lt_1",
-      authorization_details: [{ type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: ["grt_1"] }],
+      authorization_details: [
+        { type: PDPP_GRANT_LIFECYCLE_TYPE, grant_ids: ["grt_1"] },
+      ],
     });
     as.issued.get("grt_1")!.add("lt_1");
     as.current.get("grt_1")!.add("lt_1");
@@ -808,7 +1175,9 @@ describe("disconnect in the client (Client item 25; cases P4, D5)", () => {
     expect(manager.checkUse(ref).allowed).toBe(false);
     await agent.sendReports(ref);
     expect(as.received.map((r) => r.report)).toEqual(["received", "completed"]);
-    expect(as.received[0]!.reported_at).toBe(manager.erasureRecord(ref)!.firstReceiptAt);
+    expect(as.received[0]!.reported_at).toBe(
+      manager.erasureRecord(ref)!.firstReceiptAt,
+    );
     expect(as.calls.at(-1)!.form.get("token")).toBe("lt_1");
   });
 
@@ -822,7 +1191,19 @@ describe("disconnect in the client (Client item 25; cases P4, D5)", () => {
       fetch: as.fetch,
     });
     agent.recordTokenResponse(result);
-    expect(await agent.disconnect({ grants: [ref], disposition: "keep" })).toEqual({ conveyed: false });
+    expect(
+      await agent.disconnect({ grants: [ref], disposition: "keep" }),
+    ).toEqual({
+      conveyed: false,
+      results: [
+        {
+          grant: ref,
+          disposition: "keep",
+          state: "not_conveyable",
+          reason: expect.stringMatching(/access did not end/),
+        },
+      ],
+    });
     expect(manager.hasEnded(ref)).toBe(false);
   });
 });
@@ -845,9 +1226,22 @@ describe("deliveries after erasure (Client item 22, erasure scope)", () => {
             object: "list",
             has_more: false,
             next_changes_since: "cs_9",
-            data: [{ object: "record", id: "late", instance_id: "inst_A", stream: "top_artists", data: { id: "late" } }],
+            data: [
+              {
+                object: "record",
+                id: "late",
+                instance_id: "inst_A",
+                stream: "top_artists",
+                data: { id: "late" },
+              },
+            ],
           }),
-          { headers: { "Content-Type": "application/json", "PDPP-Version": "0.1" } },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "PDPP-Version": "0.1",
+            },
+          },
         );
       },
     });
@@ -856,6 +1250,12 @@ describe("deliveries after erasure (Client item 22, erasure scope)", () => {
     release();
     await expect(pending).rejects.toMatchObject({ reason: "grant_erased" });
     expect(copy.holdsData(ref)).toBe(false);
-    expect(copy.syncToken({ issuer: ISSUER, grantId: g.grant_id, stream: "top_artists" })).toBeUndefined();
+    expect(
+      copy.syncToken({
+        issuer: ISSUER,
+        grantId: g.grant_id,
+        stream: "top_artists",
+      }),
+    ).toBeUndefined();
   });
 });

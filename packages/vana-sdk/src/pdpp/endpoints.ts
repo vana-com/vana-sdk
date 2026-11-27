@@ -15,11 +15,13 @@
  *   needs `https` unless the app sets `allowInsecureLan`, because tokens would
  *   cross the local network unencrypted;
  * - name a local or private host (loopback, LAN, `.local`, CGNAT/tailscale
- *   `100.64/10`, …) only when it is the base's own host, or when the app sets
- *   `allowLocal`. A Desktop or self-hosted Personal Server on `localhost`,
- *   a LAN address or a tailscale address therefore works when the app names it
- *   as the issuer; a metadata document that points somewhere else on the local
- *   network is refused.
+ *   `100.64/10`, …) only when the app sets `allowLocal: true`, the configured
+ *   issuer included (review F-SDK-3). Desktop and self-hosted Personal Server
+ *   apps set `allowLocal`; server-side builder apps that take a PS URL from an
+ *   owner must not, so their backend never calls an internal address a user
+ *   names. A local endpoint on another origin also needs `allowedOrigins`.
+ * - never name a cloud instance-metadata address (`169.254.0.0/16`,
+ *   `100.100.100.200`, `fd00:ec2::254`), whatever the policy.
  *
  * Hostnames that resolve to private addresses (DNS rebinding) cannot be
  * detected here without DNS; a server-side app that fetches owner-supplied
@@ -28,7 +30,11 @@
  * Every token-bearing request uses `redirect: "error"`, so a 307/308 cannot
  * replay a token to another host. Metadata fetches carry no token and follow
  * at most 3 redirects on the same host: a path change, or `http` to `https`
- * ({@link fetchPdppMetadata}).
+ * keeping host and port ({@link fetchPdppMetadata}). Limits: the hop rule
+ * relies on the runtime honouring `redirect: "manual"`; where it does not
+ * (React Native) only the final URL is checked, through `response.redirected`
+ * and `response.url`. No token is sent on these requests, and every endpoint
+ * the document names is still checked against the configured issuer.
  *
  * @category PDPP
  */
@@ -38,7 +44,11 @@ import { PdppProtocolError } from "./errors";
 export interface PdppEndpointPolicy {
   /** Extra origins endpoints may use (exact `scheme://host[:port]`). */
   allowedOrigins?: string[];
-  /** Also permit local and private hosts other than the base's own host (development). */
+  /**
+   * Permit local and private hosts (loopback, LAN, `.local`, tailscale), the
+   * configured issuer included. Set it in Desktop and self-hosted builds; leave
+   * it unset in server-side apps that accept owner-supplied URLs.
+   */
   allowLocal?: boolean;
   /**
    * Accept plain `http` to a private or LAN host other than loopback and
@@ -86,7 +96,11 @@ const LOCAL_SUFFIXES = [
   ".lan",
 ];
 
-function isLocalHost(hostname: string): { local: boolean; loopback: boolean } {
+function isLocalHost(hostname: string): {
+  local: boolean;
+  loopback: boolean;
+  metadata?: boolean;
+} {
   // A trailing dot names the same host (review R2-2).
   const h = hostname
     .toLowerCase()
@@ -100,6 +114,8 @@ function isLocalHost(hostname: string): { local: boolean; loopback: boolean } {
   if (v4) {
     const [a, b] = [Number(v4[1]), Number(v4[2])];
     const loopback = a === 127;
+    // Cloud instance-metadata services: always refused (review F-SDK-3).
+    const metadata = (a === 169 && b === 254) || h === "100.100.100.200";
     const local =
       loopback ||
       a === 0 ||
@@ -108,11 +124,14 @@ function isLocalHost(hostname: string): { local: boolean; loopback: boolean } {
       (a === 192 && b === 168) ||
       (a === 169 && b === 254) ||
       (a === 100 && b >= 64 && b <= 127);
-    return { local, loopback };
+    return { local, loopback, metadata };
   }
   if (h.includes(":")) {
     const g = ipv6Groups(h);
     if (!g) return { local: true, loopback: false }; // unparseable: fail closed
+    // AWS instance metadata over IPv6.
+    if (g.join(":") === [0xfd00, 0xec2, 0, 0, 0, 0, 0, 0x254].join(":"))
+      return { local: true, loopback: false, metadata: true };
     const zeros = (from: number, to: number) =>
       g.slice(from, to).every((x) => x === 0);
     const v4 = `${g[6]! >> 8}.${g[6]! & 255}.${g[7]! >> 8}.${g[7]! & 255}`;
@@ -128,13 +147,24 @@ function isLocalHost(hostname: string): { local: boolean; loopback: boolean } {
     // 6to4 (2002::/16) embeds an IPv4 address in groups 1-2 (review R3-f).
     if (g[0] === 0x2002) {
       const embedded = isLocalHost(v4At(g[1]!, g[2]!));
-      if (embedded.local) return { local: true, loopback: false };
+      if (embedded.local)
+        return {
+          local: true,
+          loopback: false,
+          metadata: embedded.metadata === true,
+        };
     }
     // Teredo (2001:0::/32): server IPv4 in groups 2-3, client IPv4 obfuscated (XOR 0xffff) in groups 6-7.
     if (g[0] === 0x2001 && g[1] === 0) {
       const server = isLocalHost(v4At(g[2]!, g[3]!));
       const client = isLocalHost(v4At(g[6]! ^ 0xffff, g[7]! ^ 0xffff));
-      if (server.local || client.local) return { local: true, loopback: false };
+      if (server.local || client.local) {
+        return {
+          local: true,
+          loopback: false,
+          metadata: server.metadata === true || client.metadata === true,
+        };
+      }
     }
     const local =
       (g[0]! & 0xfe00) === 0xfc00 || // unique local
@@ -169,29 +199,34 @@ export function assertPdppEndpoint(
   const baseUrl = new URL(base);
   const sameOrigin =
     url.origin === baseUrl.origin ||
-    // An http base upgraded to https on the same host (for example after a metadata redirect).
+    // An http base upgraded to https on the same host AND port (review F-SDK-4).
     (baseUrl.protocol === "http:" &&
       url.protocol === "https:" &&
-      url.hostname === baseUrl.hostname);
+      url.host === baseUrl.host);
   if (!sameOrigin && !(policy.allowedOrigins ?? []).includes(url.origin)) {
     throw new PdppProtocolError(
       `${what} is not on ${baseUrl.origin} or an allowed origin`,
     );
   }
-  const localAllowed = sameOrigin || policy.allowLocal === true;
-  if (host.local && !localAllowed) {
+  if (host.metadata) {
     throw new PdppProtocolError(
-      `${what} names a local or private host other than the configured one; set allowLocal for development`,
+      `${what} names a cloud instance-metadata address, which is never allowed`,
     );
   }
-  // Plain http: loopback and tailscale CGNAT only, unless the app allows an insecure LAN.
+  // Review F-SDK-3: every local or private host needs an explicit allowLocal,
+  // the configured issuer included. Desktop and self-hosted builds set it.
+  if (host.local && policy.allowLocal !== true) {
+    throw new PdppProtocolError(
+      `${what} names a local or private host; Desktop and self-hosted Personal Server apps set allowLocal`,
+    );
+  }
+  // Plain http: loopback, or tailscale CGNAT, or a LAN host with allowInsecureLan.
   const tailnet =
     /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(
       url.hostname,
     );
   const plainHttpOk =
     host.local &&
-    localAllowed &&
     (host.loopback || tailnet || policy.allowInsecureLan === true);
   if (url.protocol !== "https:" && !(url.protocol === "http:" && plainHttpOk)) {
     throw new PdppProtocolError(
@@ -225,6 +260,10 @@ export async function fetchPdppMetadata(
       if (followed.url) assertMetadataRedirect(current, followed.url);
       return followed;
     }
+    // A runtime that ignores redirect: "manual" (React Native) followed it already:
+    // check where it landed (review F-SDK-5).
+    if (response.redirected && response.url)
+      assertMetadataRedirect(url, response.url);
     const location = response.headers.get("location");
     if (response.status < 300 || response.status >= 400 || location === null)
       return response;
@@ -239,10 +278,9 @@ function assertMetadataRedirect(from: string, to: string): void {
   const a = new URL(from);
   const b = new URL(to);
   const samePlace = a.protocol === b.protocol && a.host === b.host;
+  // An upgrade keeps host and port (review F-SDK-4).
   const upgrade =
-    a.protocol === "http:" &&
-    b.protocol === "https:" &&
-    a.hostname === b.hostname;
+    a.protocol === "http:" && b.protocol === "https:" && a.host === b.host;
   if (!samePlace && !upgrade) {
     throw new PdppProtocolError("metadata redirect leaves the configured host");
   }

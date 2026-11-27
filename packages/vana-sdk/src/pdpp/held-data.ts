@@ -95,7 +95,10 @@ export interface PdppHeldDataStore {
 /**
  * A derivative the app keeps: an embedding, index, cache, label, summary.
  * `erase` must delete it, or regenerate it without the covered grant's data
- * and remove the old one (spec-core #erasure "Scope").
+ * and remove the old one (spec-core #erasure "Scope"). `erase` must be
+ * idempotent and re-entrant: disposal runs for several grants at once, so a
+ * derivative of two grants can be asked twice in parallel, and a call that
+ * timed out is asked again while the first may still run.
  */
 export interface PdppDerivative {
   id: string;
@@ -269,7 +272,22 @@ export interface PdppPersistedGrantState {
   /** No credential can query or write for this grant: the owner must approve lifecycle recovery. */
   needsRecovery?: boolean;
   /** A `keep` disconnect whose revocation has not reached the AS yet (review NEW-2). */
-  pendingRevocation?: { disposition: "keep"; choseAt: number };
+  /**
+   * A `keep` disconnect whose revocation has not reached the AS yet (review
+   * NEW-2). Its retries have their own backoff and never touch the lifecycle
+   * query schedule (review F-SDK-1).
+   */
+  pendingRevocation?: PdppPendingRevocation;
+  /** The owner ended access in this client (`keep` or a client revocation); binds at once (spec-core L1569). */
+  endedLocallyAt?: string;
+}
+
+/** A queued `keep` revocation and its retry state. */
+export interface PdppPendingRevocation {
+  disposition: "keep";
+  choseAt: number;
+  failures: number;
+  nextRetryAt: number;
 }
 
 /** Everything the manager must find again after a restart (review F4). */
@@ -545,6 +563,9 @@ export class PdppHeldDataManager {
         holderTerms: s.holderTerms,
         ...(s.needsRecovery && { needsRecovery: true }),
         ...(s.pendingRevocation && { pendingRevocation: s.pendingRevocation }),
+        ...(s.endedLocallyAt !== undefined && {
+          endedLocallyAt: s.endedLocallyAt,
+        }),
       })),
       derivatives: [...this.derivatives.values()].map((d) => ({
         id: d.id,
@@ -831,19 +852,53 @@ export class PdppHeldDataManager {
    */
   queueRevocation(ref: PdppGrantRef, choseAt: number): void {
     const s = this.ensure(ref);
-    s.pendingRevocation = { disposition: "keep", choseAt };
-    s.nextAttemptAt = Math.min(s.nextAttemptAt ?? choseAt, this.now());
+    if (s.erasure) return; // a delete always wins; keep is never sent after it (review F-SDK-2)
+    // Spec-core L1569: the owner's choice binds the client from the moment it is
+    // made, whether or not the AS records it. Access has ended for this client: no
+    // more reads, and held data follows the surviving-use terms (L1540-L1543).
+    this.endLocally(s, choseAt);
+    s.pendingRevocation = {
+      disposition: "keep",
+      choseAt,
+      failures: 0,
+      nextRetryAt: this.now(),
+    };
     this.persistInBackground();
   }
 
   /** The queued `keep` revocation, if any. */
   pendingRevocation(
     ref: PdppGrantRef,
-  ): { disposition: "keep"; choseAt: number } | undefined {
+  ): Readonly<PdppPendingRevocation> | undefined {
     return this.state_(ref)?.pendingRevocation;
   }
 
-  /** The queued revocation reached the AS. */
+  /** Grants whose queued revocation retry is due (never the lifecycle query schedule). */
+  dueRevocations(): PdppGrantRef[] {
+    const now = this.now();
+    return [...this.grants.values()]
+      .filter(
+        (g) =>
+          g.pendingRevocation !== undefined &&
+          g.pendingRevocation.nextRetryAt <= now,
+      )
+      .map((g) => g.ref);
+  }
+
+  /** A queued revocation retry failed: back off on its own schedule (at most the retry interval). */
+  recordRevocationFailure(ref: PdppGrantRef): void {
+    const p = this.state_(ref)?.pendingRevocation;
+    if (!p) return;
+    p.failures += 1;
+    const delay = Math.min(
+      PDPP_RETRY_INTERVAL_MS,
+      BASE_RETRY_DELAY_MS * 2 ** Math.min(30, p.failures - 1),
+    );
+    p.nextRetryAt = this.now() + delay;
+    this.persistInBackground();
+  }
+
+  /** The queued revocation reached the AS, or no longer applies. */
   clearRevocation(ref: PdppGrantRef): void {
     const s = this.state_(ref);
     if (s?.pendingRevocation) {
@@ -852,9 +907,12 @@ export class PdppHeldDataManager {
     }
   }
 
-  /** Work still owed to the AS: a queued revocation, a conveyance, a report, or learning the AS instruction id. */
+  private endLocally(s: GrantState, at: number): void {
+    s.endedLocallyAt ??= iso(at);
+  }
+
+  /** Erasure work still owed to the AS: a conveyance, a report, or learning the AS instruction id. */
   hasPendingLifecycleWork(ref: PdppGrantRef): boolean {
-    if (this.state_(ref)?.pendingRevocation) return true;
     const e = this.state_(ref)?.erasure;
     if (!e) return false;
     return (
@@ -936,6 +994,9 @@ export class PdppHeldDataManager {
       held_data: answer.held_data,
     });
     if (answer.read_state !== "unknown") s.readState = answer.read_state;
+    // The grant ended at the AS: a queued keep revocation has nothing left to do (review F-SDK-2).
+    if (s.readState === "revoked" || s.readState === "expired")
+      s.pendingRevocation = undefined;
     if (answer.ended_at !== undefined) s.endedAt = answer.ended_at;
     this.succeeded(s, s.attempts.get(attemptId) ?? now);
     if (erase) {
@@ -1029,6 +1090,8 @@ export class PdppHeldDataManager {
     endedAt: number = this.now(),
   ): void {
     const s = this.ensure(ref);
+    s.pendingRevocation = undefined; // review F-SDK-2
+    this.endLocally(s, endedAt);
     if (s.readState === "revoked" || s.readState === "expired") return;
     s.readState = readState;
     s.endedAt = iso(endedAt);
@@ -1339,6 +1402,7 @@ export class PdppHeldDataManager {
   }
 
   private ended(s: GrantState, now: number): boolean {
+    if (s.endedLocallyAt !== undefined) return true;
     if (s.readState === "revoked" || s.readState === "expired") return true;
     const expiresAt = s.grant?.expires_at;
     return expiresAt !== undefined && now >= Date.parse(expiresAt);
@@ -1425,6 +1489,7 @@ export class PdppHeldDataManager {
       },
     };
     s.positive = undefined;
+    s.pendingRevocation = undefined; // a delete supersedes a queued keep (review F-SDK-2)
     // Conveying the owner's choice, and learning the AS instruction id, are due at once.
     if (input.origin === "client_choice")
       s.nextAttemptAt = Math.min(s.nextAttemptAt ?? receivedAt, receivedAt);

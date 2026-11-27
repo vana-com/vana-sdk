@@ -769,6 +769,7 @@ describe("F7: endpoints from metadata are checked; tokens never follow redirects
             token_endpoint: "http://127.0.0.1:9999/token",
             pdpp_grant_lifecycle_endpoint: `${local}/gl`,
           }),
+        policy: { allowLocal: true },
       }),
     ).rejects.toThrow(/not on http:\/\/127\.0\.0\.1:8080/);
   });
@@ -1527,11 +1528,11 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
 
   it.each([
     ["a LAN Personal Server over https", "https://192.168.1.20:8443"],
-    ["a tailscale address", "http://100.101.102.103:8080"],
-    ["localhost", "http://localhost:8080"],
+    ["a tailscale address over http", "http://100.101.102.103:8080"],
+    ["localhost over http", "http://localhost:8080"],
     ["a .local name over https", "https://vana-ps.local"],
   ])(
-    "NEW-5: %s works when the app configures it as the issuer",
+    "F-SDK-3: %s works as the configured issuer only with allowLocal",
     async (_label, origin) => {
       const issuer = `${origin}/pdpp/v1`;
       const md = {
@@ -1544,27 +1545,29 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
         discoverPdppAuthorizationServer(issuer, {
           fetch: async () => json(md),
         }),
+      ).rejects.toThrow(/local or private host; Desktop and self-hosted/);
+      await expect(
+        discoverPdppAuthorizationServer(issuer, {
+          fetch: async () => json(md),
+          policy: { allowLocal: true },
+        }),
       ).resolves.toMatchObject({ issuer });
     },
   );
 
-  it("NEW-5: metadata naming another local host is refused; a public host still needs https", async () => {
+  it("F-SDK-3: with allowLocal, metadata naming another local host is still refused; a public host still needs https", async () => {
     await expect(
       discoverPdppAuthorizationServer(`${lan}/pdpp/v1`, {
         fetch: async () =>
           json(lanMetadata({ token_endpoint: "http://192.168.1.21/token" })),
+        policy: { allowLocal: true, allowInsecureLan: true },
       }),
-    ).rejects.toThrow(PdppProtocolError);
+    ).rejects.toThrow(/not on http:\/\/192\.168\.1\.20:8080/);
     await expect(
       discoverPdppAuthorizationServer("http://ps.example/pdpp/v1", {
         fetch: async () => json({}),
       }),
     ).rejects.toThrow(/https/);
-    expect(() =>
-      assertPdppEndpoint("http://192.168.1.21/x", lan, "endpoint", {
-        allowedOrigins: ["http://192.168.1.21"],
-      }),
-    ).toThrow(/local or private host other than the configured one/);
   });
 
   it("NEW-5: metadata fetches follow a same-host path redirect or an http→https upgrade, nothing else", async () => {
@@ -1789,7 +1792,8 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
       ],
     });
     expect(manager.pendingRevocation(ref)).toBeDefined();
-    expect(manager.hasEnded(ref)).toBe(false);
+    // Spec-core L1569: the owner's keep binds at once; access has ended for this client.
+    expect(manager.hasEnded(ref)).toBe(true);
     down = false;
     clock.advance(H);
     await agent.runDue();
@@ -1897,7 +1901,8 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
     });
   });
 
-  describe("plain http classes (decided narrowing of NEW-5)", () => {
+  describe("host classes (decided, review F-SDK-3)", () => {
+    const local = { allowLocal: true };
     const check = (url: string, policy = {}) =>
       assertPdppEndpoint(url, url, "issuer", policy);
 
@@ -1905,20 +1910,52 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
       "http://localhost:8080/pdpp/v1",
       "http://127.0.0.5:8080/x",
       "http://[::1]:8080/x",
-    ])("loopback over http is accepted: %s", (url) => {
-      expect(check(url)).toBe(new URL(url).toString());
+      "https://192.168.1.20/x",
+      "http://100.64.0.1/x",
+      "https://vana-ps.local/x",
+    ])(
+      "without allowLocal every local or private host is refused, issuer or not: %s",
+      (url) => {
+        expect(() => check(url)).toThrow(/local or private host/);
+      },
+    );
+
+    it.each([
+      "http://localhost:8080/pdpp/v1",
+      "http://127.0.0.5:8080/x",
+      "http://[::1]:8080/x",
+    ])("with allowLocal, loopback over http is accepted: %s", (url) => {
+      expect(check(url, local)).toBe(new URL(url).toString());
     });
 
     it.each([
       "http://100.64.0.1:8080/x",
       "http://100.101.102.103/x",
       "http://100.127.255.254/x",
-    ])("tailscale CGNAT over http is accepted: %s", (url) => {
-      expect(check(url)).toBe(new URL(url).toString());
+    ])("with allowLocal, tailscale CGNAT over http is accepted: %s", (url) => {
+      expect(check(url, local)).toBe(new URL(url).toString());
     });
 
+    it.each([
+      "http://100.100.100.200/latest/meta-data",
+      "https://100.100.100.200/x",
+      "http://169.254.169.254/latest/meta-data",
+      "https://169.254.0.1/x",
+      "http://[::ffff:169.254.169.254]/x",
+      "http://[fd00:ec2::254]/x",
+    ])(
+      "a cloud instance-metadata address is refused whatever the policy: %s",
+      (url) => {
+        expect(() =>
+          check(url, { allowLocal: true, allowInsecureLan: true }),
+        ).toThrow(/instance-metadata/);
+      },
+    );
+
     it("an address just outside CGNAT is public and needs https", () => {
-      expect(() => check("http://100.128.0.1/x")).toThrow(/must use https/);
+      expect(() => check("http://100.128.0.1/x", local)).toThrow(
+        /must use https/,
+      );
     });
 
     it.each([
@@ -1931,10 +1968,10 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
       "http://[fd00::1]/x",
       "http://[fe80::1]/x",
     ])(
-      "a LAN host over http needs https unless allowInsecureLan: %s",
+      "with allowLocal, a LAN host over http needs https unless allowInsecureLan: %s",
       (url) => {
-        expect(() => check(url)).toThrow(/must use https/);
-        expect(check(url, { allowInsecureLan: true })).toBe(
+        expect(() => check(url, local)).toThrow(/must use https/);
+        expect(check(url, { allowLocal: true, allowInsecureLan: true })).toBe(
           new URL(url).toString(),
         );
       },
@@ -1945,19 +1982,232 @@ describe("Trade-off sweep (NEW-1 to NEW-7)", () => {
       "https://192.168.1.20:8443/x",
       "https://vana-ps.local/x",
       "https://[fd00::1]/x",
-    ])("a LAN host over https is accepted without any flag: %s", (url) => {
-      expect(check(url)).toBe(new URL(url).toString());
+    ])("with allowLocal, a LAN host over https is accepted: %s", (url) => {
+      expect(check(url, local)).toBe(new URL(url).toString());
     });
 
-    it("allowInsecureLan does not widen the origin rule", () => {
+    it("allowInsecureLan and allowLocal do not widen the origin rule", () => {
       expect(() =>
         assertPdppEndpoint(
           "http://192.168.1.21/x",
           "http://192.168.1.20",
           "endpoint",
-          { allowInsecureLan: true },
+          { allowLocal: true, allowInsecureLan: true },
         ),
       ).toThrow(/not on http:\/\/192\.168\.1\.20/);
     });
+
+    it("F-SDK-4: an http→https upgrade keeps host and port", () => {
+      expect(
+        assertPdppEndpoint(
+          "https://localhost/t",
+          "http://localhost",
+          "endpoint",
+          local,
+        ),
+      ).toBe("https://localhost/t");
+      expect(() =>
+        assertPdppEndpoint(
+          "https://localhost:9443/t",
+          "http://localhost:8080",
+          "endpoint",
+          local,
+        ),
+      ).toThrow(/not on/);
+      expect(() =>
+        assertPdppEndpoint(
+          "https://192.168.1.20:9999/t",
+          "http://192.168.1.20:8080",
+          "endpoint",
+          local,
+        ),
+      ).toThrow(/not on/);
+    });
+  });
+});
+
+describe("Final sweep fixes (F-SDK-1, F-SDK-2, F-SDK-5)", () => {
+  function keepSetup(lifecycleAnswer: () => unknown) {
+    let t = T0;
+    const clock = { now: () => t, advance: (d: number) => (t += d) };
+    const manager = new PdppHeldDataManager({
+      state: new InMemoryPdppHeldDataStateStore(),
+      now: clock.now,
+    });
+    const copy = new InMemoryPdppSyncCopy(clock.now);
+    void manager.addStore(copy);
+    const calls = { lifecycle: 0, revoke: [] as URLSearchParams[] };
+    const revoke = { status: 503 };
+    const agent = new PdppLifecycleAgent({
+      manager,
+      lifecycleEndpoint: LIFECYCLE,
+      revocationEndpoint: REVOKE,
+      clientId: "c",
+      credentials: new InMemoryPdppLifecycleCredentials(clock.now),
+      fetch: async (url, init) => {
+        const form = new URLSearchParams(String(init?.body));
+        if (String(url) === REVOKE) {
+          calls.revoke.push(form);
+          return new Response(null, { status: revoke.status });
+        }
+        calls.lifecycle += 1;
+        return json({ grants: [lifecycleAnswer()] });
+      },
+    });
+    agent.recordTokenResponse(
+      interpretTokenResponse(
+        {
+          access_token: "at",
+          refresh_token: "rt",
+          authorization_details: [
+            { type: PDPP_DATA_ACCESS_TYPE, grant: grant() },
+          ],
+        },
+        ISSUER,
+      ),
+    );
+    const session = copy.beginSession(
+      { issuer: ISSUER, grantId: "grt_1", stream: "st" },
+      { replace: false },
+    );
+    session.apply(rec("r1") as never);
+    session.commit("cs");
+    manager.recordAcquisition(ref);
+    return { clock, manager, copy, agent, calls, revoke };
+  }
+
+  it("F-SDK-1: a keep revocation that fails for 60 days never stops the lifecycle query; the AS erasure is learned on day 1", async () => {
+    const x = keepSetup(() => eraseAnswer(T0 + 1));
+    const outcome = await x.agent.disconnect({
+      grants: [ref],
+      disposition: "keep",
+    });
+    expect(outcome.results[0]!.state).toBe("pending");
+    let learned = -1;
+    for (let day = 1; day <= 60; day += 1) {
+      x.clock.advance(D);
+      await x.agent.runDue();
+      if (learned < 0 && x.manager.erasureRecord(ref)) learned = day;
+    }
+    expect(learned).toBe(1);
+    expect(x.calls.lifecycle).toBeGreaterThan(0);
+    expect(x.copy.holdsData(ref)).toBe(false);
+    expect(x.manager.checkUse(ref)).toEqual({
+      allowed: false,
+      reason: "erased",
+    });
+    // The delete cleared the queued keep; no keep revocation is sent after it (F-SDK-2).
+    expect(x.manager.pendingRevocation(ref)).toBeUndefined();
+    const lastRevokes = x.calls.revoke.length;
+    x.clock.advance(D);
+    await x.agent.runDue();
+    expect(x.calls.revoke.length).toBe(lastRevokes);
+  });
+
+  it("F-SDK-1: while a keep is pending, reads stop and use stays within the surviving-use terms (spec-core L1569, L1540)", async () => {
+    const x = keepSetup(() => ({
+      grant_id: "grt_1",
+      assessed_at: iso(Date.now()),
+      read_state: "active",
+      held_data: "permitted",
+    }));
+    await x.agent.disconnect({ grants: [ref], disposition: "keep" });
+    expect(x.manager.hasEnded(ref)).toBe(true);
+    expect(x.manager.checkUse(ref, { purpose: grant().purpose_code })).toEqual({
+      allowed: true,
+    });
+    expect(
+      x.manager.checkUse(ref, { purpose: "https://pdpp.dev/purpose/research" }),
+    ).toEqual({
+      allowed: false,
+      reason: "purpose_not_approved",
+    });
+    const reads: string[] = [];
+    const client = new PdppResourceClient({
+      coreQueryBase: "https://ps.example/v1",
+      accessToken: "at",
+      issuedGrant: { issuer: ISSUER, grant: grant() },
+      heldData: x.manager,
+      fetch: async (u) => {
+        reads.push(String(u));
+        return page([]);
+      },
+    });
+    await expect(client.listRecords("st")).rejects.toMatchObject({
+      reason: "grant_ended",
+    });
+    expect(reads).toEqual([]);
+    // A later "active" lifecycle answer does not reopen reads.
+    x.clock.advance(D);
+    await x.agent.runDue();
+    expect(x.calls.lifecycle).toBeGreaterThan(0);
+    expect(x.manager.hasEnded(ref)).toBe(true);
+  });
+
+  it("F-SDK-2: delete after a queued keep clears it and only delete is sent", async () => {
+    const x = keepSetup(() => eraseAnswer(T0 + 1));
+    await x.agent.disconnect({ grants: [ref], disposition: "keep" });
+    expect(x.manager.pendingRevocation(ref)).toBeDefined();
+    x.revoke.status = 200;
+    await x.agent.disconnect({ grants: [ref], disposition: "delete" });
+    expect(x.manager.pendingRevocation(ref)).toBeUndefined();
+    x.clock.advance(D);
+    await x.agent.runDue();
+    expect(x.calls.revoke.map((f) => f.get("pdpp_disposition"))).toEqual([
+      "keep",
+      "delete",
+    ]); // the failed keep, then delete
+  });
+
+  it("F-SDK-2: a lifecycle answer that shows the grant ended clears the queued keep", async () => {
+    const x = keepSetup(() => ({
+      grant_id: "grt_1",
+      assessed_at: iso(Date.now()),
+      read_state: "revoked",
+      ended_at: iso(T0),
+      held_data: "permitted",
+    }));
+    await x.agent.disconnect({ grants: [ref], disposition: "keep" });
+    x.clock.advance(D);
+    await x.agent.runDue();
+    expect(x.manager.pendingRevocation(ref)).toBeUndefined();
+  });
+
+  it("F-SDK-2: a successful retry clears the grant even when familyGrants no longer lists it", async () => {
+    const x = keepSetup(() => ({
+      grant_id: "grt_1",
+      assessed_at: iso(Date.now()),
+      read_state: "active",
+      held_data: "permitted",
+    }));
+    await x.agent.disconnect({ grants: [ref], disposition: "keep" });
+    x.revoke.status = 200;
+    const credentials = (
+      x.agent as unknown as {
+        options: { credentials: InMemoryPdppLifecycleCredentials };
+      }
+    ).options.credentials;
+    credentials.familyGrants = () => [];
+    x.clock.advance(H);
+    await x.agent.runDue();
+    expect(x.manager.pendingRevocation(ref)).toBeUndefined();
+    const sent = x.calls.revoke.length;
+    x.clock.advance(D);
+    await x.agent.runDue();
+    expect(x.calls.revoke.length).toBe(sent);
+  });
+
+  it("F-SDK-5: a runtime that ignores redirect: manual and lands on another host is refused", async () => {
+    const autoFollow: typeof globalThis.fetch = async () => {
+      const r = json({ issuer: "x" });
+      Object.defineProperty(r, "redirected", { value: true });
+      Object.defineProperty(r, "url", {
+        value: "https://evil.example/.well-known/x",
+      });
+      return r;
+    };
+    await expect(
+      fetchPdppMetadata("https://ps.example/.well-known/x", autoFollow),
+    ).rejects.toThrow(/leaves the configured host/);
   });
 });

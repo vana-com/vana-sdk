@@ -782,14 +782,19 @@ export class PdppLifecycleAgent {
     await Promise.allSettled(
       this.manager.knownGrants().map((ref) => this.manager.disposeDue(ref)),
     );
+    // Review F-SDK-1: queued revocations retry on their own schedule, beside (never
+    // instead of) the lifecycle query and report schedule.
+    const revocations = this.manager
+      .dueRevocations()
+      .map((ref) => this.retryRevocation(ref));
     const started = this.manager.dueGrants().map((ref) => {
-      if (this.manager.pendingRevocation(ref)) return this.retryRevocation(ref);
       const conveyance = this.manager.erasureRecord(ref)?.reports.conveyance;
       return conveyance === "pending" ||
         conveyance === "needs_current_authentication"
         ? this.retryConveyance(ref)
         : this.query(ref);
     });
+    await Promise.allSettled(revocations);
     return Promise.all(started);
   }
 
@@ -1027,28 +1032,37 @@ export class PdppLifecycleAgent {
   private async retryRevocation(
     ref: PdppGrantRef,
   ): Promise<"answered" | "failed"> {
-    const attempt = this.manager.beginAttempt(ref);
-    const queued = this.manager.pendingRevocation(ref)!;
+    const queued = this.manager.pendingRevocation(ref);
+    if (!queued) return "answered";
+    // A delete since then supersedes the keep (review F-SDK-2).
+    if (this.manager.erasureRecord(ref)) {
+      this.manager.clearRevocation(ref);
+      return "answered";
+    }
     const refresh = this.options.credentials.refreshToken?.(ref);
     const family = this.options.credentials.familyGrants?.(ref) ?? [];
     const inside = family.every(
-      (f) => this.manager.pendingRevocation(f) !== undefined,
+      (f) =>
+        this.manager.pendingRevocation(f) !== undefined &&
+        !this.manager.erasureRecord(f),
     );
     if (
       this.revocationEndpoint === undefined ||
       refresh === undefined ||
       !inside
     ) {
-      this.manager.recordFailure(ref, attempt, { kind: "per_grant" });
+      this.manager.recordRevocationFailure(ref);
       return "failed";
     }
     if (!(await this.revokeFamily(refresh, "keep", queued.choseAt))) {
-      this.manager.recordFailure(ref, attempt, { kind: "transport" });
+      this.manager.recordRevocationFailure(ref);
       return "failed";
     }
-    for (const f of family) {
-      this.manager.clearRevocation(f);
-      this.afterRevocation(f, "keep");
+    // Clear the grant itself as well as every family member (review F-SDK-2).
+    const done = new Map([ref, ...family].map((g) => [refKey(g), g]));
+    for (const g of done.values()) {
+      this.manager.clearRevocation(g);
+      this.afterRevocation(g, "keep");
     }
     return "answered";
   }
